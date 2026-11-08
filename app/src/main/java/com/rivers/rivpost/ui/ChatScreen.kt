@@ -179,7 +179,14 @@ private class ChatData(val acc: TgAccount, val chatId: Long) {
             is MsgEvent.New -> if (e.m.chatId == chatId && messages.none { it.id == e.m.id }) messages.add(0, e.m)
             is MsgEvent.Replaced -> if (e.m.chatId == chatId) {
                 val i = messages.indexOfFirst { it.id == e.oldId }
-                if (i >= 0) messages[i] = e.m else if (messages.none { it.id == e.m.id }) messages.add(0, e.m)
+                val exists = messages.any { it.id == e.m.id }
+                if (i >= 0 && !exists) {
+                    messages[i] = e.m
+                } else if (i >= 0) {
+                    messages.removeAt(i)
+                } else if (!exists) {
+                    messages.add(0, e.m)
+                }
             }
             is MsgEvent.Deleted -> if (e.chatId == chatId) {
                 val ids = e.ids.toSet()
@@ -290,7 +297,7 @@ fun ChatScreen(acc: TgAccount, chatId: Long, onBack: () -> Unit) {
         }
     }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (ok) recording = recorder.start() else toast(ctx, t("Microphone permission is needed"))
+        if (ok) { recording = recorder.start() } else { toast(ctx, t("Microphone permission is needed")) }
     }
 
     val peerUserId = chat?.privateUserId ?: 0L

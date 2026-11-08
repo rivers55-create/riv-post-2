@@ -187,7 +187,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         HorizontalDivider(Modifier.padding(top = 8.dp))
         SectionTitle(t("Privacy"))
         SwitchRow(t("App lock"), t("Ask for a PIN when opening the app"), Prefs.lock) { on ->
-            if (on) pinDialog = true else Prefs.lock = false
+            if (on) { pinDialog = true } else { Prefs.lock = false }
         }
         if (Prefs.lock) {
             ClickRow(t("Change PIN"), null) { pinDialog = true }
@@ -267,10 +267,12 @@ private fun PinSetupDialog(onDone: (String?) -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = {
-                when {
-                    a.length < 4 -> err = t("Use at least 4 digits")
-                    a != b -> err = t("The PINs don't match")
-                    else -> onDone(a)
+                if (a.length < 4) {
+                    err = t("Use at least 4 digits")
+                } else if (a != b) {
+                    err = t("The PINs don't match")
+                } else {
+                    onDone(a)
                 }
             }) { Text(t("Save")) }
         },

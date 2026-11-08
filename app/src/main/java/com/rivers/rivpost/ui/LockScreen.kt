@@ -102,17 +102,19 @@ fun LockScreen(act: MainActivity) {
                         Modifier.size(72.dp).clip(CircleShape)
                             .background(if (k.length == 1) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background)
                             .clickable {
-                                when (k) {
-                                    "del" -> pin = pin.dropLast(1)
-                                    "bio" -> bio()
-                                    else -> press(k)
+                                if (k == "del") {
+                                    pin = pin.dropLast(1)
+                                } else if (k == "bio") {
+                                    bio()
+                                } else {
+                                    press(k)
                                 }
                             },
                         contentAlignment = Alignment.Center,
                     ) {
                         when (k) {
                             "del" -> Text("⌫", fontSize = 24.sp)
-                            "bio" -> if (canBio) Text("👆", fontSize = 24.sp)
+                            "bio" -> { if (canBio) Text("👆", fontSize = 24.sp) }
                             else -> Text(k, fontSize = 26.sp)
                         }
                     }
