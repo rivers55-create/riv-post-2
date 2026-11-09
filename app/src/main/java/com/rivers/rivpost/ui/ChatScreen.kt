@@ -679,7 +679,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             if (pin != null && Prefs.pinnedBar && !hidePinned && !searching) PinnedBar(acc, pin, onClick = { jumpTo(pin.id) }, onHide = { hidePinned = true })
             if (thread != 0L) InfoBanner("💬 " + t("Comments"))
             if (topic != 0) InfoBanner("# " + topicName.ifBlank { t("Topic") })
-            if (data.selected.isEmpty() && !searching) MiniPlayer()
+            if (data.selected.isEmpty() && !searching) MiniPlayer(compact = true)
             if (secret != null && secret.state is SecretChatStatePending) InfoBanner("🔒 " + t("Waiting for the other person to come online…"))
             if (secret != null && secret.state is SecretChatStateClosed) InfoBanner("🔒 " + t("This secret chat was closed"))
 

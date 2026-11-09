@@ -258,12 +258,14 @@ fun VideoPlayerScreen(req: PlayRequest, onClose: () -> Unit) {
     val player = remember(req.key) {
         Engine.build(ctx, req.userAgent, req.referer).apply {
             val f = req.file
+            val md = androidx.media3.common.MediaMetadata.Builder().setTitle(req.title).setArtist(if (req.live) "Live" else "Riv Post").build()
+            fun item(u: Uri) = MediaItem.Builder().setUri(u).setMediaId(req.key).setMediaMetadata(md).build()
             when {
-                f == null -> setMediaItem(MediaItem.fromUri(Uri.parse(req.url)))
-                f.local.isDownloadingCompleted && f.local.path.isNotEmpty() -> setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(f.local.path))))
+                f == null -> setMediaItem(item(Uri.parse(req.url)))
+                f.local.isDownloadingCompleted && f.local.path.isNotEmpty() -> setMediaItem(item(Uri.fromFile(java.io.File(f.local.path))))
                 else -> {
                     val src = ProgressiveMediaSource.Factory { TdlDataSource(acc!!, f) }
-                        .createMediaSource(MediaItem.fromUri(Uri.parse("tdl://file/" + f.id)))
+                        .createMediaSource(item(Uri.parse("tdl://file/" + f.id)))
                     setMediaSource(src)
                 }
             }
@@ -282,7 +284,8 @@ fun VideoPlayerScreen(req: PlayRequest, onClose: () -> Unit) {
             override fun onIsPlayingChanged(isPlaying: Boolean) { VideoState.playing = isPlaying }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l) }
+        if (Prefs.videoPanel) com.rivers.rivpost.media.VideoService.start(ctx, player)
+        onDispose { player.removeListener(l); com.rivers.rivpost.media.VideoService.stop(ctx) }
     }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, player) {

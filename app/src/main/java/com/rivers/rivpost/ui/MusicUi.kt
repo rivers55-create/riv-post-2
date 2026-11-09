@@ -159,9 +159,10 @@ fun coverColor(t: Track?): Color? {
 }
 
 @Composable
-fun MiniPlayer(modifier: Modifier = Modifier) {
+fun MiniPlayer(modifier: Modifier = Modifier, compact: Boolean = false) {
     val s = Music.current ?: return
     if (!Prefs.mMini) return
+    if (!compact && Prefs.miniStyle == "card") { MusicCard(s, modifier); return }
     val cs = MaterialTheme.colorScheme
     val style = LocalStyle.current
     val pos = rememberMusicPosition()
@@ -923,6 +924,77 @@ fun PillTabs(names: List<String>, selected: Int, counts: List<Int>? = null, onSe
                     ) { Text(if (c > 999) "999+" else c.toString(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (sel) style.pill else style.navBarFg) }
                 }
             }
+        }
+    }
+}
+
+
+/** Big player card (same layout as the phone's media panel). */
+@Composable
+fun MusicCard(s: Track, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val base = coverColor(s) ?: LocalStyle.current.accent
+    val bg = androidx.compose.ui.graphics.lerp(base, Color.Black, 0.45f)
+    val fg = Color.White
+    val pos = rememberMusicPosition()
+    val dur = Music.duration
+    var seeking by remember { mutableStateOf<Float?>(null) }
+    var drag by remember { mutableFloatStateOf(0f) }
+    Box(
+        modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp).clip(RoundedCornerShape(30.dp)).background(bg)
+            .clickable { Music.playerOpen = true }
+            .pointerInput(s.key) {
+                detectHorizontalDragGestures(onDragEnd = {
+                    if (drag < -120) Music.next() else if (drag > 120) Music.previous()
+                    drag = 0f
+                }) { _, d -> drag += d }
+            },
+    ) {
+        TrackArt(s, Modifier.align(Alignment.Center).size(150.dp).graphicsLayer { alpha = 0.55f }, CircleShape, 40.dp)
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Ic.Play, null, tint = fg, modifier = Modifier.size(18.dp).clip(CircleShape).background(fg.copy(alpha = 0.2f)).padding(2.dp))
+                Spacer(Modifier.width(8.dp))
+                val name = when (Music.outputKind) {
+                    "bt" -> Music.outputName.ifBlank { t("Bluetooth") }
+                    "wired" -> t("Wired headphones")
+                    else -> t("Phone speaker")
+                }
+                Text(name, color = fg.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(
+                    t("Media output"), color = fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    modifier = Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)).clickable { Music.openOutputSwitcher(ctx) }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(s.title, color = fg, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.6f))
+            Text(s.artist, color = fg.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(0.6f))
+            Spacer(Modifier.height(8.dp))
+            val prog = seeking ?: (if (dur > 0) pos.toFloat() / dur else 0f).coerceIn(0f, 1f)
+            WavySeekBar(
+                prog, Music.isPlaying && Prefs.mWavy, fg.copy(alpha = 0.9f), fg.copy(alpha = 0.25f),
+                onSeek = { seeking = it },
+                onSeekEnd = { seeking?.let { Music.seekTo((it * dur).toLong()) }; seeking = null },
+            )
+            Row {
+                Text(Fmt.duration(((seeking?.let { (it * dur).toLong() } ?: pos) / 1000).toInt()), color = fg.copy(alpha = 0.75f), fontSize = 12.sp)
+                Spacer(Modifier.weight(1f))
+                Text(Fmt.duration((dur / 1000).toInt()), color = fg.copy(alpha = 0.75f), fontSize = 12.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { Music.toggleShuffle() }) { Icon(Ic.Shuffle, null, tint = if (Music.shuffle) fg else fg.copy(alpha = 0.5f)) }
+                IconButton(onClick = { Music.previous() }) { Icon(Ic.SkipPrev, null, tint = fg, modifier = Modifier.size(34.dp)) }
+                IconButton(onClick = { Music.toggle() }, modifier = Modifier.size(56.dp)) {
+                    if (Music.loading) CircularProgressIndicator(Modifier.size(30.dp), color = fg, strokeWidth = 2.dp)
+                    else Icon(if (Music.isPlaying) Ic.Pause else Ic.Play, null, tint = fg, modifier = Modifier.size(40.dp))
+                }
+                IconButton(onClick = { Music.next() }) { Icon(Ic.SkipNext, null, tint = fg, modifier = Modifier.size(34.dp)) }
+                IconButton(onClick = { Music.cycleRepeat() }) { RepeatIcon(fg, fg.copy(alpha = 0.5f)) }
+            }
+        }
+        IconButton(onClick = { Music.stop() }, modifier = Modifier.align(Alignment.BottomEnd).size(34.dp)) {
+            Icon(Ic.Close, null, tint = fg.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
         }
     }
 }

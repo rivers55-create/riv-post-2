@@ -909,6 +909,12 @@ object Lang {
         "Adds posters, ratings and descriptions. Get a free key at themoviedb.org → Settings → API." to "يضيف الملصقات والتقييمات والأوصاف. احصل على مفتاح مجاني من themoviedb.org ← الإعدادات ← API.",
         "Swipe between tabs" to "السحب بين التبويبات",
         "Chat folders and music tabs" to "مجلدات المحادثات وتبويبات الموسيقى",
+        "Media output" to "إخراج الوسائط",
+        "Mini player style" to "شكل المشغل المصغر",
+        "Big card" to "بطاقة كبيرة",
+        "Small bar" to "شريط صغير",
+        "Video in the phone's media panel" to "الفيديو في لوحة الوسائط بالهاتف",
+        "Controls in the notification shade and lock screen" to "التحكم من شريط الإشعارات وشاشة القفل",
     )
 }
 

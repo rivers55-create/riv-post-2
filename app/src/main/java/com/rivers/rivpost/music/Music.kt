@@ -149,6 +149,12 @@ object Music {
                 if (state == Player.STATE_ENDED) onEnded()
             }
             override fun onTracksChanged(tracks: Tracks) { format = describe(tracks) }
+            override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
+                // "repeat all" keeps the player looping one item; we move to the next song ourselves
+                if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION && repeat == 1) scope.launch {
+                    if (sleepAfterTrack) { sleepAfterTrack = false; exo?.pause() } else next()
+                }
+            }
         })
         exo = p
         applySpeed()
@@ -257,12 +263,21 @@ object Music {
     fun seekTo(ms: Long) { exo?.seekTo(ms.coerceAtLeast(0)) }
     fun seekBy(ms: Long) { seekTo(position + ms) }
 
-    fun toggleShuffle() {
-        shuffle = !shuffle
+    fun toggleShuffle() = setShuffle(!shuffle)
+
+    fun setShuffle(on: Boolean) {
+        shuffle = on
         rebuildOrder(index.coerceAtLeast(0))
+        exo?.shuffleModeEnabled = on   // so the phone's media panel shows it
     }
 
-    fun cycleRepeat() { repeat = (repeat + 1) % 3 }
+    fun cycleRepeat() = setRepeat((repeat + 1) % 3)
+
+    /** 0 off, 1 all, 2 one. The phone's media panel reads it from the player. */
+    fun setRepeat(r: Int) {
+        repeat = r
+        exo?.repeatMode = when (r) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+    }
 
     fun jumpTo(i: Int) { playIndex(i) }
 

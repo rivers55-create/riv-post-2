@@ -15,6 +15,7 @@ private class QueuePlayer(p: Player) : ForwardingPlayer(p) {
     private val extra = intArrayOf(
         Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
         Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+        Player.COMMAND_SET_SHUFFLE_MODE, Player.COMMAND_SET_REPEAT_MODE,
     )
 
     override fun getAvailableCommands(): Player.Commands =
@@ -25,6 +26,10 @@ private class QueuePlayer(p: Player) : ForwardingPlayer(p) {
     override fun seekToNextMediaItem() { Music.next() }
     override fun seekToPrevious() { Music.previous() }
     override fun seekToPreviousMediaItem() { Music.previous() }
+    override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) { Music.setShuffle(shuffleModeEnabled) }
+    override fun setRepeatMode(repeatMode: Int) {
+        Music.setRepeat(when (repeatMode) { Player.REPEAT_MODE_ALL -> 1; Player.REPEAT_MODE_ONE -> 2; else -> 0 })
+    }
 }
 
 class MusicService : MediaSessionService() {

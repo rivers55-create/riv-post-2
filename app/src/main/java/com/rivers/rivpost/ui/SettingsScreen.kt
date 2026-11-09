@@ -200,6 +200,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         ChoiceRow(t("Video decoder"), listOf("hw" to "HW", "hwplus" to "HW+", "sw" to "SW"), Prefs.decoder) { Prefs.decoder = it }
         SwitchRow(t("FFmpeg audio"), t("Plays sound formats the phone can't (AC3, DTS…)"), Prefs.ffmpeg) { Prefs.ffmpeg = it }
         SwitchRow(t("Picture-in-picture"), t("Leaving the app keeps the video in a small window"), Prefs.autoPip) { Prefs.autoPip = it }
+        SwitchRow(t("Video in the phone's media panel"), t("Controls in the notification shade and lock screen"), Prefs.videoPanel) { Prefs.videoPanel = it }
         SwitchRow(t("Keep playing in background"), t("Video sound continues when the app is closed"), Prefs.bgVideo) { Prefs.bgVideo = it }
         ChoiceRow(t("Subtitle size"), listOf("16" to t("Small"), "20" to t("Medium"), "26" to t("Large"), "32" to t("Huge")), Prefs.subSize.toString()) { Prefs.subSize = it.toInt() }
         SwitchRow(t("Subtitle background"), null, Prefs.subBg) { Prefs.subBg = it }
@@ -229,6 +230,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Lyrics"), null, Prefs.mLyrics) { Prefs.mLyrics = it }
         SwitchRow(t("Find lyrics online"), "lrclib.net", Prefs.mOnlineLyrics) { Prefs.mOnlineLyrics = it }
         SwitchRow(t("Mini player"), null, Prefs.mMini) { Prefs.mMini = it }
+        ChoiceRow(t("Mini player style"), listOf("card" to t("Big card"), "pill" to t("Small bar")), Prefs.miniStyle) { Prefs.miniStyle = it }
         ClickRow(t("Music sources"), "›") { onSources("music") }
         SwitchRow(t("Each selected chat gets its own tab"), null, Prefs.selectedSplit) { Prefs.selectedSplit = it }
         SwitchRow(t("Hide short clips"), t("Hides songs shorter than the length below"), Prefs.hideShort) { Prefs.hideShort = it }
