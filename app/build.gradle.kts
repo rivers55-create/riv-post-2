@@ -11,8 +11,8 @@ android {
         applicationId = "com.rivers.rivpost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.9.0"
+        versionCode = 15
+        versionName = "2.0.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
@@ -89,6 +89,7 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.firebase:firebase-messaging:24.1.0")
     implementation("com.google.zxing:core:3.5.3")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("androidx.media3:media3-effect:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.5.1")

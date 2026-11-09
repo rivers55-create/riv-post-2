@@ -188,7 +188,7 @@ class MainActivity : FragmentActivity() {
 @Composable
 private fun Root(act: MainActivity) {
     RivTheme {
-        val dir = if (Lang.arabic) LayoutDirection.Rtl else LayoutDirection.Ltr
+        val dir = if (Lang.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr
         CompositionLocalProvider(LocalLayoutDirection provides dir) {
             Surface(
                 color = MaterialTheme.colorScheme.background,
@@ -253,7 +253,7 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
         is Screen.WebApp -> com.rivers.rivpost.ui.WebAppScreen(s.req, onClose = { act.pop() })
         is Screen.VideoNote -> com.rivers.rivpost.ui.VideoNoteScreen(acc, s.chatId, onClose = { act.pop() })
         is Screen.Page -> if (com.rivers.rivpost.ui.isMorePage(s.name)) com.rivers.rivpost.ui.MorePage(acc, act, s.name, onBack = { act.pop() }) else when (s.name) {
-            "account" -> AccountPage(acc, onBack = { act.pop() })
+            "account" -> AccountPage(acc, onBack = { act.pop() }, act = act)
             "privacy" -> PrivacyPage(acc, act, onBack = { act.pop() })
             "devices" -> DevicesPage(acc, onBack = { act.pop() })
             "data" -> DataPage(acc, act, onBack = { act.pop() })

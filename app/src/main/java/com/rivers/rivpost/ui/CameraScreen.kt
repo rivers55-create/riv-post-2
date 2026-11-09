@@ -65,6 +65,7 @@ fun CameraScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
     var shot by remember { mutableStateOf<String?>(null) }
     shot?.let { p ->
         PhotoEditor(p, "", onDone = { out, cap ->
+            if (com.rivers.rivpost.data.Prefs.saveEdited) saveToGallery(ctx, out)
             acc.scope.launch {
                 val r = acc.client.sendMessage(chatId = chatId, inputMessageContent = photoContent(out, cap))
                 if (r is TdlResult.Failure) android.os.Handler(android.os.Looper.getMainLooper()).post { toast(ctx, r.message) }

@@ -96,6 +96,11 @@ fun CustomizeScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val style = LocalStyle.current
     var reset by remember { mutableStateOf(false) }
+    val importTheme = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            if (ThemeFile.import(ctx, uri)) { toast(ctx, t("Theme imported. Restarting…")); restartApp(ctx) } else toast(ctx, t("That isn't a Riv Post theme file"))
+        }
+    }
     val pickWall = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             val f = withContext(Dispatchers.IO) {
@@ -164,7 +169,18 @@ fun CustomizeScreen(onBack: () -> Unit) {
                     }
                 }
             }
-            Choice(t("Theme"), listOf("dark" to t("Dark"), "light" to t("Light"), "system" to t("Follow phone")), Prefs.theme) { Prefs.theme = it }
+            Choice(t("Theme"), listOf("dark" to t("Dark"), "light" to t("Light"), "system" to t("Follow phone"), "schedule" to t("Night on a schedule")), Prefs.theme) { Prefs.theme = it }
+            if (Prefs.theme == "schedule") {
+                Choice(t("Night starts"), (17..23).map { it.toString() to "%02d:00".format(it) }, Prefs.nightFrom.toString()) { Prefs.nightFrom = it.toInt() }
+                Choice(t("Night ends"), (4..10).map { it.toString() to "%02d:00".format(it) }, Prefs.nightTo.toString()) { Prefs.nightTo = it.toInt() }
+            }
+            SwitchRow(t("Plain channel posts"), t("Channel posts as wide cards instead of bubbles"), Prefs.channelPlain) { Prefs.channelPlain = it }
+            SwitchRow(t("Reduce motion"), t("Fewer animations"), Prefs.reduceMotion) { Prefs.reduceMotion = it }
+            SwitchRow(t("Loop animated stickers"), null, Prefs.loopStickers) { Prefs.loopStickers = it }
+            Row(Modifier.padding(horizontal = 12.dp)) {
+                TextButton(onClick = { ThemeFile.export(ctx) }) { Text(t("Share my theme")) }
+                TextButton(onClick = { importTheme.launch("*/*") }) { Text(t("Import a theme")) }
+            }
 
             SwitchRow(t("Pure black (OLED)"), t("True #000000 background in dark mode"), Prefs.oled) { Prefs.oled = it }
             SwitchRow(t("Flat mode"), t("No rounded cards, borders or shadows"), Prefs.flat) { Prefs.flat = it }

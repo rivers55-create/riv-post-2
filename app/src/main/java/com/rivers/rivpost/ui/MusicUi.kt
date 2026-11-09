@@ -556,7 +556,12 @@ private fun QueuePage() {
     val cs = MaterialTheme.colorScheme
     val state = rememberLazyListState(initialFirstVisibleItemIndex = Music.index.coerceAtLeast(0))
     Column(Modifier.fillMaxSize()) {
-        Text(t("Up next") + " · ${q.size}", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+        val qs = rememberCoroutineScope()
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp)) {
+            Text(t("Up next") + " · ${q.size}", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 6.dp))
+            TextButton(onClick = { qs.launch { state.animateScrollToItem(Music.index.coerceAtLeast(0)) } }) { Text(t("Now playing")) }
+            TextButton(onClick = { Music.reverseQueue() }) { Text(t("Reverse")) }
+        }
         LazyColumn(state = state, modifier = Modifier.weight(1f)) {
             itemsIndexed(q, key = { i, s -> "${s.key}_$i" }) { i, s ->
                 val cur = i == Music.index
@@ -980,7 +985,7 @@ fun MusicCard(s: Track, modifier: Modifier = Modifier) {
             Text(Fmt.duration(((seeking?.let { (it * dur).toLong() } ?: pos) / 1000).toInt()), color = fg.copy(alpha = 0.75f), fontSize = 11.sp)
             Box(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                 WavySeekBar(
-                    prog, Music.isPlaying && Prefs.mWavy, fg.copy(alpha = 0.9f), fg.copy(alpha = 0.25f),
+                    prog, Music.isPlaying && Prefs.mWavy && !Prefs.reduceMotion, fg.copy(alpha = 0.9f), fg.copy(alpha = 0.25f),
                     onSeek = { seeking = it },
                     onSeekEnd = { seeking?.let { Music.seekTo((it * dur).toLong()) }; seeking = null },
                 )

@@ -263,6 +263,15 @@ object Music {
     fun seekTo(ms: Long) { exo?.seekTo(ms.coerceAtLeast(0)) }
     fun seekBy(ms: Long) { seekTo(position + ms) }
 
+    /** Flip the queue order, keeping the current song playing. */
+    fun reverseQueue() {
+        if (queue.size < 2) return
+        val cur = queue.getOrNull(index)
+        queue = queue.reversed()
+        index = if (cur != null) queue.indexOf(cur).coerceAtLeast(0) else 0
+        rebuildOrder(index)
+    }
+
     fun toggleShuffle() = applyShuffle(!shuffle)
 
     fun applyShuffle(on: Boolean) {

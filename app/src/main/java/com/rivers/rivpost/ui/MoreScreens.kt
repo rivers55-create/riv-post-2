@@ -128,6 +128,7 @@ private suspend fun <T> TdlResult<T>.report(ctx: Context, done: String? = null):
 fun isMorePage(name: String): Boolean = name.substringBefore(':') in setOf(
     "members", "topics", "admin", "links", "requests", "stats", "scheduled", "newchannel", "twostep",
     "stickers", "exceptions", "datausage", "blocked", "story", "firebase", "sendas", "adminlog",
+    "account2", "websites", "addcontact", "notifdefaults", "language", "wallpapers", "emojistatus", "iv", "storage", "qrscan", "mappick",
 )
 
 @Composable
@@ -150,6 +151,17 @@ fun MorePage(acc: TgAccount, act: MainActivity, name: String, onBack: () -> Unit
         "story" -> StoryViewer(acc, arg, onBack)
         "firebase" -> FirebaseScreen(acc, onBack)
         "adminlog" -> AdminLogScreen(acc, arg, onBack)
+        "account2" -> AccountExtrasScreen(acc, act, onBack)
+        "websites" -> WebsitesScreen(acc, onBack)
+        "addcontact" -> AddContactScreen(acc, act, onBack)
+        "notifdefaults" -> NotifDefaultsScreen(acc, onBack)
+        "language" -> LanguageScreen(acc, onBack)
+        "wallpapers" -> WallpapersScreen(acc, arg, onBack)
+        "emojistatus" -> EmojiStatusScreen(acc, onBack)
+        "iv" -> InstantViewScreen(acc, act, onBack)
+        "storage" -> StorageScreen(acc, onBack)
+        "qrscan" -> QrScanScreen(acc, onBack)
+        "mappick" -> MapPickScreen(acc, arg, onBack)
     }
 }
 
@@ -514,6 +526,9 @@ fun TwoStepScreen(acc: TgAccount, onBack: () -> Unit) {
                 }) { Text(t("Turn off"), color = Color(0xFFE57373)) }
             }
         }
+        var recover by remember { mutableStateOf(false) }
+        if (recover) PasswordRecoveryDialog(acc, atLogin = false) { recover = false; tick++ }
+        if (s.hasPassword && s.hasRecoveryEmailAddress) TextButton(onClick = { recover = true }, modifier = Modifier.padding(horizontal = 12.dp)) { Text(t("Forgot password?")) }
         if (s.recoveryEmailAddressCodeInfo != null) Text(t("Check your email for a confirmation code, then open Telegram's email link."), modifier = Modifier.padding(20.dp))
     }
 }
@@ -532,6 +547,39 @@ fun StickerPacksScreen(acc: TgAccount, onBack: () -> Unit) {
     }
     Page(t("Sticker packs"), onBack) {
         Text(t("To add a pack, tap a sticker in any chat and choose Add."), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        var q by remember { mutableStateOf("") }
+        var found by remember { mutableStateOf<List<StickerSetInfo>>(emptyList()) }
+        var showTrending by remember { mutableStateOf(false) }
+        LaunchedEffect(q, showTrending) {
+            delay(300)
+            found = when {
+                q.isNotBlank() -> acc.client.searchStickerSets(stickerType = StickerTypeRegular(), query = q).ok()?.sets?.toList().orEmpty()
+                showTrending -> acc.client.getTrendingStickerSets(stickerType = StickerTypeRegular(), offset = 0, limit = 40).ok()?.sets?.toList().orEmpty()
+                else -> emptyList()
+            }
+        }
+        OutlinedTextField(q, { q = it }, singleLine = true, placeholder = { Text(t("Search sticker packs")) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+        Row(Modifier.padding(horizontal = 12.dp)) {
+            TextButton(onClick = { showTrending = !showTrending }) { Text(if (showTrending) t("Hide trending") else "🔥 " + t("Trending")) }
+            TextButton(onClick = { acc.scope.launch { acc.client.clearRecentStickers(isAttached = false).report(ctx, t("Done")) } }) { Text(t("Clear recent")) }
+            TextButton(onClick = { acc.scope.launch { acc.client.clearRecentReactions().report(ctx, t("Done")); acc.client.clearRecentEmojiStatuses() } }) { Text(t("Clear recent reactions")) }
+        }
+        var preview by remember { mutableStateOf(0L) }
+        if (preview != 0L) StickerPackDialog(acc, preview) { preview = 0L; tick++ }
+        for (s in found) {
+            Row(Modifier.fillMaxWidth().clickable { preview = s.id }.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val cover = s.covers.firstOrNull()
+                Box(Modifier.size(44.dp)) { if (cover != null) StickerImage(acc, cover, Modifier.fillMaxSize()) }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(s.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${s.size} " + t("stickers"), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (s.isInstalled) Text("✓", color = MaterialTheme.colorScheme.primary)
+                else TextButton(onClick = { acc.scope.launch { acc.client.changeStickerSet(setId = s.id, isInstalled = true, isArchived = false).report(ctx, t("Added")); tick++ } }) { Text(t("Add")) }
+            }
+        }
+        if (found.isNotEmpty()) HorizontalDivider()
         val l = sets
         if (l == null) CircularProgressIndicator(Modifier.padding(20.dp))
         else l.forEachIndexed { i, s ->

@@ -10,13 +10,39 @@ object Lang {
     var arabic by mutableStateOf(false)
         private set
 
+    /** Right-to-left layout (Arabic, or another RTL language picked from Telegram's list). */
+    var rtl by mutableStateOf(false)
+        private set
+
+    /** Strings for a language translated with Telegram's translator (anything besides English/Arabic). */
+    var custom by mutableStateOf<Map<String, String>>(emptyMap())
+
+    private val rtlCodes = setOf("ar", "fa", "he", "ur", "ps", "ku", "ckb", "yi", "dv")
+
     fun update() {
-        arabic = when (Prefs.lang) {
+        val code = Prefs.lang
+        arabic = when (code) {
             "ar" -> true
-            "en" -> false
-            else -> Locale.getDefault().language == "ar"
+            "system" -> Locale.getDefault().language == "ar"
+            else -> false
         }
+        custom = if (code != "ar" && code != "en" && code != "system") load(code) else emptyMap()
+        rtl = arabic || code in rtlCodes
     }
+
+    fun file(code: String) = java.io.File(com.rivers.rivpost.tg.Tg.app.filesDir, "lang_$code.json")
+
+    private fun load(code: String): Map<String, String> = try {
+        val o = org.json.JSONObject(file(code).readText())
+        o.keys().asSequence().associateWith { o.getString(it) }
+    } catch (_: Throwable) { emptyMap() }
+
+    fun save(code: String, m: Map<String, String>) {
+        try { file(code).writeText(org.json.JSONObject(m).toString()) } catch (_: Throwable) { }
+    }
+
+    /** Every English string the app shows (keys of the Arabic table). */
+    val allKeys: Set<String> get() = AR.keys
 
     val AR: Map<String, String> = mapOf(
         "Add this proxy?" to "إضافة هذا البروكسي؟",
@@ -1024,4 +1050,4 @@ object Lang {
     )
 }
 
-fun t(s: String): String = if (Lang.arabic) Lang.AR[s] ?: s else s
+fun t(s: String): String = if (Lang.arabic) Lang.AR[s] ?: s else if (Lang.custom.isNotEmpty()) Lang.custom[s] ?: s else s

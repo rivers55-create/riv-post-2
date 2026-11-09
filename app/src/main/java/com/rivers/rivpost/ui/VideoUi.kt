@@ -451,7 +451,7 @@ fun TgsSticker(path: String, modifier: Modifier) {
     val j = json
     if (j == null) { Box(modifier); return }
     val comp by rememberLottieComposition(LottieCompositionSpec.JsonString(j))
-    LottieAnimation(comp, iterations = LottieConstants.IterateForever, modifier = modifier)
+    LottieAnimation(comp, iterations = if (Prefs.loopStickers && !Prefs.reduceMotion) LottieConstants.IterateForever else 1, modifier = modifier)
 }
 
 

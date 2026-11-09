@@ -457,6 +457,9 @@ class TgAccount(private val ctx: Context, val index: Int) {
         return files[f.id]!!
     }
 
+    suspend fun downloadSync(fileId: Int, priority: Int = 8): File? =
+        (client.downloadFile(fileId = fileId, priority = priority, offset = 0, limit = 0, synchronous = true) as? dev.g000sha256.tdl.TdlResult.Success)?.result
+
     fun download(f: File, priority: Int = 1) {
         if (f.local.isDownloadingCompleted || f.local.isDownloadingActive || !f.local.canBeDownloaded) return
         scope.launch { client.downloadFile(fileId = f.id, priority = priority, offset = 0, limit = 0, synchronous = false) }

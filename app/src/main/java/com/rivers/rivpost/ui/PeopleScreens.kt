@@ -117,6 +117,7 @@ fun ContactsPage(acc: TgAccount, act: MainActivity, query: String) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             RowItem(Ic.Group, t("New Group")) { act.push(Screen.NewGroup) }
+            RowItem(Ic.Account, t("Add Contact")) { act.push(Screen.Page("addcontact")) }
         }
         if (ids == null) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
         items(list, key = { it.id }) { u ->

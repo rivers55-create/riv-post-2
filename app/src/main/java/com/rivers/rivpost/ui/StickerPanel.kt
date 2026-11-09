@@ -2,6 +2,7 @@ package com.rivers.rivpost.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -60,6 +61,7 @@ import kotlinx.coroutines.launch
 private object StickerCache {
     var acc = -1
     var recent: List<Sticker> = emptyList()
+    var favorites: List<Sticker> = emptyList()
     var sets: List<Pair<String, List<Sticker>>> = emptyList()
     var gifs: List<Animation> = emptyList()
 }
@@ -90,6 +92,7 @@ private fun emojiList(): List<String> {
 /** Emoji, stickers and GIFs, opened from the smiley button. */
 @Composable
 fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessageContent) -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val style = LocalStyle.current
     val scope = rememberCoroutineScope()
     var tab by remember { mutableIntStateOf(1) }
@@ -99,6 +102,7 @@ fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessag
         if (StickerCache.acc == acc.index) return@LaunchedEffect
         loading = true
         StickerCache.recent = (acc.client.getRecentStickers(isAttached = false) as? TdlResult.Success)?.result?.stickers?.toList().orEmpty()
+        StickerCache.favorites = (acc.client.getFavoriteStickers() as? TdlResult.Success)?.result?.stickers?.toList().orEmpty()
         StickerCache.gifs = (acc.client.getSavedAnimations() as? TdlResult.Success)?.result?.animations?.toList().orEmpty()
         val infos = (acc.client.getInstalledStickerSets(stickerType = StickerTypeRegular()) as? TdlResult.Success)?.result?.sets?.toList().orEmpty()
         val sets = ArrayList<Pair<String, List<Sticker>>>()
@@ -125,9 +129,24 @@ fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessag
         @Suppress("UNUSED_VARIABLE") val w = tick
         when (tab) {
             0 -> {
-                val list = remember { emojiList() }
+                val all = remember { emojiList() }
+                var q by remember { mutableStateOf("") }
+                var found by remember { mutableStateOf<List<String>?>(null) }
+                LaunchedEffect(q) {
+                    if (q.isBlank()) { found = null; return@LaunchedEffect }
+                    kotlinx.coroutines.delay(250)
+                    found = (acc.client.searchEmojis(text = q, inputLanguageCodes = arrayOf("en", "ar")) as? TdlResult.Success)?.result?.emojiKeywords?.map { it.emoji }?.distinct().orEmpty()
+                }
+                val list = found ?: all
+                androidx.compose.foundation.text.BasicTextField(
+                    q, { q = it }, singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = style.navBarFg, fontSize = 15.sp),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(style.accent),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp).clip(RoundedCornerShape(14.dp)).background(style.navBarFg.copy(alpha = 0.08f)).padding(10.dp),
+                    decorationBox = { inner -> Box { if (q.isEmpty()) Text("🔍 " + t("Search emoji"), color = style.navBarFg.copy(alpha = 0.5f), fontSize = 15.sp); inner() } },
+                )
                 LazyVerticalGrid(GridCells.Adaptive(44.dp), Modifier.fillMaxSize()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    if (found == null) item(span = { GridItemSpan(maxLineSpan) }) {
                         Row(Modifier.padding(4.dp)) {
                             Text(t("Games") + ":", color = style.navBarFg.copy(alpha = 0.7f), fontSize = 13.sp, modifier = Modifier.padding(8.dp))
                             for (d in listOf("🎲", "🎯", "🏀", "⚽", "🎳", "🎰")) {
@@ -146,6 +165,7 @@ fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessag
             1 -> {
                 val grid = rememberLazyGridState()
                 val sections = buildList {
+                    if (StickerCache.favorites.isNotEmpty()) add("⭐ " + t("Favorites") to StickerCache.favorites)
                     if (StickerCache.recent.isNotEmpty()) add(t("Recent") to StickerCache.recent)
                     addAll(StickerCache.sets)
                 }
@@ -169,9 +189,18 @@ fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessag
                             Text(title, color = style.navBarFg.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(8.dp))
                         }
                         items(list) { s ->
-                            Box(Modifier.aspectRatio(1f).clip(RoundedCornerShape(10.dp)).clickable {
-                                onSend(InputMessageSticker(sticker = InputSticker(sticker = InputFileId(id = s.sticker.id), thumbnail = null, width = s.width, height = s.height), emoji = s.emoji))
-                            }.padding(4.dp)) { StickerThumb(acc, s, Modifier.fillMaxSize()) }
+                            Box(Modifier.aspectRatio(1f).clip(RoundedCornerShape(10.dp)).combinedClickable(
+                                onClick = { onSend(InputMessageSticker(sticker = InputSticker(sticker = InputFileId(id = s.sticker.id), thumbnail = null, width = s.width, height = s.height), emoji = s.emoji)) },
+                                onLongClick = {
+                                    val fav = StickerCache.favorites.any { it.sticker.id == s.sticker.id }
+                                    scope.launch {
+                                        if (fav) acc.client.removeFavoriteSticker(sticker = InputFileId(id = s.sticker.id)) else acc.client.addFavoriteSticker(sticker = InputFileId(id = s.sticker.id))
+                                        StickerCache.favorites = (acc.client.getFavoriteStickers() as? TdlResult.Success)?.result?.stickers?.toList().orEmpty()
+                                        tick++
+                                        toast(ctx, if (fav) t("Removed from favorites") else t("Added to favorites"))
+                                    }
+                                },
+                            ).padding(4.dp)) { StickerThumb(acc, s, Modifier.fillMaxSize()) }
                         }
                     }
                 }

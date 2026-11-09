@@ -81,6 +81,7 @@ val LocalStyle = staticCompositionLocalOf<StyleSpec> { error("no style") }
 fun isDark(system: Boolean): Boolean = when (Prefs.theme) {
     "light" -> false
     "system" -> system
+    "schedule" -> nightNow()
     else -> true
 }
 
@@ -173,6 +174,7 @@ private fun Color.compositeOver(under: Color): Color {
 
 @Composable
 fun RivTheme(content: @Composable () -> Unit) {
+    @Suppress("UNUSED_VARIABLE") val tick by androidx.compose.runtime.produceState(0) { while (true) { kotlinx.coroutines.delay(60_000); value++ } }
     val dark = isDark(isSystemInDarkTheme())
     val st = makeStyle(dark)
     val a = st.accent

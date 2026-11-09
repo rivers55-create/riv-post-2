@@ -60,6 +60,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -334,6 +336,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var stickers by remember { mutableStateOf(false) }
     var sendMenu by remember { mutableStateOf(false) }
     var pollDialog by remember { mutableStateOf(false) }
+    var checklistDialog by remember { mutableStateOf(false) }
+    var replyQuote by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var viewer by remember { mutableStateOf<String?>(null) }
     var viewerMsg by remember { mutableStateOf(0L) }
     var datePick by remember { mutableStateOf(false) }
@@ -428,6 +432,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             ?.result?.messages?.toList() ?: emptyList()
     }
 
+    LaunchedEffect(listState.isScrollInProgress) { if (listState.isScrollInProgress && Prefs.hideKbScroll) keyboard?.hide() }
     LaunchedEffect(HashtagNav.tag) {
         if (HashtagNav.tag.isNotBlank()) { searching = true; searchQuery = HashtagNav.tag; HashtagNav.tag = "" }
     }
@@ -454,7 +459,12 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             val res = acc.client.sendMessage(
                 chatId = chatId,
                 topicId = data.topicId,
-                replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
+                replyTo = r?.let {
+                    InputMessageReplyToMessage(
+                        messageId = it.id, checklistTaskId = 0, pollOptionId = "",
+                        quote = replyQuote?.let { q -> dev.g000sha256.tdl.dto.InputTextQuote(text = FormattedText(text = q.first, entities = emptyArray<TextEntity>()), richTexts = emptyArray(), position = q.second) },
+                    )
+                }.also { replyQuote = null },
                 options = opts,
                 inputMessageContent = content,
             )
@@ -495,6 +505,10 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 )
                 if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
             }
+            return
+        }
+        if (Prefs.liveFormat && Fmt2.hasMarks(s)) {
+            send(InputMessageText(text = withMentions(Fmt2.parse(s)), linkPreviewOptions = null, clearDraft = true), opts)
             return
         }
         if (Prefs.markdown && s.any { it == '*' || it == '_' || it == '`' || it == '[' }) {
@@ -692,6 +706,10 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         }
                         MenuItem(Ic.Image, t("Change Wallpaper")) { menu = false; confirm = "wallpaper" }
                         MenuItem(Ic.Clock, t("Scheduled messages")) { menu = false; act.push(Screen.Page("scheduled:$chatId")) }
+                        val autoTr = chatId in Prefs.idSet(Prefs.autoTranslateChats)
+                        MenuItem(Ic.Translate, if (autoTr) t("Stop translating chat") else t("Translate this chat")) {
+                            menu = false; Prefs.autoTranslateChats = Prefs.toggleId(Prefs.autoTranslateChats, chatId)
+                        }
                         if (data.pinned != null) MenuItem(Ic.Pin, t("Unpin all messages")) {
                             menu = false
                             acc.scope.launch {
@@ -738,6 +756,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         state = listState, reverseLayout = true, modifier = Modifier.fillMaxSize(), flingBehavior = rivFling(),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
+                        val lastOut = data.messages.firstOrNull { it.isOutgoing }?.id ?: 0L
                         itemsIndexed(data.messages, key = { _, m -> m.id }) { i, m ->
                             val older = data.messages.getOrNull(i + 1)
                             val albumId = m.mediaAlbumId
@@ -764,6 +783,14 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                     onSwitchInline = { q -> text = q },
                                     album = album,
                                 )
+                                if (Prefs.seenRow && m.isOutgoing && chat?.privateUserId != 0L && chat?.isSecret != true && m.id == lastOut && m.id <= (chat?.lastReadOutbox ?: 0L)) {
+                                    val rd = readDateText(acc, m)
+                                    Text(
+                                        if (rd.startsWith(t("Read at"))) "✓✓ " + t("Seen") + rd.removePrefix(t("Read at")) else "✓✓ " + t("Seen"),
+                                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.fillMaxWidth().padding(end = 16.dp, bottom = 2.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                    )
+                                }
                             }
                         }
                         if (data.loading) item {
@@ -921,6 +948,12 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     }
 
     if (sendAs) SendAsDialog(acc, chatId) { sendAs = false }
+    QuoteNav.msg?.let { qm ->
+        QuoteDialog(textOf(qm.content), onDismiss = { QuoteNav.msg = null }) { part, pos ->
+            replyTo = qm; replyQuote = part to pos; editing = null; QuoteNav.msg = null
+        }
+    }
+    if (checklistDialog) CreateChecklistDialog(onDismiss = { checklistDialog = false }) { send(it) }
     if (pollDialog) CreatePollDialog(onDismiss = { pollDialog = false }) { send(it) }
     if (selDelete) {
         val ids = data.selected.toLongArray()
@@ -941,7 +974,9 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     if (attach) AttachSheet(
         onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) },
         onPoll = if (chat?.isGroup == true || chat?.isChannel == true) ({ attach = false; pollDialog = true }) else null,
+        onChecklist = { attach = false; checklistDialog = true },
         onLiveLocation = { secs, l -> com.rivers.rivpost.tg.LiveLoc.start(ctx, acc, chatId, secs, l) { toast(ctx, it) } },
+        onMapPick = { attach = false; act.push(Screen.Page("mappick:$chatId")) },
         onSendAlbum = { list ->
             val r = replyTo
             replyTo = null
@@ -987,7 +1022,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     when (confirm) {
         "wallpaper" -> ChoiceDialog(
             t("Change Wallpaper"),
-            listOf(t("Pick a photo") to "pick", t("Blur on/off") to "blur", t("Darker") to "dim+", t("Lighter") to "dim-", t("Remove wallpaper") to "none"),
+            listOf(t("Pick a photo") to "pick", t("Telegram wallpapers") to "tg", t("Blur on/off") to "blur", t("Darker") to "dim+", t("Lighter") to "dim-", t("Remove wallpaper") to "none"),
             onDismiss = { confirm = "" },
         ) { k ->
             confirm = ""
@@ -996,6 +1031,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 "blur" -> { Prefs.wallBlur = !Prefs.wallBlur }
                 "dim+" -> { Prefs.wallDim = (Prefs.wallDim + 15).coerceAtMost(80) }
                 "dim-" -> { Prefs.wallDim = (Prefs.wallDim - 15).coerceAtLeast(0) }
+                "tg" -> act.push(Screen.Page("wallpapers"))
                 else -> { Prefs.wallpaper = "" }
             }
         }
@@ -1079,7 +1115,10 @@ private fun LocationCard(lat: Double, lon: Double, title: String, sub: String, f
     val style = LocalStyle.current
     Row(
         Modifier.padding(6.dp).widthIn(min = 220.dp).clip(RoundedCornerShape(12.dp)).background(style.accent.copy(alpha = 0.12f)).clickable {
-            try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            try {
+                val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon"))
+                ctx.startActivity(android.content.Intent.createChooser(i, t("Open with")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
             catch (_: Throwable) { toast(ctx, t("No maps app found")) }
         }.padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1124,7 +1163,7 @@ private fun AlbumGrid(acc: TgAccount, act: MainActivity, items: List<Message>, o
                     when (val c = m.content) {
                         is MessagePhoto -> {
                             val best = c.photo.sizes.filter { maxOf(it.width, it.height) <= 1280 }.maxByOrNull { it.width * it.height } ?: c.photo.sizes.lastOrNull()
-                            if (best != null) MediaBox(acc, best.photo, c.photo.minithumbnail, null, 1f, auto = Prefs.autoPhotos, isPhoto = true, box = cell, onOpen = { onPhoto(it) })
+                            if (best != null) MediaBox(acc, best.photo, c.photo.minithumbnail, null, 1f, auto = AutoDl.photos(), isPhoto = true, box = cell, onOpen = { onPhoto(it) })
                             else Box(cell)
                         }
                         is MessageVideo -> {
@@ -1176,6 +1215,12 @@ private fun LinkPreviewCard(acc: TgAccount, lp: dev.g000sha256.tdl.dto.LinkPrevi
                 )
             }
         }
+        if (Prefs.instantView && lp.instantViewVersion > 0) Text(
+            "⚡ " + t("Instant View"), color = style.accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+            modifier = Modifier.align(Alignment.Bottom).padding(8.dp).clip(RoundedCornerShape(8.dp)).clickable {
+                IvNav.url = lp.url; TgLinks.act?.push(Screen.Page("iv"))
+            }.padding(4.dp),
+        )
         if (!large && img != null && img.local.isDownloadingCompleted) {
             AsyncImage(
                 model = java.io.File(img.local.path), contentDescription = null, contentScale = ContentScale.Crop,
@@ -1287,18 +1332,47 @@ private fun InputBar(
                 else if (Prefs.gifButton) IconButton(onClick = onGif) {
                     Icon(if (stickersOpen) Ic.Keyboard else Ic.Smile, null, tint = fg.copy(alpha = 0.75f))
                 }
+                var tfv by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(text)) }
+                if (tfv.text != text) tfv = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+                var linkAsk by remember { mutableStateOf(false) }
+                Column(Modifier.weight(1f)) {
+                if (Prefs.liveFormat && !tfv.selection.collapsed) Row(Modifier.padding(start = 8.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for ((label, kind) in listOf("B" to "b", "I" to "i", "U" to "u", "S" to "s", "▒" to "sp", "</>" to "code", "🔗" to "link")) {
+                        Text(
+                            label, color = fg, fontSize = 13.sp,
+                            fontWeight = if (kind == "b") FontWeight.Bold else FontWeight.Normal,
+                            fontStyle = if (kind == "i") FontStyle.Italic else FontStyle.Normal,
+                            textDecoration = when (kind) { "u" -> TextDecoration.Underline; "s" -> TextDecoration.LineThrough; else -> null },
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(style.accent.copy(alpha = 0.18f)).clickable {
+                                if (kind == "link") linkAsk = true else { tfv = Fmt2.wrap(tfv, kind); onText(tfv.text) }
+                            }.padding(horizontal = 9.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                if (linkAsk) {
+                    var u by remember { mutableStateOf("https://") }
+                    AlertDialog(
+                        onDismissRequest = { linkAsk = false },
+                        title = { Text(t("Add link")) },
+                        text = { OutlinedTextField(u, { u = it.trim() }, singleLine = true) },
+                        confirmButton = { TextButton(onClick = { linkAsk = false; tfv = Fmt2.wrap(tfv, "link", u); onText(tfv.text) }) { Text(t("OK")) } },
+                        dismissButton = { TextButton(onClick = { linkAsk = false }) { Text(t("Cancel")) } },
+                    )
+                }
                 TextField(
-                    value = text, onValueChange = onText, placeholder = { Text(t("Message")) }, maxLines = 6,
+                    value = tfv, onValueChange = { tfv = it; onText(it.text) }, placeholder = { Text(t("Message")) }, maxLines = 6,
+                    visualTransformation = if (Prefs.liveFormat) Fmt2.visual(style.accent) else androidx.compose.ui.text.input.VisualTransformation.None,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                         focusedTextColor = fg, unfocusedTextColor = fg, cursorColor = style.accent,
                     ),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = Prefs.textSize.sp, textDirection = androidx.compose.ui.text.style.TextDirection.Content),
-                    modifier = Modifier.weight(1f).onPreviewKeyEvent { ev ->
+                    modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { ev ->
                         if (Prefs.enterSends && ev.key == Key.Enter) { onSend(); true } else false
                     },
                 )
+                }
                 if (hasKeyboard) IconButton(onClick = onKeyboard) { Icon(Ic.Keyboard, null, tint = fg.copy(alpha = 0.75f)) }
                 IconButton(onClick = onAttach) { Icon(Ic.Attach, null, tint = fg.copy(alpha = 0.75f)) }
             }
@@ -1363,7 +1437,9 @@ private fun MessageItem(
     val meta = if (out) style.outMeta else style.inMeta
     val r = when (Prefs.bubbleShape) { "pill" -> 26.dp; "square" -> 3.dp; "borderless" -> 0.dp; else -> style.radius }
     val small = if (Prefs.bubbleShape == "square") 0.dp else 4.dp
+    val plainPost = isPost && Prefs.channelPlain
     val shape = when {
+        plainPost -> RoundedCornerShape(14.dp)
         Prefs.bubbleShape == "pill" -> RoundedCornerShape(r)
         !style.tail || !showName -> RoundedCornerShape(r)
         out -> RoundedCornerShape(topStart = r, topEnd = r, bottomEnd = small, bottomStart = r)
@@ -1377,6 +1453,7 @@ private fun MessageItem(
     var selectDialog by remember { mutableStateOf(false) }
     var translate by remember { mutableStateOf(false) }
     var votersDialog by remember { mutableStateOf(false) }
+    var burst by remember { mutableStateOf("") }
     var forwardsDialog by remember { mutableStateOf(false) }
     var replacePhoto by remember { mutableStateOf(false) }
     val pickReplace = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
@@ -1413,10 +1490,11 @@ private fun MessageItem(
                 if (Prefs.swipeForward || Prefs.swipeReply) detectHorizontalDragGestures(
                     onDragEnd = {
                         if (dragX < -140f) { if (Prefs.swipeReply) onReply(m) else onQuickForward(m) }
+                        if (dragX > 140f) { if (!Translations.forced.remove(m.id)) Translations.forced.add(m.id) }
                         dragX = 0f
                     },
                     onDragCancel = { dragX = 0f },
-                ) { _, d -> dragX = (dragX + d).coerceIn(-220f, 0f) }
+                ) { _, d -> dragX = (dragX + d).coerceIn(-220f, if (Prefs.swipeTranslate && textOf(m.content).isNotBlank()) 220f else 0f) }
             },
         horizontalArrangement = if (out) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
@@ -1434,7 +1512,7 @@ private fun MessageItem(
         Box(Modifier.weight(1f, fill = false)) {
             Column(horizontalAlignment = if (out) Alignment.End else Alignment.Start) {
             Column(
-                Modifier.widthIn(max = if (borderless) 400.dp else 310.dp)
+                Modifier.then(if (plainPost) Modifier.fillMaxWidth() else Modifier.widthIn(max = if (borderless) 400.dp else 310.dp))
                     .let { mod ->
                         if (!isSticker && !borderless && (Prefs.bubbleShadow > 0 || Prefs.bubbleGlow)) mod.shadow(
                             elevation = if (Prefs.bubbleGlow) 10.dp else Prefs.bubbleShadow.dp, shape = shape,
@@ -1459,7 +1537,7 @@ private fun MessageItem(
                                 if (selecting) data.toggle(m.id)
                                 else if (Prefs.longPressSelect) menu = true
                             },
-                            onDoubleTap = { if (!selecting && Prefs.doubleTapReact) onReact(m, Prefs.quickReaction) },
+                            onDoubleTap = { if (!selecting && Prefs.doubleTapReact) { burst = Prefs.quickReaction; onReact(m, Prefs.quickReaction) } },
                         )
                     }
                     .padding(if (isSticker) 0.dp else 3.dp),
@@ -1499,7 +1577,7 @@ private fun MessageItem(
                             Text(
                                 "$e ${re.totalCount}", fontSize = 13.sp, color = if (re.isChosen) onColor(style.accent) else fg,
                                 modifier = Modifier.clip(CircleShape).background(if (re.isChosen) style.accent else fg.copy(alpha = 0.12f))
-                                    .clickable { onReact(m, e) }.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    .clickable { burst = e; onReact(m, e) }.padding(horizontal = 8.dp, vertical = 3.dp),
                             )
                         }
                     }
@@ -1533,14 +1611,16 @@ private fun MessageItem(
             }
                 if (m.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupInlineKeyboard) InlineButtons(acc, act, m, onSwitchInline)
             }
+            if (burst.isNotEmpty()) Box(Modifier.matchParentSize(), contentAlignment = Alignment.Center) { ReactionBurst(burst) { burst = "" } }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(18.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
                     for (e in QuickReactions) {
-                        Text(e, fontSize = 26.sp, modifier = Modifier.clip(CircleShape).clickable { menu = false; onReact(m, e) }.padding(6.dp))
+                        Text(e, fontSize = 26.sp, modifier = Modifier.clip(CircleShape).clickable { menu = false; burst = e; onReact(m, e) }.padding(6.dp))
                     }
                 }
                 HorizontalDivider()
                 MenuItem(Ic.Reply, t("Reply")) { menu = false; onReply(m) }
+                if (textOf(content).length > 20) MenuItem(Ic.Reply, t("Reply with quote")) { menu = false; QuoteNav.msg = m }
                 if (track != null) MenuItem(Ic.Download, t("Save to Music")) {
                     menu = false
                     saveToPhone(ctx, acc, track.file, "Music", chat)
@@ -1563,6 +1643,13 @@ private fun MessageItem(
                     acc.scope.launch { acc.client.stopPoll(chatId = m.chatId, messageId = m.id) }
                 }
                 if (chat?.isChannel == true) MenuItem(Ic.Forward, t("Public shares")) { menu = false; forwardsDialog = true }
+                if (content is MessageAnimation) MenuItem(Ic.Movie, t("Save GIF")) {
+                    menu = false
+                    acc.scope.launch {
+                        val r = acc.client.addSavedAnimation(animation = dev.g000sha256.tdl.dto.InputFileId(id = content.animation.animation.id))
+                        withContext(Dispatchers.Main) { toast(ctx, if (r is TdlResult.Failure) r.message else t("Saved to your GIFs")) }
+                    }
+                }
                 if (chat?.isGroup == true && !m.isOutgoing) {
                     MenuItem(Ic.Delete, t("Delete all from this person")) {
                         menu = false
@@ -1742,22 +1829,39 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
         is MessageText -> {
             val lp = c.linkPreview
             if (lp != null && lp.showAboveText) LinkPreviewCard(acc, lp, fg)
-            RichText(c.text, fg)
+            when {
+                Prefs.bigEmoji && c.text.entities.isEmpty() && isEmojiOnly(c.text.text) ->
+                    Text(c.text.text, fontSize = 46.sp, lineHeight = 54.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                c.text.entities.isEmpty() && SimpleMath.has(c.text.text) -> RichText(FormattedText(text = SimpleMath.render(c.text.text), entities = emptyArray<TextEntity>()), fg)
+                else -> RichText(c.text, fg)
+            }
+            TranslatedLine(acc, m, c.text.text, fg, force = m.id in Translations.forced)
             if (lp != null && !lp.showAboveText) LinkPreviewCard(acc, lp, fg)
         }
+        is dev.g000sha256.tdl.dto.MessageChecklist -> ChecklistView(acc, m, c, fg, meta)
+        is dev.g000sha256.tdl.dto.MessageAnimatedEmoji -> Text(c.emoji, fontSize = 64.sp, modifier = Modifier.padding(8.dp))
         is MessagePhoto -> {
             val best = c.photo.sizes.filter { maxOf(it.width, it.height) <= 1280 }.maxByOrNull { it.width * it.height }
                 ?: c.photo.sizes.maxByOrNull { it.width * it.height }
             if (best != null) {
                 val ratio = if (best.width > 0 && best.height > 0) best.width.toFloat() / best.height else 1f
-                MediaBox(acc, best.photo, c.photo.minithumbnail, null, ratio.coerceIn(0.5f, 2f), auto = Prefs.autoPhotos, isPhoto = true, onOpen = { onPhoto(it) })
+                MediaBox(acc, best.photo, c.photo.minithumbnail, null, ratio.coerceIn(0.5f, 2f), auto = AutoDl.photos(), isPhoto = true, onOpen = { onPhoto(it) })
             }
             if (c.caption.text.isNotBlank()) RichText(c.caption, fg)
         }
         is MessageVideo -> {
             val v = c.video
             val ratio = if (v.width > 0 && v.height > 0) v.width.toFloat() / v.height else 16f / 9f
-            if (Prefs.builtInVideo) {
+            val autoplay = Prefs.autoplayVideos && Prefs.builtInVideo && AutoDl.video(v.video.size.takeIf { it > 0 } ?: v.video.expectedSize)
+            val vf = if (autoplay) rememberFile(acc, v.video, autoDownload = true) else null
+            if (vf != null && vf.local.isDownloadingCompleted && vf.local.path.isNotEmpty()) {
+                Box(Modifier.width(260.dp).aspectRatio(ratio.coerceIn(0.5f, 2f)).clip(RoundedCornerShape(LocalStyle.current.radius - 3.dp)).clickable {
+                    act.push(Screen.Video(PlayRequest(acc.index, v.video, c.caption.text.take(60).ifBlank { v.fileName.ifBlank { t("Video") } }, "${m.chatId}:${m.id}")))
+                }) {
+                    LoopVideo(vf.local.path, Modifier.fillMaxSize())
+                    Text("🔇 " + Fmt.duration(v.duration), color = Color.White, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x88000000)).padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            } else if (Prefs.builtInVideo) {
                 VideoPreview(acc, v.thumbnail, v.minithumbnail, ratio.coerceIn(0.5f, 2f), "▶ " + Fmt.duration(v.duration)) {
                     act.push(Screen.Video(PlayRequest(acc.index, v.video, c.caption.text.take(60).ifBlank { v.fileName.ifBlank { t("Video") } }, "${m.chatId}:${m.id}")))
                 }
@@ -1811,7 +1915,10 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             Text(c.emoji, fontSize = 64.sp)
             if (c.value > 0) Text(t("Result") + ": " + c.value, color = fg, fontWeight = FontWeight.Bold)
         }
-        is dev.g000sha256.tdl.dto.MessageLocation -> LocationCard(c.location.latitude, c.location.longitude, t("Location"), "", fg)
+        is dev.g000sha256.tdl.dto.MessageLocation -> Column {
+            MapThumb(acc, c.location.latitude, c.location.longitude, m.chatId)
+            LocationCard(c.location.latitude, c.location.longitude, t("Location"), "", fg)
+        }
         is dev.g000sha256.tdl.dto.MessageLiveLocation -> LocationCard(
             c.location.location.latitude, c.location.location.longitude, "📡 " + t("Live location"),
             if (c.expiresIn > 0) t("Updating for") + " " + Fmt.duration(c.expiresIn) else t("Ended"), fg,
@@ -1901,9 +2008,33 @@ private fun SongRow(t0: Track, fg: Color, meta: Color, onMenu: () -> Unit, onPla
 @Composable
 private fun RichText(ft: FormattedText, fg: Color) {
     val link = LocalStyle.current.link
-    val s = remember(ft, link) { rich(ft, link) }
+    val base = remember(ft, link) { rich(ft, link) }
+    val ce = ft.entities.filter { it.type is dev.g000sha256.tdl.dto.TextEntityTypeCustomEmoji && it.offset >= 0 && it.offset + it.length <= ft.text.length }.sortedBy { it.offset }
+    val acc = com.rivers.rivpost.tg.Tg.get(com.rivers.rivpost.tg.Tg.activeIndex.value)
+    if (ce.isNotEmpty() && Prefs.animatedEmoji) LaunchedEffect(ft) { CustomEmoji.want(acc, ce.map { (it.type as dev.g000sha256.tdl.dto.TextEntityTypeCustomEmoji).customEmojiId }) }
+    val s = if (ce.isEmpty() || !Prefs.animatedEmoji) base else remember(base, CustomEmoji.stickers.size) {
+        buildAnnotatedString {
+            var pos = 0
+            for (e in ce) {
+                if (e.offset < pos) continue
+                append(base.subSequence(pos, e.offset))
+                val id = (e.type as dev.g000sha256.tdl.dto.TextEntityTypeCustomEmoji).customEmojiId
+                if (CustomEmoji.stickers.containsKey(id)) appendInlineContent("ce:$id", ft.text.substring(e.offset, e.offset + e.length))
+                else append(base.subSequence(e.offset, e.offset + e.length))
+                pos = e.offset + e.length
+            }
+            append(base.subSequence(pos, base.length))
+        }
+    }
+    val inline = ce.mapNotNull { e ->
+        val id = (e.type as dev.g000sha256.tdl.dto.TextEntityTypeCustomEmoji).customEmojiId
+        val st = CustomEmoji.stickers[id] ?: return@mapNotNull null
+        "ce:$id" to androidx.compose.foundation.text.InlineTextContent(
+            androidx.compose.ui.text.Placeholder((Prefs.textSize + 4).sp, (Prefs.textSize + 4).sp, androidx.compose.ui.text.PlaceholderVerticalAlign.TextCenter),
+        ) { StickerImage(acc, st, Modifier.fillMaxSize()) }
+    }.toMap()
     Text(
-        s, color = fg, fontSize = Prefs.textSize.sp, lineHeight = (Prefs.textSize + 6).sp,
+        s, color = fg, fontSize = Prefs.textSize.sp, lineHeight = (Prefs.textSize + 6).sp, inlineContent = inline,
         style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content, textAlign = androidx.compose.ui.text.style.TextAlign.Start),
         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
     )
@@ -1923,8 +2054,10 @@ private fun rich(ft: FormattedText, link: Color): AnnotatedString = buildAnnotat
             is TextEntityTypeItalic -> addStyle(SpanStyle(fontStyle = FontStyle.Italic), a, b)
             is TextEntityTypeUnderline -> addStyle(SpanStyle(textDecoration = TextDecoration.Underline), a, b)
             is TextEntityTypeStrikethrough -> addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), a, b)
-            is TextEntityTypeCode, is TextEntityTypePre, is TextEntityTypePreCode ->
+            is TextEntityTypeCode, is TextEntityTypePre, is TextEntityTypePreCode -> {
                 addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = Color(0x22000000)), a, b)
+                if (Prefs.codeColors && ty !is TextEntityTypeCode) CodeColors.apply(this, text, a, b)
+            }
             is TextEntityTypeUrl -> {
                 val u = text.substring(a, b)
                 addLink(url(if (u.contains("://")) u else "https://$u"), a, b)
@@ -2283,3 +2416,7 @@ object MediaSaver {
         } catch (_: Throwable) { false }
     }
 }
+
+
+/** "Reply with quote" request from a message menu. */
+object QuoteNav { var msg by mutableStateOf<Message?>(null) }

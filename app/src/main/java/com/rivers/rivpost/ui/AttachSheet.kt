@@ -97,7 +97,7 @@ fun photoContent(path: String, caption: String = ""): InputMessageContent {
             addedStickerFileIds = IntArray(0), width = o.outWidth.coerceAtLeast(0), height = o.outHeight.coerceAtLeast(0),
         ),
         caption = if (caption.isBlank()) null else dev.g000sha256.tdl.dto.FormattedText(text = caption, entities = emptyArray()),
-        showCaptionAboveMedia = false, selfDestructType = null, hasSpoiler = false,
+        showCaptionAboveMedia = SendOpts.captionAbove, selfDestructType = null, hasSpoiler = SendOpts.spoiler,
     )
 }
 
@@ -106,7 +106,7 @@ private fun videoContent(path: String): InputMessageContent = InputMessageVideo(
         video = InputFileLocal(path = path), thumbnail = null, cover = null, startTimestamp = 0,
         addedStickerFileIds = IntArray(0), duration = 0, width = 0, height = 0, supportsStreaming = true,
     ),
-    caption = null, showCaptionAboveMedia = false, selfDestructType = null, hasSpoiler = false,
+    caption = null, showCaptionAboveMedia = SendOpts.captionAbove, selfDestructType = null, hasSpoiler = SendOpts.spoiler,
 )
 
 private fun hasGalleryPermission(c: Context): Boolean =
@@ -150,6 +150,8 @@ fun AttachSheet(
     onSendAlbum: ((List<InputMessageContent>) -> Unit)? = null,
     onPoll: (() -> Unit)? = null,
     onLiveLocation: ((Int, Location) -> Unit)? = null,
+    onChecklist: (() -> Unit)? = null,
+    onMapPick: (() -> Unit)? = null,
 ) {
     var locPick by remember { mutableStateOf<Location?>(null) }
     val ctx = LocalContext.current
@@ -168,9 +170,13 @@ fun AttachSheet(
         scope.launch {
             val contents = list.mapNotNull { (u, video) ->
                 val e = edits[u]
-                if (e != null && !video) return@mapNotNull photoContent(e.first, e.second)
+                if (e != null && !video) return@mapNotNull if (SendOpts.asFile) documentContent(e.first, e.second) else photoContent(e.first, e.second)
                 val f = copyToCache(ctx, u) ?: return@mapNotNull null
-                if (video) videoContent(f.absolutePath) else photoContent(f.absolutePath)
+                when {
+                    SendOpts.asFile -> documentContent(f.absolutePath)
+                    video -> videoContent(if (SendOpts.compress) compressVideo(ctx, f.absolutePath) else f.absolutePath)
+                    else -> photoContent(f.absolutePath)
+                }
             }
             if (contents.size >= 2 && onSendAlbum != null && com.rivers.rivpost.data.Prefs.sendAlbums) contents.chunked(10).forEach { onSendAlbum(it) }
             else contents.forEach { onSend(it) }
@@ -255,11 +261,12 @@ fun AttachSheet(
     locPick?.let { l ->
         ChoiceDialog(
             t("Location"),
-            listOf(t("Send my current location") to 0, t("Share live for 15 minutes") to 900, t("Share live for 1 hour") to 3600, t("Share live for 8 hours") to 28800),
+            listOf(t("Send my current location") to 0, t("Pick on map") to -1, t("Share live for 15 minutes") to 900, t("Share live for 1 hour") to 3600, t("Share live for 8 hours") to 28800),
             onDismiss = { locPick = null },
         ) { secs ->
             locPick = null
-            if (secs == 0) onSend(InputMessageLocation(location = dev.g000sha256.tdl.dto.Location(latitude = l.latitude, longitude = l.longitude, horizontalAccuracy = l.accuracy.toDouble())))
+            if (secs == -1) onMapPick?.invoke()
+            else if (secs == 0) onSend(InputMessageLocation(location = dev.g000sha256.tdl.dto.Location(latitude = l.latitude, longitude = l.longitude, horizontalAccuracy = l.accuracy.toDouble())))
             else onLiveLocation?.invoke(secs, l)
             onDismiss()
         }
@@ -267,6 +274,7 @@ fun AttachSheet(
     editing?.let { (g, path) ->
         PhotoEditor(path, edits[g.uri]?.second ?: "", onDone = { out, cap ->
             edits[g.uri] = out to cap
+            if (com.rivers.rivpost.data.Prefs.saveEdited) saveToGallery(ctx, out)
             if (g !in picked) picked.add(g)
             editing = null
         }, onCancel = { editing = null })
@@ -326,6 +334,22 @@ fun AttachSheet(
                         }
                     }
                 }
+                if (picked.isNotEmpty()) Row(
+                    Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 70.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xCC000000)).padding(4.dp),
+                ) {
+                    for ((label, get, set) in listOf<Triple<String, Boolean, (Boolean) -> Unit>>(
+                        Triple(t("Compress"), SendOpts.compress) { SendOpts.compress = it },
+                        Triple(t("As file"), SendOpts.asFile) { SendOpts.asFile = it },
+                        Triple(t("Spoiler"), SendOpts.spoiler) { SendOpts.spoiler = it },
+                        Triple(t("Caption on top"), SendOpts.captionAbove) { SendOpts.captionAbove = it },
+                    )) {
+                        Text(
+                            (if (get) "✓ " else "") + label, color = Color.White, fontSize = 12.sp,
+                            modifier = Modifier.padding(2.dp).clip(RoundedCornerShape(10.dp)).background(if (get) Color(0x66FFFFFF) else Color.Transparent)
+                                .clickable { set(!get) }.padding(horizontal = 8.dp, vertical = 5.dp),
+                        )
+                    }
+                }
                 if (picked.isNotEmpty()) Row(Modifier.align(Alignment.BottomEnd).padding(14.dp)) {
                     val one = picked.singleOrNull()
                     if (one != null && !one.video) Button(onClick = {
@@ -357,6 +381,7 @@ fun AttachSheet(
                 AttachTab(Ic.Note, t("Music"), false) { pickMusic.launch("audio/*") }
                 AttachTab(Ic.Movie, "GIF", false) { pickGif.launch("image/gif") }
                 if (onPoll != null) AttachTab(Ic.Poll, t("Poll"), false) { onPoll() }
+                if (onChecklist != null) AttachTab(Ic.Check, t("Checklist"), false) { onChecklist() }
             }
         }
     }

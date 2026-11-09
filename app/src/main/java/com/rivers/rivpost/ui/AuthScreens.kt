@@ -176,7 +176,10 @@ fun LoginScreen(acc: TgAccount) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(18.dp))
+                var countries by remember { mutableStateOf(false) }
+                if (countries) CountryPicker(acc, onPick = { code -> input = "+$code "; countries = false }) { countries = false }
+                TextButton(onClick = { countries = true }) { Text("🌍 " + t("Pick country")) }
+                Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = { run { acc.sendPhone(input.replace(" ", "")) } },
                     enabled = !busy && input.count { it.isDigit() } >= 6,
@@ -239,6 +242,9 @@ fun LoginScreen(acc: TgAccount) {
                     enabled = !busy && input.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text(t("Sign in")) }
+                var recover by remember { mutableStateOf(false) }
+                if (recover) PasswordRecoveryDialog(acc, atLogin = true) { recover = false }
+                if (s.hasRecoveryEmailAddress) TextButton(onClick = { recover = true }) { Text(t("Forgot password?")) }
             }
             is AuthorizationStateWaitRegistration -> {
                 Text(t("New account"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)

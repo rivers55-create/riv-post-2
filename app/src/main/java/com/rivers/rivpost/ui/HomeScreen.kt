@@ -203,7 +203,7 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                     }
                     "videos" -> VideoLibraryPage(acc, onPlay = { act.push(Screen.Video(it)) }) { act.push(Screen.Sources("video")) }
                     "profile" -> ProfilePage(acc, act)
-                    else -> if (showTabs && Prefs.swipeTabs) {
+                    else -> if (true.also { HomeNav.currentList = lists.getOrNull(folderTab)?.second } && showTabs && Prefs.swipeTabs) {
                         val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = folderTab.coerceIn(0, lists.lastIndex)) { lists.size }
                         LaunchedEffect(folderTab) { if (pager.currentPage != folderTab && folderTab < lists.size) pager.animateScrollToPage(folderTab) }
                         LaunchedEffect(pager.settledPage) { if (folderTab != pager.settledPage) folderTab = pager.settledPage }
@@ -227,6 +227,10 @@ private fun rememberMenu(act: MainActivity, acc: TgAccount): List<Pair<Pair<Stri
         },
         (t("New Group") to Ic.Group) to { act.push(Screen.NewGroup) },
         (t("New Channel") to Ic.Group) to { act.push(Screen.Page("newchannel")) },
+        (t("Mark all as read") to Ic.DoneAll) to {
+            scope.launch { acc.client.readChatList(chatList = HomeNav.currentList ?: dev.g000sha256.tdl.dto.ChatListMain()) }
+            Unit
+        },
         (t("Saved Messages") to Ic.Bookmark) to {
             scope.launch { acc.privateChat(acc.myId)?.let { act.push(Screen.Chat(it)) } }
             Unit
@@ -772,3 +776,6 @@ class DecayFling(private val decay: androidx.compose.animation.core.DecayAnimati
         return left
     }
 }
+
+
+object HomeNav { var currentList: dev.g000sha256.tdl.dto.ChatList? = null }

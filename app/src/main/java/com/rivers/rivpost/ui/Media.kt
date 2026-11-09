@@ -41,6 +41,7 @@ object VoicePlayer {
             p.start()
             mp = p
             playingFile = fileId
+            com.rivers.rivpost.ui.Earpiece.start(com.rivers.rivpost.tg.Tg.app)
             paused = false
             job = scope.launch {
                 while (isActive && mp === p) {
@@ -56,6 +57,7 @@ object VoicePlayer {
     }
 
     fun stop() {
+        com.rivers.rivpost.ui.Earpiece.stop(com.rivers.rivpost.tg.Tg.app)
         job?.cancel()
         job = null
         try { mp?.release() } catch (_: Throwable) { }

@@ -182,13 +182,17 @@ fun SettingsHub(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
                     HubRow(Ic.Lock, Color(0xFF4CD964), t("Privacy & Security"), t("Last Seen, Ghost mode, Devices, Passcode")) { act.push(Screen.Page("privacy")) }
                     HubRow(Ic.Muted, Color(0xFFE53935), t("Notifications"), t("Sounds, Groups, Channels")) { act.push(Screen.Settings) }
                     HubRow(Ic.Muted, Color(0xFFFF7043), t("Notification exceptions"), t("Chats with their own setting")) { act.push(Screen.Page("exceptions")) }
+                    HubRow(Ic.Muted, Color(0xFFEF5350), t("Notification defaults"), t("Private chats, groups, channels")) { act.push(Screen.Page("notifdefaults")) }
+                    HubRow(Ic.Smile, Color(0xFFAB47BC), t("Emoji status"), t("Shown next to your name")) { act.push(Screen.Page("emojistatus")) }
+                    HubRow(Ic.Image, Color(0xFF26C6DA), t("Storage"), t("See and clear what Telegram keeps")) { act.push(Screen.Page("storage")) }
+                    HubRow(Ic.Account, Color(0xFF66BB6A), t("Scan QR to log in"), t("Log in Telegram on a computer")) { act.push(Screen.Page("qrscan")) }
                     HubRow(Ic.Refresh, Color(0xFFFFA000), t("Push notifications (Firebase)"), if (Prefs.fbOn) t("On") else t("Off")) { act.push(Screen.Page("firebase")) }
                     HubRow(Ic.Smile, Color(0xFF26A69A), t("Sticker packs"), t("Add, remove, reorder")) { act.push(Screen.Page("stickers")) }
                     HubRow(Ic.Download, Color(0xFF5B7CF0), t("Data and Storage"), t("Downloads, uploads, cache, save folders")) { act.push(Screen.Page("data")) }
                     HubRow(Ic.Doc, Color(0xFF29B6F6), t("Chat Folders"), t("Sort chats into folders")) { act.push(Screen.Page("folders")) }
                     HubRow(Ic.PhoneAndroid, Color(0xFF26C6DA), t("Devices"), t("Manage connected devices")) { act.push(Screen.Page("devices")) }
                     HubRow(Ic.Speed, Color(0xFFFF8A3D), t("Power Saving"), t("Reduce power usage")) { act.push(Screen.Page("power")) }
-                    HubRow(Ic.Info, Color(0xFF8E85EE), t("Language"), if (Lang.arabic) "العربية" else "English") { lang = true }
+                    HubRow(Ic.Info, Color(0xFF8E85EE), t("Language"), when { Lang.arabic -> "العربية"; Lang.custom.isNotEmpty() -> Prefs.lang.uppercase(); else -> "English" }) { lang = true }
                 }
             }
             item {
@@ -215,14 +219,14 @@ fun SettingsHub(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
         IconButton(onClick = onBack, modifier = Modifier.statusBarsPadding().padding(6.dp)) { Icon(Ic.Back, null) }
     }
     if (lang) ChoiceDialog(
-        t("Language"), listOf(t("Phone language") to "system", "English" to "en", "العربية" to "ar"), onDismiss = { lang = false },
-    ) { Prefs.lang = it; Lang.update(); lang = false }
+        t("Language"), listOf(t("Phone language") to "system", "English" to "en", "العربية" to "ar", t("More languages…") to "more"), onDismiss = { lang = false },
+    ) { if (it == "more") { lang = false; act.push(Screen.Page("language")) } else { Prefs.lang = it; Lang.update(); lang = false } }
 }
 
 // ---------------------------------------------------------------- account
 
 @Composable
-fun AccountPage(acc: TgAccount, onBack: () -> Unit) {
+fun AccountPage(acc: TgAccount, onBack: () -> Unit, act: MainActivity? = null) {
     val ctx = LocalContext.current
     val me by acc.me.collectAsState()
     val u = me
@@ -248,6 +252,7 @@ fun AccountPage(acc: TgAccount, onBack: () -> Unit) {
             Text("${bio.length}/70", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick = { acc.scope.launch { val r = acc.client.setBio(bio = bio); withContext(Dispatchers.Main) { done(r) } } }) { Text(t("Save bio")) }
         }
+        if (act != null) ClickRow(t("Number, birthday, sessions, delete account"), "›") { act.push(Screen.Page("account2")) }
     }
 }
 
@@ -291,6 +296,8 @@ fun PrivacyPage(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
         ClickRow(t("Devices"), null) { act.push(Screen.Page("devices")) }
         ClickRow(t("Two-Step Verification"), "›") { act.push(Screen.Page("twostep")) }
         ClickRow(t("Blocked users"), "›") { act.push(Screen.Page("blocked")) }
+        ClickRow(t("Websites logged in with Telegram"), "›") { act.push(Screen.Page("websites")) }
+        PrivacyExtras(acc)
         SwitchRow(t("Auto-mute when leaving the app"), t("Stops music and voice playback"), Prefs.autoMute) { Prefs.autoMute = it }
         SectionTitle(t("Message history (testing)"))
         SwitchRow(
@@ -363,6 +370,14 @@ fun DataPage(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
         SwitchRow(t("Photos"), null, Prefs.autoPhotos) { Prefs.autoPhotos = it }
         SwitchRow(t("GIFs"), null, Prefs.autoGifs) { Prefs.autoGifs = it }
         SwitchRow(t("Voice messages"), null, Prefs.autoVoice) { Prefs.autoVoice = it }
+        SwitchRow(t("Videos"), t("Up to") + " ${Prefs.autoVideoMb} MB", Prefs.autoVideos) { Prefs.autoVideos = it }
+        if (Prefs.autoVideos) Choice(t("Video size limit"), listOf("5" to "5 MB", "15" to "15 MB", "50" to "50 MB", "200" to "200 MB"), Prefs.autoVideoMb.toString()) { Prefs.autoVideoMb = it.toInt() }
+        SwitchRow(t("Files"), t("Up to") + " ${Prefs.autoFileMb} MB", Prefs.autoFiles) { Prefs.autoFiles = it }
+        if (Prefs.autoFiles) Choice(t("File size limit"), listOf("1" to "1 MB", "5" to "5 MB", "20" to "20 MB", "100" to "100 MB"), Prefs.autoFileMb.toString()) { Prefs.autoFileMb = it.toInt() }
+        SwitchRow(t("Use mobile data"), t("Off: only on Wi-Fi"), Prefs.dlMobile) { Prefs.dlMobile = it }
+        SwitchRow(t("When roaming"), null, Prefs.dlRoaming) { Prefs.dlRoaming = it }
+        SwitchRow(t("Play small videos in the chat"), t("Silent, on loop, like GIFs"), Prefs.autoplayVideos) { Prefs.autoplayVideos = it }
+        ClickRow(t("Storage"), "›") { act.push(Screen.Page("storage")) }
         SectionTitle(t("Transfers"))
         ClickRow(t("Downloads"), "›") { act.push(Screen.Page("downloads")) }
         ClickRow(t("Uploads"), "›") { act.push(Screen.Page("uploads")) }
@@ -482,20 +497,33 @@ fun FoldersPage(acc: TgAccount, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val folders by acc.folders.collectAsState()
     var creating by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(0) }
     Page(t("Chat Folders"), onBack) {
-        for (f in folders) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        folders.forEachIndexed { i, f ->
+            Row(Modifier.fillMaxWidth().clickable { editing = f.id }.padding(start = 18.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Ic.Doc, null, tint = LocalStyle.current.accent)
                 Spacer(Modifier.width(14.dp))
                 Text(f.name.text.text, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { acc.scope.launch { acc.client.deleteChatFolder(chatFolderId = f.id, leaveChatIds = LongArray(0)) } }) {
-                    Text(t("Delete"), color = Color(0xFFE53935))
+                IconButton(onClick = {
+                    if (i > 0) { val ids = folders.map { it.id }.toMutableList().apply { add(i - 1, removeAt(i)) }
+                        acc.scope.launch { acc.client.reorderChatFolders(chatFolderIds = ids.toIntArray(), mainChatListPosition = 0) } }
+                }) { Icon(Ic.Up, null) }
+                IconButton(onClick = {
+                    if (i < folders.lastIndex) { val ids = folders.map { it.id }.toMutableList().apply { add(i + 1, removeAt(i)) }
+                        acc.scope.launch { acc.client.reorderChatFolders(chatFolderIds = ids.toIntArray(), mainChatListPosition = 0) } }
+                }) { Icon(Ic.Down, null) }
+                IconButton(onClick = { acc.scope.launch { shareFolder(acc, ctx, f.id) } }) { Icon(Ic.Link, null) }
+                IconButton(onClick = { acc.scope.launch { acc.client.deleteChatFolder(chatFolderId = f.id, leaveChatIds = LongArray(0)) } }) {
+                    Icon(Ic.Delete, null, tint = Color(0xFFE53935))
                 }
             }
         }
+        Text(t("Tap a folder to edit it."), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 18.dp))
         Button(onClick = { creating = true }, modifier = Modifier.padding(18.dp)) { Text(t("Create folder")) }
+        SuggestedFolders(acc)
     }
-    if (creating) NewFolderDialog(acc, { creating = false }) { r -> creating = false; if (r != null) toast(ctx, r) }
+    if (creating) FolderEditDialog(acc, 0, emptyFolder()) { creating = false }
+    if (editing != 0) FolderEditDialog(acc, editing, null) { editing = 0 }
 }
 
 @Composable
