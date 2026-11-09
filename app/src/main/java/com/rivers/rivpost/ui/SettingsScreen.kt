@@ -231,6 +231,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Find lyrics online"), "lrclib.net", Prefs.mOnlineLyrics) { Prefs.mOnlineLyrics = it }
         SwitchRow(t("Mini player"), null, Prefs.mMini) { Prefs.mMini = it }
         ChoiceRow(t("Mini player style"), listOf("card" to t("Big card"), "pill" to t("Small bar")), Prefs.miniStyle) { Prefs.miniStyle = it }
+        ChoiceRow(t("Mini player position"), listOf("bottom" to t("Bottom"), "top" to t("Top")), Prefs.miniPos) { Prefs.miniPos = it }
         ClickRow(t("Music sources"), "›") { onSources("music") }
         SwitchRow(t("Each selected chat gets its own tab"), null, Prefs.selectedSplit) { Prefs.selectedSplit = it }
         SwitchRow(t("Hide short clips"), t("Hides songs shorter than the length below"), Prefs.hideShort) { Prefs.hideShort = it }

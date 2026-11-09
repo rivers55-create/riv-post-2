@@ -1551,10 +1551,10 @@ private fun MessageItem(
                     cm.setPrimaryClip(ClipData.newPlainText("message", txt))
                     toast(ctx, t("Copied"))
                 }
-                if (m.isOutgoing && m.canBeEdited && (content is MessageText || content is MessagePhoto || content is MessageVideo || content is MessageDocument || content is MessageAudio || content is MessageAnimation)) {
+                if (m.isOutgoing && (content is MessageText || content is MessagePhoto || content is MessageVideo || content is MessageDocument || content is MessageAudio || content is MessageAnimation)) {
                     MenuItem(Ic.Edit, if (content is MessageText) t("Edit") else t("Edit caption")) { menu = false; onEdit(m) }
                 }
-                if (m.isOutgoing && m.canBeEdited && content is MessagePhoto) MenuItem(Ic.Image, t("Replace photo")) { menu = false; replacePhoto = true }
+                if (m.isOutgoing && content is MessagePhoto) MenuItem(Ic.Image, t("Replace photo")) { menu = false; replacePhoto = true }
                 if (m.sendingState is MessageSendingStateFailed) MenuItem(Ic.Refresh, t("Resend")) {
                     menu = false
                     acc.scope.launch {
@@ -2190,7 +2190,7 @@ fun LinkEditDialog() {
 }
 
 /** The downloadable file of a message and its kind (for "Save to phone"). */
-private fun mediaFileOf(c: MessageContent): Pair<File, String>? = when (c) {
+fun mediaFileOf(c: MessageContent): Pair<File, String>? = when (c) {
     is MessagePhoto -> c.photo.sizes.maxByOrNull { it.width * it.height }?.photo?.let { it to "Photos" }
     is MessageVideo -> c.video.video to "Videos"
     is MessageAnimation -> c.animation.animation to "Videos"
@@ -2201,7 +2201,7 @@ private fun mediaFileOf(c: MessageContent): Pair<File, String>? = when (c) {
     else -> null
 }
 
-private fun saveToPhone(ctx: Context, acc: TgAccount, f: File, kind: String, chat: ChatItem?) {
+fun saveToPhone(ctx: Context, acc: TgAccount, f: File, kind: String, chat: ChatItem?) {
     toast(ctx, t("Saving…"))
     acc.scope.launch {
         val r = acc.client.downloadFile(fileId = f.id, priority = 32, offset = 0, limit = 0, synchronous = true)

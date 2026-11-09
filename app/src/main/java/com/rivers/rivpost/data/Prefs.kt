@@ -209,7 +209,8 @@ object Prefs {
     var sendTyping by BoolPref("send_typing", true)
     var debugLog by BoolPref("debug_log", false)
     var videoPanel by BoolPref("video_panel", true)
-    var miniStyle by StrPref("mini_style", "card")   // card / pill
+    var miniStyle by StrPref("mini_style2", "pill")   // card / pill
+    var miniPos by StrPref("mini_pos", "bottom")      // bottom / top
     var swipeTabs by BoolPref("swipe_tabs", true)
     var cleanTitles by BoolPref("clean_titles", true)
     var tmdbKey by StrPref("tmdb_key", "")

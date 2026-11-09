@@ -176,11 +176,12 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                     )
                     if (Prefs.navPos == "top" && Prefs.navBar != "off" && tabs.size > 1) NavBar(tabs, page, mainUnread) { page = it }
                     if (showTabs && Prefs.tabsPos == "top") FolderTabs(lists, folderTab, counts) { folderTab = it }
+                    if (Prefs.miniPos == "top") MiniPlayer()
                 } else Spacer(Modifier.height(0.dp))
             },
             bottomBar = {
                 Column(Modifier.navigationBarsPadding()) {
-                    MiniPlayer()
+                    if (Prefs.miniPos != "top" || (page == "videos" && !searching)) MiniPlayer()
                     if (showTabs && Prefs.tabsPos == "bottom") FolderTabs(lists, folderTab, counts) { folderTab = it }
                     if (Prefs.navPos != "top" && Prefs.navBar != "off" && tabs.size > 1) NavBar(tabs, page, mainUnread, Modifier.accountSwipe(act)) { page = it }
                 }

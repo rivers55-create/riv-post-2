@@ -941,6 +941,7 @@ object Lang {
         "Clear debug log" to "مسح سجل التصحيح",
         "Show that I'm typing" to "إظهار أنني أكتب",
         "Swipe through all media in a chat" to "التنقل بين كل وسائط المحادثة",
+        "Mini player position" to "موضع المشغل المصغر",
     )
 }
 

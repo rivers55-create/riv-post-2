@@ -172,6 +172,7 @@ fun MiniPlayer(modifier: Modifier = Modifier, compact: Boolean = false) {
         modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp).clip(RoundedCornerShape(24.dp))
             .background(style.navBar)
             .clickable { Music.playerOpen = true }
+            .then(if (compact) Modifier else Modifier.moveDrag())
             .pointerInput(s.key) {
                 detectHorizontalDragGestures(onDragEnd = {
                     if (drag < -120) Music.next() else if (drag > 120) Music.previous()
@@ -195,7 +196,10 @@ fun MiniPlayer(modifier: Modifier = Modifier, compact: Boolean = false) {
                 else Icon(if (Music.isPlaying) Ic.Pause else Ic.Play, null, tint = cs.onPrimary)
             }
             IconButton(onClick = { Music.next() }) { Icon(Ic.SkipNext, null, tint = style.navBarFg) }
-            IconButton(onClick = { Music.stop() }, modifier = Modifier.size(36.dp)) { Icon(Ic.Close, null, Modifier.size(18.dp), tint = style.navBarFg.copy(alpha = 0.6f)) }
+            if (!compact) IconButton(onClick = { Prefs.miniStyle = "card" }, modifier = Modifier.size(34.dp)) {
+                Icon(if (Prefs.miniPos == "top") Ic.Down else Ic.Up, null, Modifier.size(20.dp), tint = style.navBarFg.copy(alpha = 0.7f))
+            }
+            IconButton(onClick = { Music.stop() }, modifier = Modifier.size(34.dp)) { Icon(Ic.Close, null, Modifier.size(18.dp), tint = style.navBarFg.copy(alpha = 0.6f)) }
         }
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(3.dp).clip(CircleShape).background(cs.outlineVariant)) {
             Box(Modifier.fillMaxWidth(if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f).fillMaxHeight().background(cs.primary))
@@ -949,6 +953,7 @@ fun MusicCard(s: Track, modifier: Modifier = Modifier) {
                     drag = 0f
                 }) { _, d -> drag += d }
             }
+            .moveDrag()
             .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -964,6 +969,9 @@ fun MusicCard(s: Track, modifier: Modifier = Modifier) {
                 modifier = Modifier.widthIn(max = 110.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f))
                     .clickable { Music.openOutputSwitcher(ctx) }.padding(horizontal = 10.dp, vertical = 5.dp),
             )
+            IconButton(onClick = { Prefs.miniStyle = "pill" }, modifier = Modifier.size(30.dp)) {
+                Icon(if (Prefs.miniPos == "top") Ic.Up else Ic.Down, null, tint = fg.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            }
             IconButton(onClick = { Music.stop() }, modifier = Modifier.size(30.dp)) { Icon(Ic.Close, null, tint = fg.copy(alpha = 0.6f), modifier = Modifier.size(16.dp)) }
         }
         val prog = seeking ?: (if (dur > 0) pos.toFloat() / dur else 0f).coerceIn(0f, 1f)
@@ -989,4 +997,16 @@ fun MusicCard(s: Track, modifier: Modifier = Modifier) {
             IconButton(onClick = { Music.cycleRepeat() }) { Box(Modifier.size(20.dp)) { RepeatIcon(fg, fg.copy(alpha = 0.5f)) } }
         }
     }
+}
+
+
+/** Drag the player up or down to move it to the top or bottom of the screen. */
+fun Modifier.moveDrag(): Modifier = this.pointerInput(Unit) {
+    var dy = 0f
+    androidx.compose.foundation.gestures.detectVerticalDragGestures(
+        onDragEnd = {
+            if (dy < -120f) Prefs.miniPos = "top" else if (dy > 120f) Prefs.miniPos = "bottom"
+            dy = 0f
+        },
+    ) { _, d -> dy += d }
 }

@@ -184,7 +184,7 @@ fun GlobalSearch(acc: com.rivers.rivpost.tg.TgAccount, act: MainActivity, query:
                         val sub = when {
                             c.isChannel -> t("Channel"); c.isGroup -> t("Group"); else -> ""
                         }
-                        val count = acc.memberCount(c)
+                        val count = acc.memberCount(c).toString()
                         Text(listOf(sub, count).filter { it.isNotBlank() }.joinToString(" · "), fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 1)
                     }
                 }
