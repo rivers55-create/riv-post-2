@@ -425,7 +425,8 @@ fun DownloadsPage(acc: TgAccount, onBack: () -> Unit) {
 
 @Composable
 private fun TransferRow(acc: TgAccount, fileId: Int, name: String, paused: Boolean, upload: Boolean = false, onPause: (() -> Unit)?, onRemove: (() -> Unit)?) {
-    val file = remember(fileId) { acc.fileById(fileId) }
+    var file by remember(fileId) { mutableStateOf(acc.fileById(fileId)) }
+    LaunchedEffect(fileId) { if (file == null) file = (acc.client.getFile(fileId = fileId) as? TdlResult.Success)?.result }
     val cur = if (file != null) rememberFile(acc, file, autoDownload = false) else null
     var last by remember { mutableStateOf(0L to System.currentTimeMillis()) }
     var speed by remember { mutableStateOf(0L) }

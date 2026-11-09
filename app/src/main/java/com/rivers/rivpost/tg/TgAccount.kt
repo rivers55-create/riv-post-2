@@ -418,6 +418,8 @@ class TgAccount(private val ctx: Context, val index: Int) {
         else if (f.local.isDownloadingCompleted && !cur.value.local.isDownloadingCompleted) cur.value = f
     }
 
+    fun fileById(id: Int): File? = files[id]?.value
+
     fun fileFlow(f: File): StateFlow<File> {
         track(f)
         return files[f.id]!!
