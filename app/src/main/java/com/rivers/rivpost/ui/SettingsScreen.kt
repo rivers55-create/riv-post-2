@@ -103,7 +103,7 @@ private fun ChoiceRow(title: String, options: List<Pair<String, String>>, curren
 }
 
 @Composable
-fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProxy: () -> Unit) {
+fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProxy: () -> Unit, onCustomize: () -> Unit = {}, onSources: (String) -> Unit = {}) {
     val ctx = LocalContext.current
     var pinDialog by remember { mutableStateOf(false) }
     var keysDialog by remember { mutableStateOf(false) }
@@ -172,6 +172,29 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SectionTitle(t("Chats"))
         SwitchRow(t("Download photos automatically"), null, Prefs.autoPhotos) { Prefs.autoPhotos = it }
         SwitchRow(t("Enter key sends"), t("For physical keyboards"), Prefs.enterSends) { Prefs.enterSends = it }
+
+        ClickRow(t("Customize everything"), "›", onCustomize)
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        SectionTitle(t("Media"))
+        SwitchRow(t("Play GIFs automatically"), null, Prefs.autoGifs) { Prefs.autoGifs = it }
+        SwitchRow(t("Animated stickers"), null, Prefs.animStickers) { Prefs.animStickers = it }
+        SwitchRow(t("Built-in video player"), t("Off opens videos in another app"), Prefs.builtInVideo) { Prefs.builtInVideo = it }
+        SwitchRow(t("Download voice messages automatically"), null, Prefs.autoVoice) { Prefs.autoVoice = it }
+        ClickRow(t("Video sources"), "›") { onSources("video") }
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        SectionTitle(t("Music player"))
+        SwitchRow(t("Wavy seek bar"), null, Prefs.mWavy) { Prefs.mWavy = it }
+        SwitchRow(t("Skip buttons (±seconds)"), t("Off shows shuffle and repeat there instead"), Prefs.mSkipButtons) { Prefs.mSkipButtons = it }
+        ChoiceRow(t("Skip length"), listOf("5" to "5 s", "10" to "10 s", "15" to "15 s", "30" to "30 s"), Prefs.mSkipSecs.toString()) { Prefs.mSkipSecs = it.toInt() }
+        ChoiceRow(t("Player background"), listOf("gradient" to t("Cover color"), "blur" to t("Blurred cover"), "solid" to t("Plain")), Prefs.mBg) { Prefs.mBg = it }
+        SwitchRow(t("Show output device"), null, Prefs.mOutput) { Prefs.mOutput = it }
+        SwitchRow(t("Show audio quality"), null, Prefs.mFormat) { Prefs.mFormat = it }
+        SwitchRow(t("Lyrics"), null, Prefs.mLyrics) { Prefs.mLyrics = it }
+        SwitchRow(t("Find lyrics online"), "lrclib.net", Prefs.mOnlineLyrics) { Prefs.mOnlineLyrics = it }
+        SwitchRow(t("Mini player"), null, Prefs.mMini) { Prefs.mMini = it }
+        ClickRow(t("Music sources"), "›") { onSources("music") }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
         SectionTitle(t("Notifications"))

@@ -59,6 +59,113 @@ object Prefs {
     var proxyPass by StrPref("proxy_pass", "")
     var proxySecret by StrPref("proxy_secret", "")
 
+
+    // ---------- Customize: bars ----------
+    var navBar by StrPref("nav_bar", "floating")      // floating / flat / off
+    var navPos by StrPref("nav_pos", "bottom")        // bottom / top
+    var navLabels by BoolPref("nav_labels", true)
+    var navContacts by BoolPref("nav_contacts", true)
+    var navCalls by BoolPref("nav_calls", true)
+    var navProfile by BoolPref("nav_profile", true)
+    var navMusic by BoolPref("nav_music", true)
+    var navVideos by BoolPref("nav_videos", true)
+    var tabsStyle by StrPref("tabs_style", "pills")   // pills / underline / text
+    var tabsPos by StrPref("tabs_pos", "top")         // top / bottom
+    var tabCounts by BoolPref("tab_counts", true)
+    var countMuted by BoolPref("count_muted", false)
+    var titleStyle by StrPref("title_style", "large") // large / small
+    var showLogo by BoolPref("show_logo", true)
+    var appTitle by StrPref("app_title", "Riv Post")
+    var fab by BoolPref("fab", true)
+
+    // ---------- Customize: chat list ----------
+    var avatarShape by StrPref("avatar_shape", "circle") // circle / rounded / square
+    var avatarSize by IntPref("avatar_size", 0)          // 0 = style default
+    var density by StrPref("density", "normal")          // compact / normal / comfy
+    var previewLines by IntPref("preview_lines", 1)
+    var mediaThumbs by BoolPref("media_thumbs", true)
+    var dividers by StrPref("dividers", "auto")          // auto / on / off
+    var onlineDot by BoolPref("online_dot", true)
+
+    // ---------- Customize: chat ----------
+    var bubbleRadius by IntPref("bubble_radius", 0)      // 0 = style default
+    var bubbleTail by StrPref("bubble_tail", "auto")     // auto / on / off
+    var groupAvatars by BoolPref("group_avatars", true)
+    var doubleTapReact by BoolPref("double_tap_react", true)
+    var quickReaction by StrPref("quick_reaction", "❤️")
+
+    // ---------- Customize: colors (0 = automatic) ----------
+    var cAccent by IntPref("c_accent", 0)
+    var cBg by IntPref("c_bg", 0)
+    var cTopBar by IntPref("c_topbar", 0)
+    var cNavBar by IntPref("c_navbar", 0)
+    var cPill by IntPref("c_pill", 0)
+    var cBadge by IntPref("c_badge", 0)
+    var cOut by IntPref("c_out", 0)
+    var cIn by IntPref("c_in", 0)
+    var cOutText by IntPref("c_out_text", 0)
+    var cInText by IntPref("c_in_text", 0)
+    var cWallpaper by IntPref("c_wallpaper", 0)
+    var cLink by IntPref("c_link", 0)
+    var cTitle by IntPref("c_title", 0)
+
+    // ---------- Media ----------
+    var autoGifs by BoolPref("auto_gifs", true)
+    var animStickers by BoolPref("anim_stickers", true)
+    var builtInVideo by BoolPref("builtin_video", true)
+    var autoVoice by BoolPref("auto_voice", true)
+
+    // ---------- Music player ----------
+    var mWavy by BoolPref("m_wavy", true)
+    var mSkipButtons by BoolPref("m_skip_buttons", true)
+    var mSkipSecs by IntPref("m_skip_secs", 5)
+    var mBg by StrPref("m_bg", "gradient")           // gradient / solid / blur
+    var mOutput by BoolPref("m_output", true)
+    var mLyrics by BoolPref("m_lyrics", true)
+    var mOnlineLyrics by BoolPref("m_online_lyrics", true)
+    var mFormat by BoolPref("m_format", true)
+    var mMini by BoolPref("m_mini", true)
+    var mSpeed by FloatPref("m_speed", 1f)
+    var mPitch by FloatPref("m_pitch", 1f)
+    var eqOn by BoolPref("eq_on", false)
+    var eqLevels by StrPref("eq_levels", "")
+    var bass by IntPref("bass", 0)
+    var favorites by StrPref("favorites", "")
+    var musicSources by StrPref("music_sources", "")   // chat ids, empty = all chats
+    var videoSources by StrPref("video_sources", "")
+    var videoMinMinutes by IntPref("video_min_minutes", 0)
+
+    var videoList by StrPref("video_list", "")         // "chatId:msgId" lines added by the user
+    var wallpaper by StrPref("wallpaper", "")          // path of a picture chosen by the user
+    var wallBlur by BoolPref("wall_blur", false)
+    var wallDim by IntPref("wall_dim", 25)             // 0..80 percent darker
+    var headerStyle by StrPref("header_style", "floating") // floating / classic
+    var inputStyle by StrPref("input_style", "floating")   // floating / classic
+    var showViews by BoolPref("show_views", true)
+    var shareButton by BoolPref("share_button", true)
+    var pinnedBar by BoolPref("pinned_bar", true)
+    var gifButton by BoolPref("gif_button", true)
+
+    fun idSet(s: String): Set<Long> = s.split(",").mapNotNull { it.trim().toLongOrNull() }.toSet()
+    var videoPositions by StrPref("video_positions", "")   // uniqueId=ms;...
+
+    fun resetLook() {
+        navBar = "floating"; navPos = "bottom"; navLabels = true; navContacts = true; navCalls = true; navProfile = true
+        navMusic = true; navVideos = true
+        tabsStyle = "pills"; tabsPos = "top"; tabCounts = true; countMuted = false
+        titleStyle = "large"; showLogo = true; appTitle = "Riv Post"; fab = true
+        avatarShape = "circle"; avatarSize = 0; density = "normal"; previewLines = 1; mediaThumbs = true
+        dividers = "auto"; onlineDot = true; bubbleRadius = 0; bubbleTail = "auto"; groupAvatars = true
+        headerStyle = "floating"; inputStyle = "floating"; showViews = true; shareButton = true; pinnedBar = true; gifButton = true
+        wallpaper = ""; wallBlur = false; wallDim = 25
+        resetColors()
+    }
+
+    fun resetColors() {
+        cAccent = 0; cBg = 0; cTopBar = 0; cNavBar = 0; cPill = 0; cBadge = 0; cOut = 0; cIn = 0
+        cOutText = 0; cInText = 0; cWallpaper = 0; cLink = 0; cTitle = 0
+    }
+
     // Accounts
     var accounts by StrPref("accounts", "0")
     var active by IntPref("active", 0)
@@ -110,5 +217,17 @@ class StrPref(private val key: String, private val def: String) : ReadWritePrope
     override fun setValue(thisRef: Any?, property: KProperty<*>, value: String) {
         s().value = value
         Prefs.sp.edit().putString(key, value).apply()
+    }
+}
+
+class FloatPref(private val key: String, private val def: Float) : ReadWriteProperty<Any?, Float> {
+    private var state: MutableState<Float>? = null
+    private fun s(): MutableState<Float> =
+        state ?: mutableStateOf(Prefs.sp.getFloat(key, def)).also { state = it }
+
+    override fun getValue(thisRef: Any?, property: KProperty<*>): Float = s().value
+    override fun setValue(thisRef: Any?, property: KProperty<*>, value: Float) {
+        s().value = value
+        Prefs.sp.edit().putFloat(key, value).apply()
     }
 }

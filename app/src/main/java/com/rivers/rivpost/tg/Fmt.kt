@@ -94,15 +94,17 @@ object Fmt {
         return c.get(Calendar.YEAR) * 1000 + c.get(Calendar.DAY_OF_YEAR)
     }
 
-    fun lastSeen(u: User?): String {
-        if (u == null) return ""
-        if (u.type is UserTypeBot) return t("bot")
-        return when (val s = u.status) {
+    fun lastSeen(u: User?): String = lastSeenStatus(u?.status, u)
+
+    fun lastSeenStatus(status: UserStatus?, u: User?): String {
+        if (u != null && u.type is UserTypeBot) return t("bot")
+        return when (val s = status) {
             is UserStatusOnline -> t("online")
             is UserStatusOffline -> t("last seen") + " " + listTime(s.wasOnline)
             is UserStatusRecently -> t("last seen recently")
             is UserStatusLastWeek -> t("last seen within a week")
             is UserStatusLastMonth -> t("last seen within a month")
+            null -> ""
             else -> t("last seen a long time ago")
         }
     }

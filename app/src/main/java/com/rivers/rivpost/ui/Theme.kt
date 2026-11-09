@@ -1,6 +1,8 @@
 package com.rivers.rivpost.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -8,6 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rivers.rivpost.data.Prefs
@@ -23,13 +29,29 @@ val Accents = listOf(
     "Red" to Color(0xFFE53935),
 )
 
-fun accentColor(): Color = Accents.getOrElse(Prefs.accent) { Accents[0] }.second
+fun accentColor(): Color =
+    if (Prefs.cAccent != 0) Color(Prefs.cAccent) else Accents.getOrElse(Prefs.accent) { Accents[0] }.second
 
-/** What a UI style changes: bubbles, chat background, bars and list look. */
+fun onColor(c: Color): Color = if (c.luminance() > 0.5f) Color(0xFF111111) else Color.White
+
+private fun pick(custom: Int, auto: Color): Color = if (custom != 0) Color(custom) else auto
+
+/** Everything the look depends on: colors, bars, bubbles and list layout. */
 data class StyleSpec(
     val name: String,
     val dark: Boolean,
     val accent: Color,
+    val bg: Color,
+    val surface: Color,
+    val topBar: Color,
+    val topBarFg: Color,
+    val navBar: Color,
+    val navBarFg: Color,
+    val pill: Color,
+    val pillFg: Color,
+    val badge: Color,
+    val badgeMuted: Color,
+    val title: Color,
     val outBubble: Color,
     val inBubble: Color,
     val outText: Color,
@@ -37,12 +59,14 @@ data class StyleSpec(
     val outMeta: Color,
     val inMeta: Color,
     val chatBg: Color,
+    val link: Color,
     val radius: Dp,
     val tail: Boolean,
-    val filledBar: Boolean,
-    val dividers: Boolean,
     val avatar: Dp,
-    val unreadBadge: Color,
+    val avatarShape: Shape,
+    val dividers: Boolean,
+    val rowPad: Dp,
+    val previewLines: Int,
 )
 
 val LocalStyle = staticCompositionLocalOf<StyleSpec> { error("no style") }
@@ -55,85 +79,112 @@ fun isDark(system: Boolean): Boolean = when (Prefs.theme) {
 
 fun makeStyle(dark: Boolean): StyleSpec {
     val a = accentColor()
-    return when (Prefs.style) {
-        "wave" -> StyleSpec(
-            name = "wave", dark = dark, accent = a,
-            outBubble = if (dark) Color(0xFF2B5278) else Color(0xFFEFFDDE),
-            inBubble = if (dark) Color(0xFF182533) else Color.White,
-            outText = if (dark) Color.White else Color(0xFF111111),
-            inText = if (dark) Color.White else Color(0xFF111111),
-            outMeta = if (dark) Color(0xFF7DA8D3) else Color(0xFF5DAE53),
-            inMeta = if (dark) Color(0xFF6D7F8F) else Color(0xFF9AA4AD),
-            chatBg = if (dark) Color(0xFF0E1621) else Color(0xFFD6E2EC),
-            radius = 16.dp, tail = true, filledBar = false, dividers = true, avatar = 54.dp,
-            unreadBadge = a,
-        )
-        "leaf" -> StyleSpec(
-            name = "leaf", dark = dark, accent = a,
-            outBubble = if (dark) Color(0xFF005C4B) else Color(0xFFD9FDD3),
-            inBubble = if (dark) Color(0xFF202C33) else Color.White,
-            outText = if (dark) Color(0xFFE9EDEF) else Color(0xFF111B21),
-            inText = if (dark) Color(0xFFE9EDEF) else Color(0xFF111B21),
-            outMeta = if (dark) Color(0xFF8BB8AE) else Color(0xFF667781),
-            inMeta = if (dark) Color(0xFF8696A0) else Color(0xFF667781),
-            chatBg = if (dark) Color(0xFF0B141A) else Color(0xFFEFEAE2),
-            radius = 10.dp, tail = true, filledBar = !dark, dividers = false, avatar = 50.dp,
-            unreadBadge = Color(0xFF25D366).takeIf { Prefs.accent == 0 } ?: a,
-        )
-        else -> StyleSpec(
-            name = "riv", dark = dark, accent = a,
-            outBubble = a,
-            inBubble = if (dark) Color(0xFF241A33) else Color(0xFFEDE7F6),
-            outText = Color.White,
-            inText = if (dark) Color(0xFFECE6F5) else Color(0xFF1D1726),
-            outMeta = Color(0xCCFFFFFF),
-            inMeta = if (dark) Color(0xFF9D92AE) else Color(0xFF7A708A),
-            chatBg = if (dark) Color(0xFF120B1C) else Color(0xFFFAF8FD),
-            radius = 20.dp, tail = false, filledBar = false, dividers = false, avatar = 52.dp,
-            unreadBadge = a,
-        )
+    val bg = pick(Prefs.cBg, if (dark) Color(0xFF120B1C) else Color(0xFFFAF8FD))
+    val surface = if (dark) lerp(bg, Color.White, 0.06f) else Color.White
+    val panel = if (dark) lerp(bg, Color.White, 0.09f) else lerp(bg, Color.Black, 0.04f)
+
+    // style defaults
+    var out: Color; var inn: Color; var outT: Color; var inT: Color; var outM: Color; var inM: Color
+    var wall: Color; var radius: Dp; var tail: Boolean; var dividers: Boolean; var avatar: Dp
+    var badge = a
+    var topBar = bg
+    when (Prefs.style) {
+        "wave" -> {
+            out = if (dark) Color(0xFF2B5278) else Color(0xFFEFFDDE)
+            inn = if (dark) Color(0xFF182533) else Color.White
+            outT = if (dark) Color.White else Color(0xFF111111); inT = outT
+            outM = if (dark) Color(0xFF7DA8D3) else Color(0xFF5DAE53)
+            inM = if (dark) Color(0xFF6D7F8F) else Color(0xFF9AA4AD)
+            wall = if (dark) Color(0xFF0E1621) else Color(0xFFD6E2EC)
+            radius = 16.dp; tail = true; dividers = true; avatar = 54.dp
+        }
+        "leaf" -> {
+            out = if (dark) Color(0xFF005C4B) else Color(0xFFD9FDD3)
+            inn = if (dark) Color(0xFF202C33) else Color.White
+            outT = if (dark) Color(0xFFE9EDEF) else Color(0xFF111B21); inT = outT
+            outM = if (dark) Color(0xFF8BB8AE) else Color(0xFF667781)
+            inM = if (dark) Color(0xFF8696A0) else Color(0xFF667781)
+            wall = if (dark) Color(0xFF0B141A) else Color(0xFFEFEAE2)
+            radius = 10.dp; tail = true; dividers = false; avatar = 50.dp
+            if (Prefs.accent == 0 && Prefs.cAccent == 0) badge = Color(0xFF25D366)
+            if (!dark) topBar = Color(0xFF008069)
+        }
+        else -> {
+            out = a; inn = panel
+            outT = onColor(a); inT = if (dark) Color(0xFFECE6F5) else Color(0xFF1D1726)
+            outM = outT.copy(alpha = 0.75f)
+            inM = if (dark) Color(0xFF9D92AE) else Color(0xFF7A708A)
+            wall = bg
+            radius = 20.dp; tail = false; dividers = false; avatar = 52.dp
+        }
     }
+    out = pick(Prefs.cOut, out)
+    inn = pick(Prefs.cIn, inn)
+    if (Prefs.cOutText != 0) { outT = Color(Prefs.cOutText); outM = outT.copy(alpha = 0.7f) }
+    if (Prefs.cInText != 0) { inT = Color(Prefs.cInText); inM = inT.copy(alpha = 0.6f) }
+    topBar = pick(Prefs.cTopBar, topBar)
+    val navBar = pick(Prefs.cNavBar, panel)
+    val pill = pick(Prefs.cPill, a.copy(alpha = 0.22f).compositeOver(navBar))
+    val avatarShape: Shape = when (Prefs.avatarShape) {
+        "rounded" -> RoundedCornerShape(30)
+        "square" -> RectangleShape
+        else -> CircleShape
+    }
+    val size = if (Prefs.avatarSize > 0) Prefs.avatarSize.dp else avatar
+    val rowPad = when (Prefs.density) { "compact" -> 5.dp; "comfy" -> 13.dp; else -> 9.dp }
+    return StyleSpec(
+        name = Prefs.style, dark = dark, accent = a, bg = bg, surface = surface,
+        topBar = topBar, topBarFg = onColor(topBar),
+        navBar = navBar, navBarFg = onColor(navBar),
+        pill = pill, pillFg = if (Prefs.cPill != 0) onColor(pill) else a,
+        badge = pick(Prefs.cBadge, badge), badgeMuted = if (dark) Color(0xFF5A5466) else Color(0xFFB0A8BC),
+        title = pick(Prefs.cTitle, if (dark) Color(0xFFF2EEF8) else Color(0xFF1D1726)),
+        outBubble = out, inBubble = inn, outText = outT, inText = inT, outMeta = outM, inMeta = inM,
+        chatBg = pick(Prefs.cWallpaper, wall),
+        link = pick(Prefs.cLink, if (dark) Color(0xFF8AB4F8) else Color(0xFF1A73E8)),
+        radius = if (Prefs.bubbleRadius > 0) Prefs.bubbleRadius.dp else radius,
+        tail = when (Prefs.bubbleTail) { "on" -> true; "off" -> false; else -> tail },
+        avatar = size, avatarShape = avatarShape,
+        dividers = when (Prefs.dividers) { "on" -> true; "off" -> false; else -> dividers },
+        rowPad = rowPad, previewLines = Prefs.previewLines.coerceIn(1, 2),
+    )
+}
+
+private fun Color.compositeOver(under: Color): Color {
+    val a = alpha
+    return Color(
+        red = red * a + under.red * (1 - a),
+        green = green * a + under.green * (1 - a),
+        blue = blue * a + under.blue * (1 - a),
+        alpha = 1f,
+    )
 }
 
 @Composable
 fun RivTheme(content: @Composable () -> Unit) {
     val dark = isDark(isSystemInDarkTheme())
-    val a = accentColor()
+    val st = makeStyle(dark)
+    val a = st.accent
+    val bg = st.bg
     val scheme = if (dark) darkColorScheme(
-        primary = a,
-        onPrimary = Color.White,
-        secondary = a,
-        background = Color(0xFF120B1C),
-        onBackground = Color(0xFFECE6F5),
-        surface = Color(0xFF1A1226),
-        onSurface = Color(0xFFECE6F5),
-        surfaceVariant = Color(0xFF241A33),
-        onSurfaceVariant = Color(0xFFB9AEC9),
-        surfaceContainer = Color(0xFF1E1529),
-        surfaceContainerHigh = Color(0xFF241A33),
-        surfaceContainerHighest = Color(0xFF2B2040),
-        surfaceContainerLow = Color(0xFF170F22),
-        outline = Color(0xFF5A4E6B),
-        outlineVariant = Color(0xFF3A2F4A),
+        primary = a, onPrimary = onColor(a), secondary = a, primaryContainer = a.copy(alpha = 0.35f).compositeOver(bg),
+        background = bg, onBackground = Color(0xFFECE6F5),
+        surface = st.surface, onSurface = Color(0xFFECE6F5),
+        surfaceVariant = lerp(bg, Color.White, 0.1f), onSurfaceVariant = Color(0xFFB9AEC9),
+        surfaceContainer = lerp(bg, Color.White, 0.07f), surfaceContainerHigh = lerp(bg, Color.White, 0.1f),
+        surfaceContainerHighest = lerp(bg, Color.White, 0.14f), surfaceContainerLow = lerp(bg, Color.White, 0.04f),
+        outline = Color(0xFF5A4E6B), outlineVariant = Color(0xFF3A2F4A),
     ) else lightColorScheme(
-        primary = a,
-        onPrimary = Color.White,
-        secondary = a,
-        background = Color(0xFFFAF8FD),
-        onBackground = Color(0xFF1D1726),
-        surface = Color.White,
-        onSurface = Color(0xFF1D1726),
-        surfaceVariant = Color(0xFFF0EAF8),
-        onSurfaceVariant = Color(0xFF5E5470),
-        surfaceContainer = Color(0xFFF4EFFA),
-        surfaceContainerHigh = Color(0xFFEDE7F6),
-        surfaceContainerHighest = Color(0xFFE6DFF1),
-        surfaceContainerLow = Color(0xFFF8F5FC),
-        outline = Color(0xFF9C92AC),
-        outlineVariant = Color(0xFFDDD5E8),
+        primary = a, onPrimary = onColor(a), secondary = a, primaryContainer = a.copy(alpha = 0.25f).compositeOver(bg),
+        background = bg, onBackground = Color(0xFF1D1726),
+        surface = st.surface, onSurface = Color(0xFF1D1726),
+        surfaceVariant = lerp(bg, Color.Black, 0.05f), onSurfaceVariant = Color(0xFF5E5470),
+        surfaceContainer = lerp(bg, Color.Black, 0.03f), surfaceContainerHigh = lerp(bg, Color.Black, 0.06f),
+        surfaceContainerHighest = lerp(bg, Color.Black, 0.09f), surfaceContainerLow = lerp(bg, Color.Black, 0.015f),
+        outline = Color(0xFF9C92AC), outlineVariant = Color(0xFFDDD5E8),
     )
     MaterialTheme(colorScheme = scheme) {
-        CompositionLocalProvider(LocalStyle provides makeStyle(dark)) {
+        CompositionLocalProvider(LocalStyle provides st) {
             content()
         }
     }

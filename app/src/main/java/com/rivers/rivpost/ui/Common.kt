@@ -81,7 +81,7 @@ fun Avatar(acc: TgAccount, id: Long, title: String, photo: File?, mini: ByteArra
     val f = rememberFile(acc, photo, autoDownload = true, priority = 2)
     val mb = remember(mini) { miniBitmap(mini) }
     Box(
-        Modifier.size(size).clip(CircleShape).background(color),
+        Modifier.size(size).clip(LocalStyle.current.avatarShape).background(color),
         contentAlignment = Alignment.Center,
     ) {
         if (f != null && f.local.isDownloadingCompleted && f.local.path.isNotEmpty()) {

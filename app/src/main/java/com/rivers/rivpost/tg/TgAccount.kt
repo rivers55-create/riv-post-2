@@ -34,6 +34,7 @@ data class ChatItem(
     val lastReadInbox: Long,
     val lastReadOutbox: Long,
     val markedUnread: Boolean,
+    val notif: ChatNotificationSettings,
 ) {
     fun withPosition(p: ChatPosition): ChatItem {
         val rest = positions.filter { it.list != p.list }
@@ -43,6 +44,8 @@ data class ChatItem(
     val isChannel: Boolean get() = (type as? ChatTypeSupergroup)?.isChannel == true
     val isGroup: Boolean get() = type is ChatTypeBasicGroup || (type is ChatTypeSupergroup && !isChannel)
     val privateUserId: Long get() = (type as? ChatTypePrivate)?.userId ?: (type as? ChatTypeSecret)?.userId ?: 0L
+    val isSecret: Boolean get() = type is ChatTypeSecret
+    val supergroupId: Long get() = (type as? ChatTypeSupergroup)?.supergroupId ?: 0L
 }
 
 /** Message events that open chat screens listen to. */
@@ -52,6 +55,7 @@ sealed class MsgEvent {
     class Deleted(val chatId: Long, val ids: LongArray) : MsgEvent()
     class Content(val chatId: Long, val id: Long, val content: MessageContent) : MsgEvent()
     class Edited(val chatId: Long, val id: Long, val editDate: Int) : MsgEvent()
+    class Interaction(val chatId: Long, val id: Long, val info: MessageInteractionInfo?) : MsgEvent()
 }
 
 /** One Telegram account: its own TDLib client and database folder. */
@@ -71,6 +75,16 @@ class TgAccount(private val ctx: Context, val index: Int) {
     val usersVersion = MutableStateFlow(0L)
     private val files = ConcurrentHashMap<Int, MutableStateFlow<File>>()
     private val scopeMute = ConcurrentHashMap<String, Int>()
+    val supergroups = ConcurrentHashMap<Long, Supergroup>()
+    val basicGroups = ConcurrentHashMap<Long, BasicGroup>()
+    val secretChats = ConcurrentHashMap<Int, SecretChat>()
+    val statuses = ConcurrentHashMap<Long, UserStatus>()
+    /** Unread counters per chat list key (see [listKey]): first = unread chats, second = unread unmuted chats. */
+    val unreadCounts = ConcurrentHashMap<String, Pair<Int, Int>>()
+    /** chatId -> (who is typing, until when in ms). */
+    val typing = ConcurrentHashMap<Long, Pair<String, Long>>()
+    val extraVersion = MutableStateFlow(0L)
+    private fun bumpExtra() { extraVersion.value = extraVersion.value + 1 }
 
     @Volatile var openChatId = 0L
     @Volatile var loggingOut = false
@@ -115,6 +129,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
                     lastReadInbox = c.lastReadInboxMessageId,
                     lastReadOutbox = c.lastReadOutboxMessageId,
                     markedUnread = c.isMarkedAsUnread,
+                    notif = c.notificationSettings,
                 )
                 bumpChats()
             }
@@ -139,6 +154,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 it.copy(
                     muteFor = u.notificationSettings.muteFor,
                     useDefaultMute = u.notificationSettings.useDefaultMuteFor,
+                    notif = u.notificationSettings,
                 )
             }
             is UpdateScopeNotificationSettings -> {
@@ -150,8 +166,34 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 scopeMute[key] = u.notificationSettings.muteFor
             }
             is UpdateChatFolders -> folders.value = u.chatFolders.toList()
+            is UpdateSupergroup -> { supergroups[u.supergroup.id] = u.supergroup; bumpExtra() }
+            is UpdateBasicGroup -> { basicGroups[u.basicGroup.id] = u.basicGroup; bumpExtra() }
+            is UpdateSecretChat -> { secretChats[u.secretChat.id] = u.secretChat; bumpExtra() }
+            is UpdateUserStatus -> { statuses[u.userId] = u.status; bumpExtra() }
+            is UpdateUnreadChatCount -> {
+                unreadCounts[listKey(u.chatList)] = u.unreadCount to u.unreadUnmutedCount
+                bumpExtra()
+            }
+            is UpdateChatAction -> {
+                if (u.action is ChatActionCancel) typing.remove(u.chatId)
+                else {
+                    val who = senderName(u.senderId).split(" ").first()
+                    val what = when (u.action) {
+                        is ChatActionRecordingVoiceNote -> "recording voice"
+                        is ChatActionUploadingPhoto -> "sending a photo"
+                        is ChatActionUploadingVideo, is ChatActionRecordingVideo -> "sending a video"
+                        is ChatActionUploadingDocument -> "sending a file"
+                        is ChatActionChoosingSticker -> "choosing a sticker"
+                        else -> "typing"
+                    }
+                    typing[u.chatId] = (who + "|" + what) to (System.currentTimeMillis() + 6000)
+                }
+                bumpExtra()
+            }
+            is UpdateMessageInteractionInfo -> events.tryEmit(MsgEvent.Interaction(u.chatId, u.messageId, u.interactionInfo))
             is UpdateUser -> {
                 users[u.user.id] = u.user
+                statuses[u.user.id] = u.user.status
                 u.user.profilePhoto?.small?.let { track(it) }
                 usersVersion.value = usersVersion.value + 1
                 if (me.value?.id == u.user.id) me.value = u.user
@@ -322,4 +364,58 @@ class TgAccount(private val ctx: Context, val index: Int) {
     }
 
     private fun err(r: TdlResult<*>): String? = (r as? TdlResult.Failure)?.message
+
+    fun listKey(l: ChatList): String = when (l) {
+        is ChatListFolder -> "folder" + l.chatFolderId
+        is ChatListArchive -> "archive"
+        else -> "main"
+    }
+
+    fun isVerified(c: ChatItem): Boolean {
+        if (c.privateUserId != 0L) return users[c.privateUserId]?.verificationStatus?.isVerified == true
+        if (c.supergroupId != 0L) return supergroups[c.supergroupId]?.verificationStatus?.isVerified == true
+        return false
+    }
+
+    fun isOnline(userId: Long): Boolean = statuses[userId] is UserStatusOnline
+
+    fun memberCount(c: ChatItem): Int = when (val t = c.type) {
+        is ChatTypeSupergroup -> supergroups[t.supergroupId]?.memberCount ?: 0
+        is ChatTypeBasicGroup -> basicGroups[t.basicGroupId]?.memberCount ?: 0
+        else -> 0
+    }
+
+    fun typingText(chatId: Long): String? {
+        val t = typing[chatId] ?: return null
+        if (t.second < System.currentTimeMillis()) { typing.remove(chatId); return null }
+        return t.first
+    }
+
+    val myId: Long get() = me.value?.id ?: 0L
+
+    suspend fun <T> ok(r: TdlResult<T>): T? = (r as? TdlResult.Success)?.result
+
+    /** Opens (or creates) the private chat with a user and returns its id. */
+    suspend fun privateChat(userId: Long): Long? = ok(client.createPrivateChat(userId = userId, force = false))?.id
+
+    fun setMuted(c: ChatItem, mute: Boolean, secs: Int = 366 * 24 * 3600) {
+        val n = c.notif
+        val ns = ChatNotificationSettings(
+            useDefaultMuteFor = false, muteFor = if (mute) secs else 0,
+            useDefaultSound = n.useDefaultSound, soundId = n.soundId,
+            useDefaultShowPreview = n.useDefaultShowPreview, showPreview = n.showPreview,
+            useDefaultMuteStories = n.useDefaultMuteStories, muteStories = n.muteStories,
+            useDefaultStorySound = n.useDefaultStorySound, storySoundId = n.storySoundId,
+            useDefaultShowStoryPoster = n.useDefaultShowStoryPoster, showStoryPoster = n.showStoryPoster,
+            useDefaultDisablePinnedMessageNotifications = n.useDefaultDisablePinnedMessageNotifications,
+            disablePinnedMessageNotifications = n.disablePinnedMessageNotifications,
+            useDefaultDisableMentionNotifications = n.useDefaultDisableMentionNotifications,
+            disableMentionNotifications = n.disableMentionNotifications,
+        )
+        scope.launch { client.setChatNotificationSettings(chatId = c.id, notificationSettings = ns) }
+    }
+
+    /** Searches all chats for messages of one kind (music, videos…). */
+    suspend fun searchAll(filter: SearchMessagesFilter, query: String, offset: String, limit: Int = 100): FoundMessages? =
+        ok(client.searchMessages(chatList = null, query = query, offset = offset, limit = limit, filter = filter, chatTypeFilter = null, minDate = 0, maxDate = 0))
 }

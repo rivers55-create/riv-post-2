@@ -11,8 +11,8 @@ android {
         applicationId = "com.rivers.rivpost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
@@ -65,6 +65,7 @@ kotlin {
             "androidx.compose.material3.ExperimentalMaterial3Api",
             "androidx.compose.foundation.ExperimentalFoundationApi",
             "androidx.compose.foundation.layout.ExperimentalLayoutApi",
+            "androidx.media3.common.util.UnstableApi",
         )
     }
 }
@@ -81,4 +82,9 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("dev.g000sha256:tdl-coroutines:17.0.0")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-session:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("com.airbnb.android:lottie-compose:6.6.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 }
