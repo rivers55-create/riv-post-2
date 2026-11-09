@@ -108,6 +108,11 @@ class MainActivity : FragmentActivity() {
     private fun handleIntent(i: Intent?) {
         if (i == null) return
         if (i.getBooleanExtra("open_player", false)) Music.playerOpen = true
+        val data = i.dataString
+        if (i.action == Intent.ACTION_VIEW && data != null && com.rivers.rivpost.ui.TgLinks.isTelegram(data)) {
+            com.rivers.rivpost.ui.TgLinks.act = this
+            window.decorView.postDelayed({ com.rivers.rivpost.ui.TgLinks.open(data) { } }, 1200)
+        }
         val acc = i.getIntExtra("acc", -1)
         val chat = i.getLongExtra("chat", 0L)
         if (acc >= 0 && chat != 0L) {
@@ -203,6 +208,8 @@ private fun Root(act: MainActivity) {
                                 MainNav(act, acc)
                                 com.rivers.rivpost.ui.MusicDrawer(act)
                                 com.rivers.rivpost.ui.BotAlertDialog()
+                                com.rivers.rivpost.ui.TgLinkDialogs()
+                                LaunchedEffect(Unit) { com.rivers.rivpost.ui.TgLinks.act = act }
                                 AuthPinDialog()
                             } else {
                                 LoginScreen(acc)

@@ -215,7 +215,9 @@ fun ProfilePage(acc: TgAccount, act: MainActivity) {
     LazyColumn(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         item {
             Spacer(Modifier.height(20.dp))
-            Avatar(acc, u.id, acc.userName(u.id), u.profilePhoto?.small, u.profilePhoto?.minithumbnail?.data, 110.dp)
+            var myPhotos by remember { mutableStateOf(false) }
+            if (myPhotos) ProfilePhotos(acc, u.id) { myPhotos = false }
+            Box(Modifier.clickable { myPhotos = true }) { Avatar(acc, u.id, acc.userName(u.id), u.profilePhoto?.small, u.profilePhoto?.minithumbnail?.data, 110.dp) }
             Spacer(Modifier.height(12.dp))
             Text(acc.userName(u.id), fontSize = 26.sp, fontWeight = FontWeight.Bold)
             val un = u.usernames?.activeUsernames?.firstOrNull()
@@ -426,7 +428,9 @@ fun ChatInfoScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                 Column(Modifier.fillMaxWidth().statusBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(56.dp))
-                    ChatAvatar(acc, c, 110.dp)
+                    var photos by remember { mutableStateOf(false) }
+                    if (photos && c.privateUserId != 0L) ProfilePhotos(acc, c.privateUserId) { photos = false }
+                    Box(Modifier.clickable { if (c.privateUserId != 0L) photos = true }) { ChatAvatar(acc, c, 110.dp) }
                     Spacer(Modifier.height(14.dp))
                     Text(if (acc.isSaved(c)) t("Saved Messages") else c.title, fontSize = 26.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     val sub = when {

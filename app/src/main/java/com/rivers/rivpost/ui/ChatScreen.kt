@@ -335,6 +335,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var sendMenu by remember { mutableStateOf(false) }
     var pollDialog by remember { mutableStateOf(false) }
     var viewer by remember { mutableStateOf<String?>(null) }
+    var viewerMsg by remember { mutableStateOf(0L) }
+    var datePick by remember { mutableStateOf(false) }
     val recorder = remember { VoiceRecorder(ctx) }
     var recording by remember { mutableStateOf(false) }
     var recSecs by remember { mutableStateOf(0) }
@@ -365,6 +367,11 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
     val latestText by rememberUpdatedState(text)
+    LaunchedEffect(text.isNotBlank(), text.length / 40) {
+        if (text.isNotBlank() && Prefs.sendTyping && !Prefs.ghost) {
+            acc.client.sendChatAction(chatId = chatId, topicId = data.topicId, businessConnectionId = "", action = dev.g000sha256.tdl.dto.ChatActionTyping())
+        }
+    }
     DisposableEffect(acc, chatId) {
         onDispose {
             val d = latestText.trim()
@@ -474,9 +481,11 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         if (ed != null) {
             editing = null
             acc.scope.launch {
-                val r = acc.client.editMessageText(
+                val r = if (ed.content is MessageText) acc.client.editMessageText(
                     chatId = chatId, messageId = ed.id,
                     inputMessageContent = InputMessageText(text = FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true),
+                ) else acc.client.editMessageCaption(
+                    chatId = chatId, messageId = ed.id, caption = FormattedText(text = s, entities = emptyArray<TextEntity>()), showCaptionAboveMedia = false,
                 )
                 if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
             }
@@ -660,6 +669,21 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         }
                         if (peerUserId != 0L) MenuItem(Ic.Movie, t("Video Call")) { menu = false; toast(ctx, t("Calls are coming in a later version")) }
                         MenuItem(Ic.Search, t("Search")) { menu = false; searching = true }
+                        MenuItem(Ic.Clock, t("Jump to date")) {
+                            menu = false
+                            val cal = java.util.Calendar.getInstance()
+                            android.app.DatePickerDialog(ctx, { _, y, mo, d ->
+                                val c = java.util.Calendar.getInstance().apply { set(y, mo, d, 0, 0, 0) }
+                                acc.scope.launch {
+                                    val r = acc.client.getChatMessageByDate(chatId = chatId, date = (c.timeInMillis / 1000).toInt())
+                                    val id = (r as? TdlResult.Success)?.result?.id
+                                    if (id != null) {
+                                        val i = data.loadAround(id)
+                                        withContext(Dispatchers.Main) { if (i >= 0) scope.launch { listState.scrollToItem(i) } }
+                                    } else withContext(Dispatchers.Main) { toast(ctx, t("No messages on that day")) }
+                                }
+                            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                        }
                         MenuItem(Ic.Image, t("Change Wallpaper")) { menu = false; confirm = "wallpaper" }
                         MenuItem(Ic.Clock, t("Scheduled messages")) { menu = false; act.push(Screen.Page("scheduled:$chatId")) }
                         if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Settings, t("Manage")) { menu = false; act.push(Screen.Page("admin:$chatId")) }
@@ -716,9 +740,9 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                     acc, act, data, chat, m, data.content[m.id] ?: m.content,
                                     if (data.interaction.containsKey(m.id)) data.interaction[m.id] else m.interactionInfo,
                                     showName = !sameSender,
-                                    onPhoto = { viewer = it },
+                                    onPhoto = { viewer = it; viewerMsg = m.id },
                                     onReply = { replyTo = it; editing = null },
-                                    onEdit = { msg -> editing = msg; replyTo = null; text = (msg.content as? MessageText)?.text?.text ?: "" },
+                                    onEdit = { msg -> editing = msg; replyTo = null; text = textOf(msg.content) },
                                     onReact = { msg, e -> react(msg, e) },
                                     onJump = { jumpTo(it) },
                                     deleted = m.id in data.deleted,
@@ -740,6 +764,41 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                 .clickable { acc.markAllRead(chatId, data.messages.take(100).map { it.id }.toLongArray()) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         )
+                    }
+                    val mentionCount = chat?.mentions ?: 0
+                    val reactionCount = acc.unreadReactions[chatId] ?: 0
+                    Column(Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 80.dp)) {
+                        for ((label, n, filter) in listOf(
+                            Triple("@", mentionCount, dev.g000sha256.tdl.dto.SearchMessagesFilterUnreadMention() as dev.g000sha256.tdl.dto.SearchMessagesFilter),
+                            Triple("❤", reactionCount, dev.g000sha256.tdl.dto.SearchMessagesFilterUnreadReaction()),
+                        )) {
+                            if (n <= 0) continue
+                            Box(
+                                Modifier.padding(bottom = 10.dp).size(50.dp).clip(CircleShape).background(style.navBar)
+                                    .combinedClickable(
+                                        onClick = {
+                                            acc.scope.launch {
+                                                val r = acc.client.searchChatMessages(chatId = chatId, query = "", fromMessageId = 0, offset = 0, limit = 1, filter = filter)
+                                                val id = (r as? TdlResult.Success)?.result?.messages?.firstOrNull()?.id ?: return@launch
+                                                val i = data.loadAround(id)
+                                                withContext(Dispatchers.Main) { if (i >= 0) scope.launch { listState.animateScrollToItem(i) } }
+                                            }
+                                        },
+                                        onLongClick = {
+                                            acc.scope.launch {
+                                                if (label == "@") acc.client.readAllChatMentions(chatId = chatId) else acc.client.readAllChatReactions(chatId = chatId)
+                                            }
+                                        },
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(label, color = style.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    n.toString(), color = Color.White, fontSize = 10.sp,
+                                    modifier = Modifier.align(Alignment.TopEnd).clip(CircleShape).background(style.accent).padding(horizontal = 4.dp),
+                                )
+                            }
+                        }
                     }
                     val showDown by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
                     if (showDown) Box(
@@ -903,7 +962,10 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         )
     }
     LinkEditDialog()
-    viewer?.let { path -> PhotoViewer(path) { viewer = null } }
+    viewer?.let { path ->
+        if (Prefs.mediaGallery && viewerMsg != 0L) MediaGallery(acc, act, chatId, viewerMsg) { viewer = null; viewerMsg = 0L }
+        else PhotoViewer(path) { viewer = null }
+    }
     if (muteDialog && chat != null) ChoiceDialog(
         t("Mute"), listOf(t("1 hour") to 3600, t("8 hours") to 8 * 3600, t("2 days") to 2 * 86400, t("Forever") to 366 * 86400),
         onDismiss = { muteDialog = false },
@@ -1300,6 +1362,16 @@ private fun MessageItem(
     var history by remember { mutableStateOf<List<String>?>(null) }
     var selectDialog by remember { mutableStateOf(false) }
     var translate by remember { mutableStateOf(false) }
+    var replacePhoto by remember { mutableStateOf(false) }
+    val pickReplace = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        replacePhoto = false
+        if (uri != null) acc.scope.launch {
+            val f = copyToCache(ctx, uri) ?: return@launch
+            val r = acc.client.editMessageMedia(chatId = m.chatId, messageId = m.id, inputMessageContent = photoContent(f.absolutePath, textOf(content)))
+            if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
+        }
+    }
+    LaunchedEffect(replacePhoto) { if (replacePhoto) pickReplace.launch("image/*") }
     var seenBy by remember { mutableStateOf(false) }
     var replied by remember(m.id) { mutableStateOf<Message?>(null) }
     LaunchedEffect(m.id) { if (m.replyTo is MessageReplyToMessage) replied = data.replyOf(m) }
@@ -1435,7 +1507,9 @@ private fun MessageItem(
                         Spacer(Modifier.width(3.dp))
                         when (m.sendingState) {
                             is MessageSendingStatePending -> Text("🕓", fontSize = 10.sp)
-                            is MessageSendingStateFailed -> Text("⚠", fontSize = 12.sp, color = Color(0xFFE53935))
+                            is MessageSendingStateFailed -> Text("⚠ " + t("Tap to resend"), fontSize = 12.sp, color = Color(0xFFE53935), modifier = Modifier.clickable {
+                                acc.scope.launch { acc.client.resendMessages(chatId = m.chatId, messageIds = longArrayOf(m.id), paidMessageStarCount = 0) }
+                            })
                             else -> Icon(if (m.id <= (chat?.lastReadOutbox ?: 0L)) Ic.DoneAll else Ic.Check, null, Modifier.size(16.dp), tint = meta)
                         }
                     }
@@ -1477,7 +1551,17 @@ private fun MessageItem(
                     cm.setPrimaryClip(ClipData.newPlainText("message", txt))
                     toast(ctx, t("Copied"))
                 }
-                if (m.isOutgoing && content is MessageText) MenuItem(Ic.Edit, t("Edit")) { menu = false; onEdit(m) }
+                if (m.isOutgoing && m.canBeEdited && (content is MessageText || content is MessagePhoto || content is MessageVideo || content is MessageDocument || content is MessageAudio || content is MessageAnimation)) {
+                    MenuItem(Ic.Edit, if (content is MessageText) t("Edit") else t("Edit caption")) { menu = false; onEdit(m) }
+                }
+                if (m.isOutgoing && m.canBeEdited && content is MessagePhoto) MenuItem(Ic.Image, t("Replace photo")) { menu = false; replacePhoto = true }
+                if (m.sendingState is MessageSendingStateFailed) MenuItem(Ic.Refresh, t("Resend")) {
+                    menu = false
+                    acc.scope.launch {
+                        val r = acc.client.resendMessages(chatId = m.chatId, messageIds = longArrayOf(m.id), paidMessageStarCount = 0)
+                        if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
+                    }
+                }
                 MenuItem(Ic.Forward, t("Forward")) { menu = false; act.push(Screen.Forward(m.chatId, longArrayOf(m.id))) }
                 if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Link, t("Copy link")) {
                     menu = false
@@ -2051,6 +2135,7 @@ object LinkEdit {
     var proxyLink by mutableStateOf<String?>(null)
     fun open(url: String) {
         if (com.rivers.rivpost.tg.Proxies.parseLink(url) != null) { proxyLink = url; return }
+        if (TgLinks.isTelegram(url)) { TgLinks.open(url) { u -> if (Prefs.editLinks) pending = u else direct?.invoke(u) }; return }
         if (Prefs.editLinks) pending = url else direct?.invoke(url)
     }
 }

@@ -143,6 +143,7 @@ fun ClickRow(title: String, value: String?, onClick: () -> Unit) {
 
 fun toast(c: Context, s: String) {
     Toast.makeText(c, s, Toast.LENGTH_SHORT).show()
+    com.rivers.rivpost.tg.DebugLog.write("toast: $s")
 }
 
 /** Opens a downloaded file in another app (video player, PDF reader…). */

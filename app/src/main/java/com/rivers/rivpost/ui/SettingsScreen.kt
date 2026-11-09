@@ -250,6 +250,15 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
+        SectionTitle(t("Problem reports"))
+        SwitchRow(t("Detailed debug log"), t("Records Telegram's engine log too. Turn on only while fixing a problem."), Prefs.debugLog) {
+            Prefs.debugLog = it
+            com.rivers.rivpost.tg.DebugLog.applyTdlib(acc)
+        }
+        ClickRow(t("Send debug log"), "›") { com.rivers.rivpost.tg.DebugLog.share(ctx) }
+        ClickRow(t("Clear debug log"), null) { com.rivers.rivpost.tg.DebugLog.clear(); toast(ctx, t("Done")) }
+        SwitchRow(t("Show that I'm typing"), null, Prefs.sendTyping) { Prefs.sendTyping = it }
+        SwitchRow(t("Swipe through all media in a chat"), null, Prefs.mediaGallery) { Prefs.mediaGallery = it }
         SectionTitle(t("Power tools"))
         Text(t("Extra tabs"), fontSize = 16.sp, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
         for (k in listOf("unread", "groups", "channels", "private", "bots")) {

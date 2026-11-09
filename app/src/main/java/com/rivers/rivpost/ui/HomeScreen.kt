@@ -405,7 +405,8 @@ private fun ChatListPage(acc: TgAccount, act: MainActivity, list: ChatList, quer
     val state = rememberLazyListState()
     val nearEnd by remember { derivedStateOf { (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= state.layoutInfo.totalItemsCount - 8 } }
     LaunchedEffect(nearEnd, rows.size) { if (nearEnd && rows.isNotEmpty()) acc.load(list) }
-    if (rows.isEmpty()) {
+    val global = query.trim().length >= 2 && !vault && filter == null
+    if (rows.isEmpty() && !global) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(if (query.isNotBlank() || filter != null || vault) t("No chats found") else t("Loading chats…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -419,6 +420,7 @@ private fun ChatListPage(acc: TgAccount, act: MainActivity, list: ChatList, quer
                 Modifier.padding(start = style.avatar + 26.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             )
         }
+        if (global && list is ChatListMain) item(key = "global") { GlobalSearch(acc, act, query.trim(), rows.map { it.first.id }.toSet()) }
         item { Spacer(Modifier.height(80.dp)) }
     }
 }

@@ -100,6 +100,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
     val replyMarkups = ConcurrentHashMap<Long, Message>()
     /** Chats with active stories (chatId -> stories). */
     val stories = ConcurrentHashMap<Long, ChatActiveStories>()
+    val unreadReactions = ConcurrentHashMap<Long, Int>()
 
     fun hasUnseenStories(chatId: Long): Boolean {
         val s = stories[chatId] ?: return false
@@ -193,7 +194,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
                     id = c.id, title = c.title, type = c.type,
                     photo = c.photo?.small, mini = c.photo?.minithumbnail?.data,
                     lastMessage = c.lastMessage, positions = c.positions.toList(),
-                    unread = c.unreadCount, mentions = c.unreadMentionCount,
+                    unread = c.unreadCount, mentions = c.unreadMentionCount.also { unreadReactions[c.id] = c.unreadReactionCount },
                     muteFor = c.notificationSettings.muteFor,
                     useDefaultMute = c.notificationSettings.useDefaultMuteFor,
                     lastReadInbox = c.lastReadInboxMessageId,
@@ -225,6 +226,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
             }
             is UpdateChatReadOutbox -> edit(u.chatId) { it.copy(lastReadOutbox = u.lastReadOutboxMessageId) }
             is UpdateChatUnreadMentionCount -> edit(u.chatId) { it.copy(mentions = u.unreadMentionCount) }
+            is UpdateChatUnreadReactionCount -> { unreadReactions[u.chatId] = u.unreadReactionCount; bumpExtra() }
             is UpdateChatIsMarkedAsUnread -> edit(u.chatId) { it.copy(markedUnread = u.isMarkedAsUnread) }
             is UpdateChatNotificationSettings -> edit(u.chatId) {
                 it.copy(
@@ -327,6 +329,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 }
                 load(ChatListMain())
                 try { client.loadActiveStories(storyList = StoryListMain()) } catch (_: Throwable) { }
+                if (com.rivers.rivpost.data.Prefs.debugLog) DebugLog.applyTdlib(this@TgAccount)
             }
             is AuthorizationStateClosed -> Tg.onClosed(this)
             else -> {}

@@ -205,6 +205,9 @@ object Prefs {
     var hiddenChats by StrPref("hidden_song_chats", "")
     var videoNotes by BoolPref("video_notes", true)
     var sendAlbums by BoolPref("send_albums", true)
+    var mediaGallery by BoolPref("media_gallery", true)
+    var sendTyping by BoolPref("send_typing", true)
+    var debugLog by BoolPref("debug_log", false)
     var videoPanel by BoolPref("video_panel", true)
     var miniStyle by StrPref("mini_style", "card")   // card / pill
     var swipeTabs by BoolPref("swipe_tabs", true)

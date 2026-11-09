@@ -21,6 +21,7 @@ object Tg {
     @Volatile var foreground = false
 
     fun init(c: Context) {
+        DebugLog.init(c)
         app = c.applicationContext
         if (Prefs.hasKeys) startAll()
         Proxies.startWatcher()
