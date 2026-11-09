@@ -45,6 +45,7 @@ data class ChatItem(
     val isGroup: Boolean get() = type is ChatTypeBasicGroup || (type is ChatTypeSupergroup && !isChannel)
     val privateUserId: Long get() = (type as? ChatTypePrivate)?.userId ?: (type as? ChatTypeSecret)?.userId ?: 0L
     val isSecret: Boolean get() = type is ChatTypeSecret
+    val secretId: Int get() = (type as? ChatTypeSecret)?.secretChatId ?: 0
     val supergroupId: Long get() = (type as? ChatTypeSupergroup)?.supergroupId ?: 0L
 }
 
@@ -376,6 +377,10 @@ class TgAccount(private val ctx: Context, val index: Int) {
         if (c.supergroupId != 0L) return supergroups[c.supergroupId]?.verificationStatus?.isVerified == true
         return false
     }
+
+    fun status(userId: Long): UserStatus? = statuses[userId] ?: users[userId]?.status
+
+    fun isSaved(c: ChatItem): Boolean = !c.isSecret && c.privateUserId != 0L && c.privateUserId == me.value?.id
 
     fun isOnline(userId: Long): Boolean = statuses[userId] is UserStatusOnline
 
