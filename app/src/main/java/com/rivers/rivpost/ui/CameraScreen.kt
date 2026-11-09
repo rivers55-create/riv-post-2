@@ -62,6 +62,17 @@ fun CameraScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
     var back by remember { mutableStateOf(true) }
     var flash by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
+    var shot by remember { mutableStateOf<String?>(null) }
+    shot?.let { p ->
+        PhotoEditor(p, "", onDone = { out, cap ->
+            acc.scope.launch {
+                val r = acc.client.sendMessage(chatId = chatId, inputMessageContent = photoContent(out, cap))
+                if (r is TdlResult.Failure) android.os.Handler(android.os.Looper.getMainLooper()).post { toast(ctx, r.message) }
+            }
+            shot = null
+            onClose()
+        }, onCancel = { shot = null })
+    }
     val capture = remember {
         ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY).build()
     }
@@ -108,12 +119,8 @@ fun CameraScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
                             ImageCapture.OutputFileOptions.Builder(f).build(), ContextCompat.getMainExecutor(ctx),
                             object : ImageCapture.OnImageSavedCallback {
                                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                    acc.scope.launch {
-                                        val r = acc.client.sendMessage(chatId = chatId, inputMessageContent = photoContent(f.absolutePath))
-                                        if (r is TdlResult.Failure) android.os.Handler(android.os.Looper.getMainLooper()).post { toast(ctx, r.message) }
-                                    }
                                     busy = false
-                                    onClose()
+                                    shot = f.absolutePath
                                 }
                                 override fun onError(exception: ImageCaptureException) {
                                     busy = false

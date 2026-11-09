@@ -205,6 +205,8 @@ object Prefs {
     var hiddenChats by StrPref("hidden_song_chats", "")
     var videoNotes by BoolPref("video_notes", true)
     var sendAlbums by BoolPref("send_albums", true)
+    var mentionHints by BoolPref("mention_hints", true)
+    var translateButton by BoolPref("translate_button", true)
     var linkPreviews by BoolPref("link_previews", true)
     var showDrafts by BoolPref("show_drafts", true)
     var hideShort by BoolPref("hide_short", true)

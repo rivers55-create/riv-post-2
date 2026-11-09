@@ -207,6 +207,15 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
         anchor = id
     }
 
+    /** Select every message between the first and last selected one. */
+    fun fillRange() {
+        val idx = selected.map { id -> messages.indexOfFirst { it.id == id } }.filter { it >= 0 }
+        if (idx.size < 2) return
+        for (i in idx.min()..idx.max()) { val mid = messages[i].id; if (mid !in selected) selected.add(mid) }
+    }
+
+    fun toggle(id: Long) { if (!selected.remove(id)) { selected.add(id); anchor = id } }
+
     suspend fun loadMore() {
         if (loading || end) return
         loading = true
@@ -293,6 +302,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var text by remember(chatId) { mutableStateOf(acc.chats[chatId]?.draft ?: "") }
     var stickers by remember { mutableStateOf(false) }
     var sendMenu by remember { mutableStateOf(false) }
+    var pollDialog by remember { mutableStateOf(false) }
     var viewer by remember { mutableStateOf<String?>(null) }
     val recorder = remember { VoiceRecorder(ctx) }
     var recording by remember { mutableStateOf(false) }
@@ -587,6 +597,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         data.selected.clear()
                     },
                     onDelete = { selDelete = true },
+                    onRange = { data.fillRange() },
                 ) else ChatHeader(
                     acc, chat, subtitle, typing != null,
                     onBack = onBack,
@@ -639,6 +650,12 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                     ) {
                         itemsIndexed(data.messages, key = { _, m -> m.id }) { i, m ->
                             val older = data.messages.getOrNull(i + 1)
+                            val albumId = m.mediaAlbumId
+                            if (albumId != 0L && older?.mediaAlbumId == albumId) return@itemsIndexed
+                            val album = if (albumId == 0L) null else buildList {
+                                var j = i
+                                while (j >= 0 && data.messages[j].mediaAlbumId == albumId) { add(data.messages[j]); j-- }
+                            }
                             Column(Modifier.fillMaxWidth()) {
                                 if (older == null || Fmt.dayKey(older.date) != Fmt.dayKey(m.date)) DayChip(Fmt.dayLabel(m.date))
                                 val sameSender = older != null && older.senderId == m.senderId && !Fmt.isService(older) &&
@@ -655,6 +672,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                     deleted = m.id in data.deleted,
                                     onQuickForward = { quickForward(it) },
                                     onSwitchInline = { q -> text = q },
+                                    album = album,
                                 )
                             }
                         }
@@ -700,7 +718,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             }
 
             // ---------- bots ----------
-            if (text.startsWith("@")) InlineResults(acc, chatId, text) { text = "" }
+            if (text.startsWith("@") && !(chat?.isGroup == true && !text.contains(' '))) InlineResults(acc, chatId, text) { text = "" }
+            if (chat?.isGroup == true && Prefs.mentionHints) MentionSuggestions(acc, chatId, text) { text = it }
             if (botMarkup != null && showBotKb && botMarkup.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard) {
                 BotKeyboard(acc, act, chatId, botMarkup) { k ->
                     send(InputMessageText(text = FormattedText(text = k, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
@@ -776,6 +795,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
+    if (pollDialog) CreatePollDialog(onDismiss = { pollDialog = false }) { send(it) }
     if (selDelete) {
         val ids = data.selected.toLongArray()
         val mine = data.messages.filter { it.id in data.selected }.all { it.isOutgoing }
@@ -794,6 +814,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     }
     if (attach) AttachSheet(
         onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) },
+        onPoll = if (chat?.isGroup == true || chat?.isChannel == true) ({ attach = false; pollDialog = true }) else null,
         onSendAlbum = { list ->
             val r = replyTo
             replyTo = null
@@ -921,6 +942,41 @@ private fun ChatHeader(
     }
 }
 
+/** Several photos/videos sent together, shown as one grid. */
+@Composable
+private fun AlbumGrid(acc: TgAccount, act: MainActivity, items: List<Message>, onPhoto: (String) -> Unit) {
+    val n = items.size
+    val rows: List<List<Message>> = when {
+        n == 3 -> listOf(items.take(1), items.drop(1))
+        n % 2 == 1 -> items.dropLast(3).chunked(2) + listOf(items.takeLast(3))
+        else -> items.chunked(2)
+    }
+    val r = LocalStyle.current.radius - 3.dp
+    Column(Modifier.width(260.dp).clip(RoundedCornerShape(r)), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        for (row in rows) {
+            Row(Modifier.fillMaxWidth().height(if (row.size == 1) 170.dp else if (row.size == 2) 130.dp else 90.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for (m in row) {
+                    val cell = Modifier.weight(1f).fillMaxHeight()
+                    when (val c = m.content) {
+                        is MessagePhoto -> {
+                            val best = c.photo.sizes.filter { maxOf(it.width, it.height) <= 1280 }.maxByOrNull { it.width * it.height } ?: c.photo.sizes.lastOrNull()
+                            if (best != null) MediaBox(acc, best.photo, c.photo.minithumbnail, null, 1f, auto = Prefs.autoPhotos, isPhoto = true, box = cell, onOpen = { onPhoto(it) })
+                            else Box(cell)
+                        }
+                        is MessageVideo -> {
+                            val v = c.video
+                            VideoPreview(acc, v.thumbnail, v.minithumbnail, 1f, Fmt.duration(v.duration), box = cell) {
+                                act.push(Screen.Video(PlayRequest(acc.index, v.video, c.caption.text.take(60).ifBlank { v.fileName.ifBlank { t("Video") } }, "${m.chatId}:${m.id}")))
+                            }
+                        }
+                        else -> Box(cell)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LinkPreviewCard(acc: TgAccount, lp: dev.g000sha256.tdl.dto.LinkPreview, fg: Color) {
     if (!Prefs.linkPreviews) return
@@ -972,21 +1028,29 @@ private fun playOrToggle(acc: TgAccount, m: Message, track: Track) {
 @Composable
 private fun SelectionBar(
     count: Int, onClose: () -> Unit, onDownload: () -> Unit, onForward: () -> Unit,
-    onCopy: () -> Unit, onHide: () -> Unit, onDelete: () -> Unit,
+    onCopy: () -> Unit, onHide: () -> Unit, onDelete: () -> Unit, onRange: () -> Unit,
 ) {
     val style = LocalStyle.current
     val fg = style.navBarFg
+    var more by remember { mutableStateOf(false) }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).height(56.dp).clip(RoundedCornerShape(28.dp)).background(style.navBar),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) { Icon(Ic.Close, null, tint = fg) }
-        Text("$count " + t("Selected"), color = fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text("$count", color = fg, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        if (count >= 2) IconButton(onClick = onRange) { Icon(Ic.SelectRange, null, tint = style.accent) }
         IconButton(onClick = onDownload) { Icon(Ic.Download, null, tint = fg) }
         IconButton(onClick = onForward) { Icon(Ic.Forward, null, tint = fg) }
-        IconButton(onClick = onCopy) { Icon(Ic.Copy, null, tint = fg) }
-        IconButton(onClick = onHide) { Icon(Ic.Hide, null, tint = fg) }
         IconButton(onClick = onDelete) { Icon(Ic.Delete, null, tint = Color(0xFFE57373)) }
+        Box {
+            IconButton(onClick = { more = true }) { Icon(Ic.More, null, tint = fg) }
+            DropdownMenu(expanded = more, onDismissRequest = { more = false }, shape = RoundedCornerShape(18.dp)) {
+                if (count >= 2) MenuItem(Ic.SelectRange, t("Select everything between")) { more = false; onRange() }
+                MenuItem(Ic.Copy, t("Copy")) { more = false; onCopy() }
+                MenuItem(Ic.Hide, t("Hide songs from Music")) { more = false; onHide() }
+            }
+        }
     }
 }
 
@@ -1118,6 +1182,7 @@ private fun MessageItem(
     onPhoto: (String) -> Unit, onReply: (Message) -> Unit, onEdit: (Message) -> Unit,
     onReact: (Message, String) -> Unit, onJump: (Long) -> Unit,
     deleted: Boolean = false, onQuickForward: (Message) -> Unit = {}, onSwitchInline: (String) -> Unit = {},
+    album: List<Message>? = null,
 ) {
     val style = LocalStyle.current
     val ctx = LocalContext.current
@@ -1146,6 +1211,8 @@ private fun MessageItem(
     var dragX by remember(m.id) { mutableFloatStateOf(0f) }
     var history by remember { mutableStateOf<List<String>?>(null) }
     var selectDialog by remember { mutableStateOf(false) }
+    var translate by remember { mutableStateOf(false) }
+    var seenBy by remember { mutableStateOf(false) }
     var replied by remember(m.id) { mutableStateOf<Message?>(null) }
     LaunchedEffect(m.id) { if (m.replyTo is MessageReplyToMessage) replied = data.replyOf(m) }
     val video = remember(m.id) { VideoItem.from(acc.index, m) }
@@ -1156,6 +1223,16 @@ private fun MessageItem(
             .background(if (m.id in data.selected) style.accent.copy(alpha = 0.18f) else Color.Transparent)
             .padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
             .graphicsLayer { translationX = dragX; alpha = if (deleted) 0.55f else 1f }
+            .pointerInput(m.id, data.selected.isNotEmpty()) {
+                val selecting = data.selected.isNotEmpty()
+                detectTapGestures(
+                    onTap = { if (selecting) data.toggle(m.id) },
+                    onLongPress = {
+                        if (selecting) data.selectRange(m.id)
+                        else if (Prefs.longPressSelect) { data.selected.add(m.id); data.anchor = m.id }
+                    },
+                )
+            }
             .pointerInput(m.id, Prefs.swipeForward, Prefs.swipeReply) {
                 if (Prefs.swipeForward || Prefs.swipeReply) detectHorizontalDragGestures(
                     onDragEnd = {
@@ -1236,7 +1313,7 @@ private fun MessageItem(
                         }
                     }
                 }
-                MessageBody(acc, act, m, content, fg, meta, onPhoto, onMenu = { menu = true })
+                MessageBody(acc, act, m, content, fg, meta, onPhoto, onMenu = { menu = true }, album = album)
                 // reactions
                 val reactions = info?.reactions?.reactions?.filter { it.type is ReactionTypeEmoji }.orEmpty()
                 if (reactions.isNotEmpty()) {
@@ -1330,6 +1407,8 @@ private fun MessageItem(
                     }
                 }
                 if (txt.isNotEmpty()) MenuItem(Ic.Edit, t("Select text")) { menu = false; selectDialog = true }
+                if (txt.isNotEmpty() && Prefs.translateButton) MenuItem(Ic.Translate, t("Translate")) { menu = false; translate = true }
+                if (m.isOutgoing && chat?.isGroup == true) MenuItem(Ic.DoneAll, t("Seen by")) { menu = false; seenBy = true }
                 val savable = mediaFileOf(content)
                 if (savable != null) MenuItem(Ic.Download, t("Save to phone")) {
                     menu = false
@@ -1358,6 +1437,8 @@ private fun MessageItem(
             }
         }
         HistoryAndSelect(history, { history = null }, selectDialog, textOf(content), { selectDialog = false })
+        if (translate) TranslateDialog(acc, m, textOf(content)) { translate = false }
+        if (seenBy) SeenByDialog(acc, m) { seenBy = false }
         if (isPost && Prefs.shareButton) {
             Spacer(Modifier.width(6.dp))
             Box(
@@ -1412,9 +1493,16 @@ private fun textOf(c: MessageContent): String = when (c) {
 }
 
 @Composable
-private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: MessageContent, fg: Color, meta: Color, onPhoto: (String) -> Unit, onMenu: () -> Unit = {}) {
+private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: MessageContent, fg: Color, meta: Color, onPhoto: (String) -> Unit, onMenu: () -> Unit = {}, album: List<Message>? = null) {
+    if (album != null && album.size > 1 && (c is MessagePhoto || c is MessageVideo)) {
+        AlbumGrid(acc, act, album, onPhoto)
+        val cap = album.firstNotNullOfOrNull { a -> when (val x = a.content) { is MessagePhoto -> x.caption; is MessageVideo -> x.caption; else -> null }?.takeIf { it.text.isNotBlank() } }
+        if (cap != null) RichText(cap, fg)
+        return
+    }
     val ctx = LocalContext.current
     when (c) {
+        is dev.g000sha256.tdl.dto.MessagePoll -> PollView(acc, m, c, fg, meta)
         is MessageText -> {
             val lp = c.linkPreview
             if (lp != null && lp.showAboveText) LinkPreviewCard(acc, lp, fg)
@@ -1585,12 +1673,12 @@ private fun rich(ft: FormattedText, link: Color): AnnotatedString = buildAnnotat
 }
 
 @Composable
-private fun VideoPreview(acc: TgAccount, thumb: Thumbnail?, mini: Minithumbnail?, ratio: Float, label: String, onPlay: () -> Unit) {
+private fun VideoPreview(acc: TgAccount, thumb: Thumbnail?, mini: Minithumbnail?, ratio: Float, label: String, box: Modifier? = null, onPlay: () -> Unit) {
     val thumbFile = if (thumb != null && (thumb.format is ThumbnailFormatJpeg || thumb.format is ThumbnailFormatWebp)) thumb.file else null
     val th = rememberFile(acc, thumbFile, autoDownload = true)
     val mb = remember(mini) { miniBitmap(mini?.data) }
     Box(
-        Modifier.width(260.dp).aspectRatio(ratio).clip(RoundedCornerShape(LocalStyle.current.radius - 3.dp)).background(Color(0x33000000)).clickable(onClick = onPlay),
+        (box ?: Modifier.width(260.dp).aspectRatio(ratio).clip(RoundedCornerShape(LocalStyle.current.radius - 3.dp))).background(Color(0x33000000)).clickable(onClick = onPlay),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -1609,7 +1697,7 @@ private fun VideoPreview(acc: TgAccount, thumb: Thumbnail?, mini: Minithumbnail?
 @Composable
 private fun MediaBox(
     acc: TgAccount, file: File, mini: Minithumbnail?, thumb: Thumbnail?, ratio: Float,
-    auto: Boolean, isPhoto: Boolean, label: String? = null, onOpen: (String) -> Unit,
+    auto: Boolean, isPhoto: Boolean, label: String? = null, box: Modifier? = null, onOpen: (String) -> Unit,
 ) {
     var want by remember(file.id) { mutableStateOf(false) }
     val cur = rememberFile(acc, file, autoDownload = auto || want) ?: file
@@ -1619,7 +1707,7 @@ private fun MediaBox(
     val done = cur.local.isDownloadingCompleted && cur.local.path.isNotEmpty()
     LaunchedEffect(done, want) { if (done && want && !isPhoto) { want = false; onOpen(cur.local.path) } }
     Box(
-        Modifier.width(260.dp).aspectRatio(ratio).clip(RoundedCornerShape(LocalStyle.current.radius - 3.dp)).background(Color(0x33000000))
+        (box ?: Modifier.width(260.dp).aspectRatio(ratio).clip(RoundedCornerShape(LocalStyle.current.radius - 3.dp))).background(Color(0x33000000))
             .clickable {
                 if (done) onOpen(cur.local.path)
                 else if (cur.local.isDownloadingActive) { acc.cancelDownload(cur); want = false }

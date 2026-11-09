@@ -239,7 +239,7 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
         is Screen.Camera -> CameraScreen(acc, s.chatId, onClose = { act.pop() })
         is Screen.WebApp -> com.rivers.rivpost.ui.WebAppScreen(s.req, onClose = { act.pop() })
         is Screen.VideoNote -> com.rivers.rivpost.ui.VideoNoteScreen(acc, s.chatId, onClose = { act.pop() })
-        is Screen.Page -> when (s.name) {
+        is Screen.Page -> if (s.name.startsWith("members:")) com.rivers.rivpost.ui.MembersScreen(acc, act, s.name.removePrefix("members:").toLong(), onBack = { act.pop() }) else when (s.name) {
             "account" -> AccountPage(acc, onBack = { act.pop() })
             "privacy" -> PrivacyPage(acc, act, onBack = { act.pop() })
             "devices" -> DevicesPage(acc, onBack = { act.pop() })

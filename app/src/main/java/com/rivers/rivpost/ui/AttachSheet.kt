@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -87,7 +88,7 @@ import kotlinx.coroutines.withContext
 
 private data class GalleryItem(val uri: Uri, val video: Boolean)
 
-fun photoContent(path: String): InputMessageContent {
+fun photoContent(path: String, caption: String = ""): InputMessageContent {
     val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(path, o)
     return InputMessagePhoto(
@@ -95,7 +96,8 @@ fun photoContent(path: String): InputMessageContent {
             photo = InputFileLocal(path = path), thumbnail = null, video = null,
             addedStickerFileIds = IntArray(0), width = o.outWidth.coerceAtLeast(0), height = o.outHeight.coerceAtLeast(0),
         ),
-        caption = null, showCaptionAboveMedia = false, selfDestructType = null, hasSpoiler = false,
+        caption = if (caption.isBlank()) null else dev.g000sha256.tdl.dto.FormattedText(text = caption, entities = emptyArray()),
+        showCaptionAboveMedia = false, selfDestructType = null, hasSpoiler = false,
     )
 }
 
@@ -146,6 +148,7 @@ private fun lastLocation(c: Context): Location? {
 fun AttachSheet(
     onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, onCamera: (() -> Unit)? = null,
     onSendAlbum: ((List<InputMessageContent>) -> Unit)? = null,
+    onPoll: (() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
@@ -155,11 +158,15 @@ fun AttachSheet(
     var items by remember { mutableStateOf<List<GalleryItem>>(emptyList()) }
     val picked = remember { mutableStateListOf<GalleryItem>() }
     var cameraFile by remember { mutableStateOf<java.io.File?>(null) }
+    val edits = remember { androidx.compose.runtime.mutableStateMapOf<Uri, Pair<String, String>>() }  // uri -> (edited path, caption)
+    var editing by remember { mutableStateOf<Pair<GalleryItem, String>?>(null) }
     LaunchedEffect(allowed) { if (allowed) items = withContext(Dispatchers.IO) { loadGallery(ctx) } }
 
     fun sendUris(list: List<Pair<Uri, Boolean>>) {
         scope.launch {
             val contents = list.mapNotNull { (u, video) ->
+                val e = edits[u]
+                if (e != null && !video) return@mapNotNull photoContent(e.first, e.second)
                 val f = copyToCache(ctx, u) ?: return@mapNotNull null
                 if (video) videoContent(f.absolutePath) else photoContent(f.absolutePath)
             }
@@ -242,6 +249,13 @@ fun AttachSheet(
         } else toast(ctx, t("Location permission is needed"))
     }
 
+    editing?.let { (g, path) ->
+        PhotoEditor(path, edits[g.uri]?.second ?: "", onDone = { out, cap ->
+            edits[g.uri] = out to cap
+            if (g !in picked) picked.add(g)
+            editing = null
+        }, onCancel = { editing = null })
+    }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = Color(0xFF0E0E10)) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Box(Modifier.fillMaxWidth().height(460.dp)) {
@@ -273,8 +287,19 @@ fun AttachSheet(
                         }
                         items(items, key = { it.uri.toString() }) { g ->
                             val idx = picked.indexOf(g)
-                            Box(Modifier.aspectRatio(1f).padding(1.dp).clickable { if (idx >= 0) picked.remove(g) else picked.add(g) }) {
-                                AsyncImage(model = g.uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            Box(
+                                Modifier.aspectRatio(1f).padding(1.dp).combinedClickable(
+                                    onClick = { if (idx >= 0) picked.remove(g) else picked.add(g) },
+                                    onLongClick = {
+                                        if (!g.video) scope.launch {
+                                            val f = edits[g.uri]?.first ?: copyToCache(ctx, g.uri)?.absolutePath
+                                            if (f != null) editing = g to f
+                                        }
+                                    },
+                                ),
+                            ) {
+                                AsyncImage(model = edits[g.uri]?.first?.let { java.io.File(it) } ?: g.uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                if (edits.containsKey(g.uri)) Icon(Ic.Brush, null, tint = Color.White, modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).size(18.dp))
                                 if (g.video) Text("▶", color = Color.White, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
                                 Box(
                                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(CircleShape)
@@ -286,10 +311,21 @@ fun AttachSheet(
                         }
                     }
                 }
-                if (picked.isNotEmpty()) Button(
-                    onClick = { sendUris(picked.map { it.uri to it.video }) },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
-                ) { Text(t("Send") + " (${picked.size})") }
+                if (picked.isNotEmpty()) Row(Modifier.align(Alignment.BottomEnd).padding(14.dp)) {
+                    val one = picked.singleOrNull()
+                    if (one != null && !one.video) Button(onClick = {
+                        scope.launch {
+                            val f = edits[one.uri]?.first ?: copyToCache(ctx, one.uri)?.absolutePath
+                            if (f != null) editing = one to f
+                        }
+                    }) { Icon(Ic.Brush, null); Spacer(Modifier.width(6.dp)); Text(t("Edit")) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = { sendUris(picked.map { it.uri to it.video }) }) { Text(t("Send") + " (${picked.size})") }
+                }
+                if (picked.isEmpty() && items.isNotEmpty()) Text(
+                    t("Hold a photo to edit it"), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x99000000)).padding(horizontal = 10.dp, vertical = 4.dp),
+                )
             }
             Row(
                 Modifier.fillMaxWidth().padding(10.dp).clip(RoundedCornerShape(34.dp)).background(style.navBar)
@@ -305,6 +341,7 @@ fun AttachSheet(
                 }
                 AttachTab(Ic.Note, t("Music"), false) { pickMusic.launch("audio/*") }
                 AttachTab(Ic.Movie, "GIF", false) { pickGif.launch("image/gif") }
+                if (onPoll != null) AttachTab(Ic.Poll, t("Poll"), false) { onPoll() }
             }
         }
     }

@@ -179,6 +179,8 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Long-press selects messages"), t("Tap or ⋮ opens the menu. Off: long-press opens the menu."), Prefs.longPressSelect) { Prefs.longPressSelect = it }
         SwitchRow(t("Video messages"), t("Hold the mic button to record a round video"), Prefs.videoNotes) { Prefs.videoNotes = it }
         SwitchRow(t("Link previews"), null, Prefs.linkPreviews) { Prefs.linkPreviews = it }
+        SwitchRow(t("Suggest members when typing @"), null, Prefs.mentionHints) { Prefs.mentionHints = it }
+        SwitchRow(t("Translate button"), t("In the message menu"), Prefs.translateButton) { Prefs.translateButton = it }
         SwitchRow(t("Show drafts in chat list"), null, Prefs.showDrafts) { Prefs.showDrafts = it }
         SwitchRow(t("Send several photos as an album"), null, Prefs.sendAlbums) { Prefs.sendAlbums = it }
 
