@@ -471,13 +471,32 @@ fun ChatInfoScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -
             if (l == null) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                 Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else if (tab == 0) {
-                items(l, key = { it.id }) { m -> MediaCell(acc, m) { act.push(Screen.Chat(chatId)) } }
+                items(l, key = { it.id }) { m -> MediaCell(acc, m) { onBack(); act.push(Screen.Chat(chatId, m.id)) } }
             } else {
                 items(l, key = { it.id }, span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) { m ->
-                    Text(
-                        Fmt.preview(acc, m), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 15.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { act.push(Screen.Chat(chatId)) }.padding(horizontal = 18.dp, vertical = 12.dp),
-                    )
+                    val track = remember(m.id) { com.rivers.rivpost.music.Track.from(acc.index, m) }
+                    val url = remember(m.id) {
+                        val ct = m.content
+                        val txt = (ct as? dev.g000sha256.tdl.dto.MessageText)?.text
+                        txt?.entities?.firstNotNullOfOrNull { e -> (e.type as? dev.g000sha256.tdl.dto.TextEntityTypeTextUrl)?.url }
+                            ?: Regex("https?://\\S+").find(txt?.text ?: "")?.value
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            when {
+                                track != null -> com.rivers.rivpost.music.Music.play(l.mapNotNull { x -> com.rivers.rivpost.music.Track.from(acc.index, x) }, l.mapNotNull { x -> com.rivers.rivpost.music.Track.from(acc.index, x) }.indexOfFirst { it.key == track.key }.coerceAtLeast(0))
+                                tab == 2 && url != null -> try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Throwable) { }
+                                else -> { onBack(); act.push(Screen.Chat(chatId, m.id)) }
+                            }
+                        }.padding(horizontal = 18.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(Fmt.preview(acc, m), maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 15.sp)
+                            Text(Fmt.listTime(m.date) + (if (url != null && tab == 2) "  ·  $url" else ""), fontSize = 12.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (tab != 0) IconButton(onClick = { onBack(); act.push(Screen.Chat(chatId, m.id)) }) { Icon(Ic.Forward, null, tint = cs.onSurfaceVariant) }
+                    }
                 }
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) { Spacer(Modifier.height(60.dp)) }

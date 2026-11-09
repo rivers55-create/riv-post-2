@@ -143,7 +143,10 @@ private fun lastLocation(c: Context): Location? {
 
 /** The 📎 sheet: gallery grid with camera, and File / Location / Contact / Music / GIF tabs. */
 @Composable
-fun AttachSheet(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, onCamera: (() -> Unit)? = null) {
+fun AttachSheet(
+    onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, onCamera: (() -> Unit)? = null,
+    onSendAlbum: ((List<InputMessageContent>) -> Unit)? = null,
+) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val scope = rememberCoroutineScope()
@@ -156,10 +159,12 @@ fun AttachSheet(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, on
 
     fun sendUris(list: List<Pair<Uri, Boolean>>) {
         scope.launch {
-            for ((u, video) in list) {
-                val f = copyToCache(ctx, u) ?: continue
-                onSend(if (video) videoContent(f.absolutePath) else photoContent(f.absolutePath))
+            val contents = list.mapNotNull { (u, video) ->
+                val f = copyToCache(ctx, u) ?: return@mapNotNull null
+                if (video) videoContent(f.absolutePath) else photoContent(f.absolutePath)
             }
+            if (contents.size >= 2 && onSendAlbum != null && com.rivers.rivpost.data.Prefs.sendAlbums) contents.chunked(10).forEach { onSendAlbum(it) }
+            else contents.forEach { onSend(it) }
             onDismiss()
         }
     }

@@ -97,6 +97,9 @@ import dev.g000sha256.tdl.dto.MessageText
 import dev.g000sha256.tdl.dto.MessageVideo
 import dev.g000sha256.tdl.dto.UserStatusOnline
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.platform.LocalContext
 
 data class NavTab(val id: String, val label: String, val icon: ImageVector)
 
@@ -434,6 +437,7 @@ fun ChatAvatar(acc: TgAccount, c: ChatItem, size: androidx.compose.ui.unit.Dp) {
 @Composable
 private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList, onClick: () -> Unit) {
     val style = LocalStyle.current
+    val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
     var menu by remember { mutableStateOf(false) }
     val muted = acc.isMuted(c)
@@ -484,6 +488,18 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                         val parts = typing.split("|")
                         val who = if (c.isGroup) parts[0] + " " else ""
                         Text(who + t(parts.getOrElse(1) { "typing" }) + "…", fontSize = 15.sp, color = style.accent, maxLines = 1, modifier = Modifier.weight(1f))
+                    } else if (Prefs.showDrafts && c.draft.isNotBlank()) {
+                        Text(
+                            androidx.compose.ui.text.buildAnnotatedString {
+                                pushStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFE57373)))
+                                append(t("Draft") + ": ")
+                                pop()
+                                pushStyle(androidx.compose.ui.text.SpanStyle(color = cs.onSurfaceVariant))
+                                append(c.draft.replace('\n', ' '))
+                                pop()
+                            },
+                            fontSize = 15.sp, maxLines = style.previewLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                        )
                     } else {
                         val who = if (m != null && c.isGroup && !Fmt.isService(m)) {
                             if (m.isOutgoing) t("You") else acc.senderName(m.senderId)
@@ -530,9 +546,21 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                 menu = false
                 Prefs.vaultChats = Prefs.toggleId(Prefs.vaultChats, c.id)
             })
-            if (c.unread > 0 && m != null) DropdownMenuItem(text = { Text(t("Mark as read")) }, onClick = {
+            if ((c.unread > 0 || c.markedUnread) && m != null) DropdownMenuItem(text = { Text(t("Mark as read")) }, onClick = {
                 menu = false
-                acc.markAllRead(c.id, longArrayOf(m.id))
+                if (c.markedUnread) acc.scope.launch { acc.client.toggleChatIsMarkedAsUnread(chatId = c.id, isMarkedAsUnread = false) }
+                if (c.unread > 0) acc.markAllRead(c.id, longArrayOf(m.id))
+            }) else DropdownMenuItem(text = { Text(t("Mark as unread")) }, onClick = {
+                menu = false
+                acc.scope.launch { acc.client.toggleChatIsMarkedAsUnread(chatId = c.id, isMarkedAsUnread = true) }
+            })
+            val archived = list is dev.g000sha256.tdl.dto.ChatListArchive
+            if (!acc.isSaved(c)) DropdownMenuItem(text = { Text(if (archived) t("Unarchive") else t("Archive")) }, onClick = {
+                menu = false
+                acc.scope.launch {
+                    val r = acc.client.addChatToList(chatId = c.id, chatList = if (archived) dev.g000sha256.tdl.dto.ChatListMain() else dev.g000sha256.tdl.dto.ChatListArchive())
+                    if (r is dev.g000sha256.tdl.TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
+                }
             })
         }
     }

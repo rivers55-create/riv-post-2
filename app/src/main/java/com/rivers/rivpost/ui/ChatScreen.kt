@@ -149,6 +149,11 @@ import dev.g000sha256.tdl.dto.MessageSticker
 import dev.g000sha256.tdl.dto.MessageText
 import dev.g000sha256.tdl.dto.MessageVideo
 import dev.g000sha256.tdl.dto.MessageVideoNote
+import dev.g000sha256.tdl.dto.MessageSendOptions
+import dev.g000sha256.tdl.dto.MessageSchedulingStateSendAtDate
+import dev.g000sha256.tdl.dto.DraftMessage
+import dev.g000sha256.tdl.dto.DraftMessageContentText
+import androidx.compose.runtime.rememberUpdatedState
 import dev.g000sha256.tdl.dto.MessageVoiceNote
 import dev.g000sha256.tdl.dto.Minithumbnail
 import dev.g000sha256.tdl.dto.ReactionTypeEmoji
@@ -273,18 +278,21 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
 }
 
 @Composable
-fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit) {
+fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit, jump: Long = 0) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val cs = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val data = remember(acc, chatId) { ChatData(acc, chatId) }
     val version by acc.chatsVersion.collectAsState()
     val uv by acc.usersVersion.collectAsState()
     val extra by acc.extraVersion.collectAsState()
     val chat: ChatItem? = remember(version) { acc.chats[chatId] }
     val listState = rememberLazyListState()
-    var text by remember(chatId) { mutableStateOf("") }
+    var text by remember(chatId) { mutableStateOf(acc.chats[chatId]?.draft ?: "") }
+    var stickers by remember { mutableStateOf(false) }
+    var sendMenu by remember { mutableStateOf(false) }
     var viewer by remember { mutableStateOf<String?>(null) }
     val recorder = remember { VoiceRecorder(ctx) }
     var recording by remember { mutableStateOf(false) }
@@ -313,6 +321,22 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             if (acc.openChatId == chatId) acc.openChatId = 0
             acc.scope.launch { acc.client.closeChat(chatId = chatId) }
             recorder.cancel()
+        }
+    }
+    val latestText by rememberUpdatedState(text)
+    DisposableEffect(acc, chatId) {
+        onDispose {
+            val d = latestText.trim()
+            if (d != (acc.chats[chatId]?.draft ?: "").trim()) acc.scope.launch {
+                acc.client.setChatDraftMessage(
+                    chatId = chatId,
+                    draftMessage = if (d.isEmpty()) null else DraftMessage(
+                        replyTo = null, date = (System.currentTimeMillis() / 1000).toInt(),
+                        content = DraftMessageContentText(text = FormattedText(text = d, entities = emptyArray<TextEntity>()), linkPreviewOptions = null),
+                        effectId = 0, suggestedPostInfo = null,
+                    ),
+                )
+            }
         }
     }
     val secured = chatId in Prefs.idSet(Prefs.secureChats)
@@ -361,21 +385,31 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
-    fun send(content: InputMessageContent) {
+    LaunchedEffect(jump) {
+        if (jump != 0L) {
+            delay(300)
+            val i = data.loadAround(jump)
+            if (i >= 0) listState.scrollToItem(i)
+        }
+    }
+
+    fun send(content: InputMessageContent, opts: MessageSendOptions? = null) {
         val r = replyTo
         replyTo = null
         acc.scope.launch {
             val res = acc.client.sendMessage(
                 chatId = chatId,
                 replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
+                options = opts,
                 inputMessageContent = content,
             )
             if (res is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, t("Couldn't send") + ": " + res.message) }
+            else if (opts?.schedulingState != null) withContext(Dispatchers.Main) { toast(ctx, t("Scheduled")) }
         }
         scope.launch { listState.scrollToItem(0) }
     }
 
-    fun sendText() {
+    fun sendText(opts: MessageSendOptions? = null) {
         val s = text.trim()
         if (s.isEmpty()) return
         text = ""
@@ -395,12 +429,31 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             acc.scope.launch {
                 val parsed = (acc.client.parseTextEntities(text = s, parseMode = TextParseModeMarkdown(version = 1)) as? TdlResult.Success)?.result
                 withContext(Dispatchers.Main) {
-                    send(InputMessageText(text = parsed ?: FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+                    send(InputMessageText(text = parsed ?: FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true), opts)
                 }
             }
             return
         }
-        send(InputMessageText(text = FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+        send(InputMessageText(text = FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true), opts)
+    }
+
+    fun options(silent: Boolean, at: Int = 0) = MessageSendOptions(
+        suggestedPostInfo = null, disableNotification = silent, fromBackground = false, protectContent = false,
+        allowPaidBroadcast = false, paidMessageStarCount = 0, updateOrderOfInstalledStickerSets = false,
+        schedulingState = if (at > 0) MessageSchedulingStateSendAtDate(sendDate = at, repeatPeriod = 0) else null,
+        effectId = 0, sendingId = 0, onlyPreview = false,
+    )
+
+    fun pickSchedule() {
+        val cal = java.util.Calendar.getInstance()
+        android.app.DatePickerDialog(ctx, { _, y, mo, d ->
+            android.app.TimePickerDialog(ctx, { _, h, mi ->
+                val c = java.util.Calendar.getInstance().apply { set(y, mo, d, h, mi, 0) }
+                val at = (c.timeInMillis / 1000).toInt()
+                if (at <= System.currentTimeMillis() / 1000 + 30) toast(ctx, t("Pick a time in the future"))
+                else sendText(options(false, at))
+            }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), android.text.format.DateFormat.is24HourFormat(ctx)).show()
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
     }
 
     fun quickForward(m: Message) {
@@ -686,10 +739,12 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 hasKeyboard = botMarkup?.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard,
                 onKeyboard = { showBotKb = !showBotKb },
                 onMicLong = { if (Prefs.videoNotes) act.push(Screen.VideoNote(chatId)) },
+                onSendLong = { sendMenu = true },
+                stickersOpen = stickers,
                 text = text, onText = { text = it }, recording = recording, recSecs = recSecs,
                 onSend = { sendText() },
                 onAttach = { attach = true },
-                onGif = { attach = true },
+                onGif = { stickers = !stickers; if (stickers) keyboard?.hide() },
                 onMic = {
                     if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                         recording = recorder.start()
@@ -708,6 +763,16 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                     )
                 },
             )
+            Box(Modifier.align(Alignment.End).padding(end = 12.dp)) {
+                DropdownMenu(expanded = sendMenu, onDismissRequest = { sendMenu = false }, shape = RoundedCornerShape(18.dp)) {
+                    MenuItem(Ic.Muted, t("Send without sound")) { sendMenu = false; sendText(options(true)) }
+                    MenuItem(Ic.Clock, t("Schedule message")) { sendMenu = false; pickSchedule() }
+                }
+            }
+            if (stickers) {
+                BackHandler { stickers = false }
+                StickerPanel(acc, onEmoji = { e -> text += e }, onSend = { c -> send(c) })
+            }
         }
     }
 
@@ -727,7 +792,21 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             }
         }
     }
-    if (attach) AttachSheet(onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) })
+    if (attach) AttachSheet(
+        onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) },
+        onSendAlbum = { list ->
+            val r = replyTo
+            replyTo = null
+            acc.scope.launch {
+                val res = acc.client.sendMessageAlbum(
+                    chatId = chatId,
+                    replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
+                    inputMessageContents = list.toTypedArray(),
+                )
+                if (res is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, t("Couldn't send") + ": " + res.message) }
+            }
+        },
+    )
     if (revokedLog) {
         val log = remember { acc.revokedLog(chatId).reversed() }
         androidx.compose.material3.AlertDialog(
@@ -842,6 +921,50 @@ private fun ChatHeader(
     }
 }
 
+@Composable
+private fun LinkPreviewCard(acc: TgAccount, lp: dev.g000sha256.tdl.dto.LinkPreview, fg: Color) {
+    if (!Prefs.linkPreviews) return
+    val style = LocalStyle.current
+    val ctx = LocalContext.current
+    val photo = when (val ty = lp.type) {
+        is dev.g000sha256.tdl.dto.LinkPreviewTypePhoto -> ty.photo
+        is dev.g000sha256.tdl.dto.LinkPreviewTypeArticle -> ty.photo
+        is dev.g000sha256.tdl.dto.LinkPreviewTypeVideo -> ty.cover ?: ty.video.thumbnail?.let { null }
+        is dev.g000sha256.tdl.dto.LinkPreviewTypeEmbeddedVideoPlayer -> ty.thumbnail
+        is dev.g000sha256.tdl.dto.LinkPreviewTypeApp -> ty.photo
+        else -> null
+    }
+    val size = photo?.sizes?.filter { maxOf(it.width, it.height) <= 800 }?.maxByOrNull { it.width } ?: photo?.sizes?.firstOrNull()
+    val img = rememberFile(acc, size?.photo, autoDownload = true)
+    val large = lp.showLargeMedia && size != null
+    Row(
+        Modifier.padding(horizontal = 6.dp, vertical = 4.dp).widthIn(max = 300.dp).clip(RoundedCornerShape(10.dp))
+            .background(style.accent.copy(alpha = 0.12f)).clickable {
+                try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(lp.url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Throwable) { }
+            }.height(IntrinsicSize.Min),
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(style.accent))
+        Column(Modifier.weight(1f, fill = false).padding(8.dp)) {
+            if (lp.siteName.isNotBlank()) Text(lp.siteName, color = style.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (lp.title.isNotBlank()) Text(lp.title, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (lp.description.text.isNotBlank()) Text(lp.description.text, color = fg.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            if (large && img != null && img.local.isDownloadingCompleted) {
+                Spacer(Modifier.height(6.dp))
+                AsyncImage(
+                    model = java.io.File(img.local.path), contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().aspectRatio((size!!.width.toFloat() / size.height.coerceAtLeast(1)).coerceIn(0.6f, 2f)).clip(RoundedCornerShape(8.dp)),
+                )
+            }
+        }
+        if (!large && img != null && img.local.isDownloadingCompleted) {
+            AsyncImage(
+                model = java.io.File(img.local.path), contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.padding(8.dp).size(56.dp).clip(RoundedCornerShape(8.dp)),
+            )
+        }
+    }
+}
+
 private fun playOrToggle(acc: TgAccount, m: Message, track: Track) {
     if (Music.current?.key == track.key) Music.toggle() else Music.playFromChat(acc, m)
 }
@@ -906,6 +1029,7 @@ private fun InfoBanner(text: String) {
 @Composable
 private fun InputBar(
     showMenu: Boolean, onBotMenu: () -> Unit, hasKeyboard: Boolean, onKeyboard: () -> Unit, onMicLong: () -> Unit,
+    onSendLong: () -> Unit, stickersOpen: Boolean,
     text: String, onText: (String) -> Unit, recording: Boolean, recSecs: Int,
     onSend: () -> Unit, onAttach: () -> Unit, onGif: () -> Unit, onMic: () -> Unit, onCancelRec: () -> Unit, onSendRec: () -> Unit,
 ) {
@@ -933,9 +1057,7 @@ private fun InputBar(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) { Text(t("Menu"), color = onColor(style.accent), fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
                 else if (Prefs.gifButton) IconButton(onClick = onGif) {
-                    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(fg.copy(alpha = 0.15f)).padding(horizontal = 4.dp, vertical = 1.dp)) {
-                        Text("GIF", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg.copy(alpha = 0.8f))
-                    }
+                    Icon(if (stickersOpen) Ic.Keyboard else Ic.Smile, null, tint = fg.copy(alpha = 0.75f))
                 }
                 TextField(
                     value = text, onValueChange = onText, placeholder = { Text(t("Message")) }, maxLines = 6,
@@ -960,7 +1082,7 @@ private fun InputBar(
                 .pointerInput(recording, text.isNotBlank()) {
                     detectTapGestures(
                         onTap = { if (recording) onSendRec() else if (text.isNotBlank()) onSend() else onMic() },
-                        onLongPress = { if (!recording && text.isBlank()) onMicLong() },
+                        onLongPress = { if (!recording && text.isBlank()) onMicLong() else if (!recording) onSendLong() },
                     )
                 },
             contentAlignment = Alignment.Center,
@@ -1192,6 +1314,21 @@ private fun MessageItem(
                 }
                 if (m.isOutgoing && content is MessageText) MenuItem(Ic.Edit, t("Edit")) { menu = false; onEdit(m) }
                 MenuItem(Ic.Forward, t("Forward")) { menu = false; act.push(Screen.Forward(m.chatId, longArrayOf(m.id))) }
+                if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Link, t("Copy link")) {
+                    menu = false
+                    acc.scope.launch {
+                        val r = acc.client.getMessageLink(chatId = m.chatId, messageId = m.id, mediaTimestamp = 0, checklistTaskId = 0, pollOptionId = "", forAlbum = false, inMessageThread = false)
+                        withContext(Dispatchers.Main) {
+                            val link = (r as? TdlResult.Success)?.result?.link
+                            if (link == null) toast(ctx, (r as? TdlResult.Failure)?.message ?: "")
+                            else {
+                                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("link", link))
+                                toast(ctx, t("Link copied"))
+                            }
+                        }
+                    }
+                }
                 if (txt.isNotEmpty()) MenuItem(Ic.Edit, t("Select text")) { menu = false; selectDialog = true }
                 val savable = mediaFileOf(content)
                 if (savable != null) MenuItem(Ic.Download, t("Save to phone")) {
@@ -1278,7 +1415,12 @@ private fun textOf(c: MessageContent): String = when (c) {
 private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: MessageContent, fg: Color, meta: Color, onPhoto: (String) -> Unit, onMenu: () -> Unit = {}) {
     val ctx = LocalContext.current
     when (c) {
-        is MessageText -> RichText(c.text, fg)
+        is MessageText -> {
+            val lp = c.linkPreview
+            if (lp != null && lp.showAboveText) LinkPreviewCard(acc, lp, fg)
+            RichText(c.text, fg)
+            if (lp != null && !lp.showAboveText) LinkPreviewCard(acc, lp, fg)
+        }
         is MessagePhoto -> {
             val best = c.photo.sizes.filter { maxOf(it.width, it.height) <= 1280 }.maxByOrNull { it.width * it.height }
                 ?: c.photo.sizes.maxByOrNull { it.width * it.height }

@@ -739,6 +739,21 @@ object Lang {
         "more hidden songs not loaded yet" to "أغانٍ مخفية أخرى لم تُحمّل بعد",
         "Swipe a message left to reply" to "اسحب الرسالة لليسار للرد",
         "Swipe a message left to forward it instead" to "اسحب الرسالة لليسار لإعادة توجيهها بدلاً من ذلك",
+        "Link previews" to "معاينة الروابط",
+        "Show drafts in chat list" to "إظهار المسودات في قائمة المحادثات",
+        "Send several photos as an album" to "إرسال عدة صور كألبوم",
+        "Draft" to "مسودة",
+        "Mark as unread" to "تعليم كغير مقروء",
+        "Unarchive" to "إلغاء الأرشفة",
+        "Copy link" to "نسخ الرابط",
+        "Link copied" to "تم نسخ الرابط",
+        "Send without sound" to "إرسال بدون صوت",
+        "Schedule message" to "جدولة الرسالة",
+        "Scheduled" to "تمت الجدولة",
+        "Pick a time in the future" to "اختر وقتاً في المستقبل",
+        "Emoji" to "إيموجي",
+        "Recent" to "الأخيرة",
+        "No saved GIFs" to "لا توجد صور متحركة محفوظة",
     )
 }
 

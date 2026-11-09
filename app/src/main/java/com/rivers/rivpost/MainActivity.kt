@@ -66,7 +66,7 @@ import dev.g000sha256.tdl.dto.AuthorizationStateReady
 
 sealed class Screen {
     object Chats : Screen()
-    class Chat(val id: Long) : Screen()
+    class Chat(val id: Long, val jump: Long = 0) : Screen()
     object Settings : Screen()
     object Proxy : Screen()
     object Customize : Screen()
@@ -228,7 +228,7 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
     BackHandler(enabled = act.stack.size > 1) { act.pop() }
     when (val s = act.stack.lastOrNull() ?: Screen.Chats) {
         is Screen.Chats -> HomeScreen(act, acc)
-        is Screen.Chat -> key(s.id) { ChatScreen(acc, act, s.id, onBack = { act.pop() }) }
+        is Screen.Chat -> key(s.id, s.jump) { ChatScreen(acc, act, s.id, onBack = { act.pop() }, jump = s.jump) }
         is Screen.Settings -> SettingsScreen(
             act, acc, onBack = { act.pop() }, onProxy = { act.push(Screen.Proxy) },
             onCustomize = { act.push(Screen.Customize) }, onSources = { act.push(Screen.Sources(it)) },

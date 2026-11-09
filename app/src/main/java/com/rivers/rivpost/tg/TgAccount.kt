@@ -35,6 +35,7 @@ data class ChatItem(
     val lastReadOutbox: Long,
     val markedUnread: Boolean,
     val notif: ChatNotificationSettings,
+    val draft: String = "",
 ) {
     fun withPosition(p: ChatPosition): ChatItem {
         val rest = positions.filter { it.list != p.list }
@@ -85,6 +86,8 @@ class TgAccount(private val ctx: Context, val index: Int) {
     /** chatId -> (who is typing, until when in ms). */
     val typing = ConcurrentHashMap<Long, Pair<String, Long>>()
     val extraVersion = MutableStateFlow(0L)
+    private fun draftText(d: DraftMessage?): String = ((d?.content as? DraftMessageContentText)?.text?.text ?: "")
+
     fun bumpExtra() { extraVersion.value = extraVersion.value + 1 }
 
     @Volatile var openChatId = 0L
@@ -190,10 +193,16 @@ class TgAccount(private val ctx: Context, val index: Int) {
                     lastReadOutbox = c.lastReadOutboxMessageId,
                     markedUnread = c.isMarkedAsUnread,
                     notif = c.notificationSettings,
+                    draft = draftText(c.draftMessage),
                 )
                 bumpChats()
             }
             is UpdateChatTitle -> edit(u.chatId) { it.copy(title = u.title) }
+            is UpdateChatDraftMessage -> edit(u.chatId) {
+                var x = it.copy(draft = draftText(u.draftMessage))
+                for (p in u.positions) x = x.withPosition(p)
+                x
+            }
             is UpdateChatPhoto -> {
                 u.photo?.small?.let { track(it) }
                 edit(u.chatId) { it.copy(photo = u.photo?.small, mini = u.photo?.minithumbnail?.data) }
