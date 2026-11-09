@@ -89,6 +89,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -874,7 +875,7 @@ private fun MessageItem(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
             .graphicsLayer { translationX = dragX; alpha = if (deleted) 0.55f else 1f }
             .pointerInput(m.id, Prefs.swipeForward) {
-                if (Prefs.swipeForward) androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                if (Prefs.swipeForward) detectHorizontalDragGestures(
                     onDragEnd = { if (dragX < -140f) onQuickForward(m); dragX = 0f },
                     onDragCancel = { dragX = 0f },
                 ) { _, d -> dragX = (dragX + d).coerceIn(-220f, 0f) }
