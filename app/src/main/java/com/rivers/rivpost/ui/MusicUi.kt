@@ -284,6 +284,36 @@ object MusicNav {
     var speed by mutableStateOf(false)
     var eq by mutableStateOf(false)
     var openChat: ((Int, Long) -> Unit)? = null
+    var openPage: ((String) -> Unit)? = null
+}
+
+/** Music library tabs, in the user's order. */
+object MusicTabs {
+    val all = listOf("all", "selected", "playlists", "albums", "artists", "favorites")
+    fun label(k: String) = when (k) {
+        "all" -> t("All chats"); "selected" -> t("Selected chats"); "playlists" -> t("Playlists")
+        "albums" -> t("Albums"); "artists" -> t("Artists"); else -> t("Favorites")
+    }
+    fun order(): List<String> {
+        val saved = Prefs.musicTabs.split(',').map { it.trim() }.filter { it in all }
+        return (saved + all.filter { it !in saved }).distinct()
+    }
+    fun visible(): List<String> {
+        val off = Prefs.musicTabsOff.split(',').toSet()
+        return order().filter { it !in off }.ifEmpty { listOf("all") }
+    }
+    fun move(k: String, by: Int) {
+        val l = order().toMutableList()
+        val i = l.indexOf(k); val j = (i + by).coerceIn(0, l.lastIndex)
+        if (i < 0 || i == j) return
+        l.removeAt(i); l.add(j, k)
+        Prefs.musicTabs = l.joinToString(",")
+    }
+    fun toggle(k: String) {
+        val off = Prefs.musicTabsOff.split(',').filter { it.isNotBlank() }.toMutableSet()
+        if (!off.remove(k)) off.add(k)
+        Prefs.musicTabsOff = off.joinToString(",")
+    }
 }
 
 @Composable
@@ -421,6 +451,12 @@ private fun Controls(s: Track) {
                 Icon(Ic.Lyrics, null, tint = if (Music.page == 1) accent else fg)
             }
             IconButton(onClick = { Music.page = if (Music.page == 2) 0 else 2 }) { Icon(Ic.Queue, null, tint = if (Music.page == 2) accent else fg) }
+            IconButton(onClick = { Music.abTap() }) {
+                Text(
+                    when { Music.abA < 0 -> "A-B"; Music.abB < 0 -> "A-"; else -> "A-B" }, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                    color = if (Music.abA >= 0) accent else fg,
+                )
+            }
         }
     }
 }
@@ -629,7 +665,14 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var openGroup by remember { mutableStateOf<Pair<String, List<Track>>?>(null) }
+    var openPlaylist by remember { mutableStateOf<String?>(null) }
+    var newList by remember { mutableStateOf(false) }
     LaunchedEffect(acc) { MusicLib.load(acc) }
+    LaunchedEffect(Prefs.musicSources) { if (MusicLib.loadedFor == acc.index) MusicLib.loadPicked(acc) }
+    @Suppress("UNUSED_VARIABLE") val watch = Prefs.hiddenSongs + Prefs.hiddenChats + Prefs.hideShort + Prefs.minSongSecs + Prefs.playlists
+    val q = query.trim()
+    fun filt(l: List<Track>) = l.filter { Music.visible(it) && (q.isEmpty() || it.title.contains(q, true) || it.artist.contains(q, true)) }
+
     val g = openGroup
     if (g != null) {
         BackHandler { openGroup = null }
@@ -639,10 +682,35 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
                 Text(g.first, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 IconButton(onClick = { Music.play(g.second.shuffled(), 0) }) { Icon(Ic.Shuffle, null) }
             }
-            SongList(g.second)
+            SongList(filt(g.second))
         }
         return
     }
+    val pl = openPlaylist
+    if (pl != null) {
+        BackHandler { openPlaylist = null }
+        val keys = Music.playlists().firstOrNull { it.first == pl }?.second.orEmpty()
+        val byKey = MusicLib.everything().associateBy { it.key }
+        val list = keys.mapNotNull { byKey[it] }
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+                IconButton(onClick = { openPlaylist = null }) { Icon(Ic.Back, null) }
+                Text(pl, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                IconButton(onClick = { if (list.isNotEmpty()) Music.play(list.shuffled(), 0) }) { Icon(Ic.Shuffle, null) }
+                IconButton(onClick = { Music.deletePlaylist(pl); openPlaylist = null }) { Icon(Ic.Delete, null) }
+            }
+            SongList(list, playlist = pl)
+        }
+        return
+    }
+
+    // tabs: when "selected" is split, each picked chat becomes its own tab
+    val keys = MusicTabs.visible().flatMap { k ->
+        if (k == "selected" && Prefs.selectedSplit && MusicLib.picked.isNotEmpty()) MusicLib.picked.keys.map { "chat:$it" } else listOf(k)
+    }
+    val labels = keys.map { k -> if (k.startsWith("chat:")) (acc.chats[k.removePrefix("chat:").toLongOrNull() ?: 0L]?.title ?: "?") else MusicTabs.label(k) }
+    if (tab > keys.lastIndex) tab = 0
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextField(
@@ -657,10 +725,11 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
                 modifier = Modifier.weight(1f).height(52.dp),
             )
             IconButton(onClick = { scope.launch { MusicLib.load(acc, force = true) } }) { Icon(Ic.Refresh, null) }
+            IconButton(onClick = { MusicNav.openPage?.invoke("hidden") }) { Icon(Ic.Hide, null) }
             IconButton(onClick = onPickSources) { Icon(Ic.Settings, null) }
         }
-        PillTabs(listOf(t("Songs"), t("Artists"), t("Chats"), t("Favorites")), tab) { tab = it }
-        if (MusicLib.loading && MusicLib.songs.isEmpty()) {
+        PillTabs(labels, tab) { tab = it }
+        if (MusicLib.loading && MusicLib.songs.isEmpty() && MusicLib.picked.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
@@ -670,30 +739,85 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
             }
             return
         }
-        val q = query.trim()
-        val songs = if (q.isEmpty()) MusicLib.songs else MusicLib.songs.filter { it.title.contains(q, true) || it.artist.contains(q, true) }
-        when (tab) {
-            1 -> GroupList(songs.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() }) { openGroup = it }
-            2 -> GroupList(songs.groupBy { it.chatId }.toList().sortedByDescending { it.second.size }.map { (id, l) -> (acc.chats[id]?.title ?: "?") to l }) { openGroup = it }
-            3 -> SongList(songs.filter { Music.isFavorite(it) })
-            else -> {
-                if (songs.isNotEmpty()) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${songs.size} " + t("songs"), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { Music.play(songs.shuffled(), 0) }) { Icon(Ic.Shuffle, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(t("Shuffle all")) }
-                }
-                SongList(songs)
+        val k = keys.getOrElse(tab) { "all" }
+        val all = filt(MusicLib.songs)
+        when {
+            k.startsWith("chat:") -> AllSongs(filt(MusicLib.picked[k.removePrefix("chat:").toLongOrNull() ?: 0L].orEmpty()))
+            k == "selected" -> {
+                if (MusicLib.picked.isEmpty()) Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(t("Pick the chats and channels you want here."), color = cs.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.Button(onClick = onPickSources) { Text(t("Pick chats")) }
+                } else AllSongs(filt(MusicLib.picked.values.flatten().distinctBy { it.key }.sortedByDescending { it.date }))
             }
+            k == "playlists" -> LazyColumn(Modifier.fillMaxSize()) {
+                item {
+                    Row(Modifier.fillMaxWidth().clickable { newList = true }.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(cs.primary), contentAlignment = Alignment.Center) { Icon(Ic.Add, null, tint = cs.onPrimary) }
+                        Spacer(Modifier.width(12.dp))
+                        Text(t("New playlist"), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                val byKey = MusicLib.everything().associateBy { it.key }
+                items(Music.playlists(), key = { it.first }) { (name, ks) ->
+                    val first = ks.firstNotNullOfOrNull { byKey[it] }
+                    Row(Modifier.fillMaxWidth().clickable { openPlaylist = name }.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (first != null) TrackArt(first, Modifier.size(54.dp), RoundedCornerShape(14.dp))
+                        else Box(Modifier.size(54.dp).clip(RoundedCornerShape(14.dp)).background(cs.surfaceVariant), contentAlignment = Alignment.Center) { Icon(Ic.Queue, null) }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${ks.size} " + t("songs"), fontSize = 13.sp, color = cs.onSurfaceVariant)
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(90.dp)) }
+            }
+            k == "albums" -> GroupList(
+                filt(MusicLib.everything()).groupBy { it.chatId }.toList().sortedByDescending { it.second.size }
+                    .map { (id, l) -> (acc.chats[id]?.title ?: "?") to l },
+                square = true,
+            ) { openGroup = it }
+            k == "artists" -> GroupList(all.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() }) { openGroup = it }
+            k == "favorites" -> SongList(filt(MusicLib.everything()).filter { Music.isFavorite(it) })
+            else -> AllSongs(all)
         }
+    }
+    if (newList) NameDialog(t("New playlist"), onDismiss = { newList = false }) { Music.newPlaylist(it); newList = false }
+}
+
+@Composable
+private fun AllSongs(songs: List<Track>) {
+    val cs = MaterialTheme.colorScheme
+    Column {
+        if (songs.isNotEmpty()) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${songs.size} " + t("songs"), color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
+            TextButton(onClick = { Music.play(songs.shuffled(), 0) }) { Icon(Ic.Shuffle, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(t("Shuffle all")) }
+        }
+        SongList(songs)
     }
 }
 
 @Composable
-private fun SongList(songs: List<Track>) {
+fun NameDialog(title: String, initial: String = "", onDismiss: () -> Unit, onOk: (String) -> Unit) {
+    var name by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { androidx.compose.material3.OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true) },
+        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onOk(name.trim()) }) { Text(t("OK")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("Cancel")) } },
+    )
+}
+
+@Composable
+private fun SongList(songs: List<Track>, playlist: String? = null) {
     val cs = MaterialTheme.colorScheme
     if (songs.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(t("No songs yet"), color = cs.onSurfaceVariant) }
         return
     }
+    var addTo by remember { mutableStateOf<Track?>(null) }
     LazyColumn(Modifier.fillMaxSize()) {
         itemsIndexed(songs, key = { _, s -> s.key }) { i, s ->
             val cur = Music.current?.key == s.key
@@ -715,28 +839,49 @@ private fun SongList(songs: List<Track>) {
                 androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     androidx.compose.material3.DropdownMenuItem(text = { Text(t("Play next")) }, onClick = { menu = false; Music.playNext(s) })
                     androidx.compose.material3.DropdownMenuItem(text = { Text(t("Add to queue")) }, onClick = { menu = false; Music.addToQueue(s) })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(t("Add to playlist")) }, onClick = { menu = false; addTo = s })
+                    if (playlist != null) androidx.compose.material3.DropdownMenuItem(text = { Text(t("Remove from playlist")) }, onClick = { menu = false; Music.removeFromPlaylist(playlist, s.key) })
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text(if (Music.isFavorite(s)) t("Remove from favorites") else t("Add to favorites")) },
                         onClick = { menu = false; Music.toggleFavorite(s) },
                     )
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(t("Hide song")) }, onClick = { menu = false; Music.hide(listOf(s.key)) })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(t("Hide all from this chat")) }, onClick = { menu = false; Music.hideChat(s.chatId) })
                     androidx.compose.material3.DropdownMenuItem(text = { Text(t("Go to message")) }, onClick = { menu = false; MusicNav.openChat?.invoke(s.acc, s.chatId) })
                 }
             }
         }
         item { Spacer(Modifier.height(90.dp)) }
     }
+    addTo?.let { s ->
+        var newName by remember { mutableStateOf(false) }
+        if (newName) NameDialog(t("New playlist"), onDismiss = { newName = false }) { n -> Music.newPlaylist(n); Music.addToPlaylist(n, listOf(s.key)); newName = false; addTo = null }
+        else AlertDialog(
+            onDismissRequest = { addTo = null },
+            title = { Text(t("Add to playlist")) },
+            text = {
+                Column {
+                    for ((n, _) in Music.playlists()) {
+                        Text(n, fontSize = 16.sp, modifier = Modifier.fillMaxWidth().clickable { Music.addToPlaylist(n, listOf(s.key)); addTo = null }.padding(vertical = 10.dp))
+                    }
+                    Text("+ " + t("New playlist"), fontSize = 16.sp, color = cs.primary, modifier = Modifier.fillMaxWidth().clickable { newName = true }.padding(vertical = 10.dp))
+                }
+            },
+            confirmButton = { TextButton(onClick = { addTo = null }) { Text(t("Close")) } },
+        )
+    }
 }
 
 @Composable
-private fun GroupList(groups: List<Pair<String, List<Track>>>, onOpen: (Pair<String, List<Track>>) -> Unit) {
+private fun GroupList(groups: List<Pair<String, List<Track>>>, square: Boolean = false, onOpen: (Pair<String, List<Track>>) -> Unit) {
     val cs = MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize()) {
-        items(groups, key = { it.first }) { g ->
+        items(groups, key = { it.first + "#" + it.second.first().chatId }) { g ->
             Row(
                 Modifier.fillMaxWidth().clickable { onOpen(g) }.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TrackArt(g.second.first(), Modifier.size(54.dp), CircleShape)
+                TrackArt(g.second.first(), Modifier.size(54.dp), if (square) RoundedCornerShape(14.dp) else CircleShape)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(g.first, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

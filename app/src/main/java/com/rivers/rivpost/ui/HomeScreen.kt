@@ -193,7 +193,10 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                 when (page) {
                     "contacts" -> ContactsPage(acc, act, query)
                     "calls" -> CallsPage(acc, act)
-                    "music" -> MusicLibraryPage(acc) { act.push(Screen.Sources("music")) }
+                    "music" -> {
+                        MusicNav.openPage = { act.push(Screen.Page(it)) }
+                        MusicLibraryPage(acc) { act.push(Screen.Sources("music")) }
+                    }
                     "videos" -> VideoLibraryPage(acc, onPlay = { act.push(Screen.Video(it)) }) { act.push(Screen.Sources("video")) }
                     "profile" -> ProfilePage(acc, act)
                     else -> ChatListPage(acc, act, lists[folderTab].second, query, ver, filterOf.getOrNull(folderTab))

@@ -25,40 +25,52 @@ object MusicLib {
         Prefs.musicSources = s.joinToString(",")
     }
 
+    /** Songs from the chats you picked, per chat. */
+    var picked by mutableStateOf(mapOf<Long, List<Track>>())
+        private set
+
     suspend fun load(a: TgAccount, force: Boolean = false) {
         if (loading || (!force && loadedFor == a.index && songs.isNotEmpty())) return
         loading = true
         try {
             val out = ArrayList<Track>()
-            val sources = Prefs.idSet(Prefs.musicSources)
-            if (sources.isEmpty()) {
-                var offset = ""
-                for (round in 0 until 20) {
-                    val found = a.searchAll(SearchMessagesFilterAudio(), "", offset) ?: break
-                    if (found.messages.isEmpty()) break
-                    for (m in found.messages) Track.from(a.index, m)?.let { out.add(it) }
-                    offset = found.nextOffset
-                    if (offset.isEmpty()) break
-                    if (round % 3 == 2) songs = out.distinctBy { it.key }
-                }
-                // music sent as files (FLAC etc.)
-                var off2 = ""
-                for (round in 0 until 5) {
-                    val found = a.searchAll(SearchMessagesFilterDocument(), "", off2) ?: break
-                    if (found.messages.isEmpty()) break
-                    for (m in found.messages) Track.from(a.index, m)?.let { out.add(it) }
-                    off2 = found.nextOffset
-                    if (off2.isEmpty()) break
-                }
-            } else {
-                for (chatId in sources) out.addAll(Music.chatTracks(a, chatId))
+            var offset = ""
+            for (round in 0 until 20) {
+                val found = a.searchAll(SearchMessagesFilterAudio(), "", offset) ?: break
+                if (found.messages.isEmpty()) break
+                for (m in found.messages) Track.from(a.index, m)?.let { out.add(it) }
+                offset = found.nextOffset
+                if (offset.isEmpty()) break
+                if (round % 3 == 2) songs = out.distinctBy { it.key }
+            }
+            // music sent as files (FLAC etc.)
+            var off2 = ""
+            for (round in 0 until 5) {
+                val found = a.searchAll(SearchMessagesFilterDocument(), "", off2) ?: break
+                if (found.messages.isEmpty()) break
+                for (m in found.messages) Track.from(a.index, m)?.let { out.add(it) }
+                off2 = found.nextOffset
+                if (off2.isEmpty()) break
             }
             songs = out.distinctBy { it.key }.sortedByDescending { it.date }
+            loadPicked(a)
             loadedFor = a.index
         } finally {
             loading = false
         }
     }
+
+    suspend fun loadPicked(a: TgAccount) {
+        val map = LinkedHashMap<Long, List<Track>>()
+        for (chatId in Prefs.idSet(Prefs.musicSources)) {
+            map[chatId] = Music.chatTracks(a, chatId).distinctBy { it.key }.sortedByDescending { it.date }
+            picked = LinkedHashMap(map)
+        }
+        picked = map
+    }
+
+    /** Every song we know of (all chats + picked chats), for playlists. */
+    fun everything(): List<Track> = (songs + picked.values.flatten()).distinctBy { it.key }
 
     fun artists(): List<Pair<String, List<Track>>> =
         songs.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() }

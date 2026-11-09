@@ -170,6 +170,7 @@ object Music {
         val t = queue.getOrNull(i) ?: return
         index = i
         error = null
+        abClear()
         playJob?.cancel()
         playJob = scope.launch {
             loading = true
@@ -200,7 +201,14 @@ object Music {
         return res.local.path.takeIf { res.local.isDownloadingCompleted && it.isNotEmpty() }
     }
 
+    private fun onWifi(): Boolean = try {
+        val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        caps != null && !cm.isActiveNetworkMetered && (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET))
+    } catch (_: Throwable) { false }
+
     private fun prefetchNext() {
+        if (Prefs.prefetchWifiOnly && !onWifi()) return
         val n = nextIndex(false) ?: return
         val t = queue.getOrNull(n) ?: return
         val a = Tg.accounts.value[t.acc] ?: return
@@ -300,6 +308,58 @@ object Music {
         playerOpen = false
         cancelSleep()
     }
+
+    // ---------- A-B repeat ----------
+    var abA by mutableLongStateOf(-1L)
+        private set
+    var abB by mutableLongStateOf(-1L)
+        private set
+    private var abJob: Job? = null
+
+    /** Tap once = set A, twice = set B (loop starts), third time = off. */
+    fun abTap() {
+        when {
+            abA < 0 -> { abA = position }
+            abB < 0 -> {
+                if (position <= abA + 500) return
+                abB = position
+                abJob?.cancel()
+                abJob = scope.launch {
+                    while (isActive && abB > 0) {
+                        if ((exo?.currentPosition ?: 0) >= abB) exo?.seekTo(abA)
+                        delay(120)
+                    }
+                }
+            }
+            else -> abClear()
+        }
+    }
+
+    fun abClear() { abA = -1; abB = -1; abJob?.cancel(); abJob = null }
+
+    // ---------- hidden songs ----------
+    fun isHidden(t: Track): Boolean = t.key in hiddenSet()
+    fun hiddenSet(): Set<String> = Prefs.hiddenSongs.split("\n").filter { it.isNotBlank() }.toSet()
+    fun hide(keys: Collection<String>) { Prefs.hiddenSongs = (hiddenSet() + keys).joinToString("\n") }
+    fun unhide(key: String) { Prefs.hiddenSongs = (hiddenSet() - key).joinToString("\n") }
+    fun hideChat(chatId: Long) { Prefs.hiddenChats = Prefs.toggleId(Prefs.hiddenChats, chatId) }
+    fun isChatHidden(chatId: Long): Boolean = chatId in Prefs.idSet(Prefs.hiddenChats)
+    fun visible(t: Track): Boolean =
+        !isHidden(t) && !isChatHidden(t.chatId) && !(Prefs.hideShort && t.duration in 1 until Prefs.minSongSecs)
+
+    // ---------- playlists ----------
+    fun playlists(): List<Pair<String, List<String>>> = Prefs.playlists.split("\n").filter { it.contains('|') }.map { l ->
+        l.substringBefore('|') to l.substringAfter('|').split(',').filter { it.isNotBlank() }
+    }
+    private fun savePlaylists(list: List<Pair<String, List<String>>>) {
+        Prefs.playlists = list.joinToString("\n") { (n, k) -> n.replace("|", " ").replace("\n", " ") + "|" + k.joinToString(",") }
+    }
+    fun newPlaylist(name: String) { if (name.isNotBlank() && playlists().none { it.first == name }) savePlaylists(playlists() + (name.trim() to emptyList())) }
+    fun deletePlaylist(name: String) = savePlaylists(playlists().filter { it.first != name })
+    fun addToPlaylist(name: String, keys: Collection<String>) =
+        savePlaylists(playlists().map { if (it.first == name) it.first to (it.second + keys).distinct() else it })
+    fun removeFromPlaylist(name: String, key: String) =
+        savePlaylists(playlists().map { if (it.first == name) it.first to (it.second - key) else it })
 
     // ---------- favorites ----------
 

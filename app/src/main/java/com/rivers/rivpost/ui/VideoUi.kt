@@ -76,6 +76,10 @@ import com.airbnb.lottie.compose.rememberLottieComposition
 import com.rivers.rivpost.data.Prefs
 import com.rivers.rivpost.data.t
 import com.rivers.rivpost.media.TdlDataSource
+import com.rivers.rivpost.media.Cue
+import com.rivers.rivpost.media.Engine
+import com.rivers.rivpost.media.SubtitleParser
+import com.rivers.rivpost.media.VideoState
 import com.rivers.rivpost.media.VideoItem
 import com.rivers.rivpost.media.VideoLib
 import com.rivers.rivpost.tg.Fmt
@@ -88,7 +92,10 @@ import kotlinx.coroutines.withContext
 import java.util.zip.GZIPInputStream
 
 /** What the video player should play. */
-data class PlayRequest(val acc: Int, val file: File, val title: String, val key: String)
+data class PlayRequest(
+    val acc: Int, val file: File?, val title: String, val key: String,
+    val url: String = "", val userAgent: String = "", val referer: String = "", val live: Boolean = false,
+)
 
 fun VideoItem.request(): PlayRequest = PlayRequest(acc, file, title, key)
 
@@ -228,30 +235,50 @@ private fun Poster(acc: TgAccount, v: VideoItem, modifier: Modifier, shape: Roun
 
 // ---------------------------------------------------------------- player
 
-/** Full-screen built-in video player. Streams from Telegram while it downloads. */
+/** Full-screen built-in video player. Streams from Telegram, links, IPTV or shared folders. */
 @Composable
 fun VideoPlayerScreen(req: PlayRequest, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val act = ctx as? Activity
     val acc = Tg.accounts.value[req.acc]
     BackHandler { onClose() }
-    if (acc == null) { LaunchedEffect(Unit) { onClose() }; return }
+    if (req.file != null && acc == null) { LaunchedEffect(Unit) { onClose() }; return }
     val player = remember(req.key) {
-        ExoPlayer.Builder(ctx).build().apply {
+        Engine.build(ctx, req.userAgent, req.referer).apply {
             val f = req.file
-            val local = f.local.isDownloadingCompleted && f.local.path.isNotEmpty()
-            if (local) {
-                setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(f.local.path))))
-            } else {
-                val src = ProgressiveMediaSource.Factory { TdlDataSource(acc, f) }
-                    .createMediaSource(MediaItem.fromUri(Uri.parse("tdl://file/" + f.id)))
-                setMediaSource(src)
+            when {
+                f == null -> setMediaItem(MediaItem.fromUri(Uri.parse(req.url)))
+                f.local.isDownloadingCompleted && f.local.path.isNotEmpty() -> setMediaItem(MediaItem.fromUri(Uri.fromFile(java.io.File(f.local.path))))
+                else -> {
+                    val src = ProgressiveMediaSource.Factory { TdlDataSource(acc!!, f) }
+                        .createMediaSource(MediaItem.fromUri(Uri.parse("tdl://file/" + f.id)))
+                    setMediaSource(src)
+                }
             }
-            val start = VideoLib.position(ctx, req.key)
-            if (start > 5000) seekTo(start)
+            if (!req.live) {
+                val start = VideoLib.position(ctx, req.key)
+                if (start > 5000) seekTo(start)
+            }
             prepare()
             playWhenReady = true
         }
+    }
+    var error by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(player) {
+        val l = object : Player.Listener {
+            override fun onPlayerError(e: androidx.media3.common.PlaybackException) { error = e.errorCodeName + "\n" + (e.cause?.message ?: e.message ?: "") }
+            override fun onIsPlayingChanged(isPlaying: Boolean) { VideoState.playing = isPlaying }
+        }
+        player.addListener(l)
+        onDispose { player.removeListener(l) }
+    }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, player) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            if (ev == androidx.lifecycle.Lifecycle.Event.ON_STOP && !Prefs.bgVideo && !VideoState.inPip) player.pause()
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
     }
     DisposableEffect(req.key) {
         val win = act?.window
@@ -259,13 +286,42 @@ fun VideoPlayerScreen(req: PlayRequest, onClose: () -> Unit) {
         ctl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         ctl?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose {
-            if (player.duration > 0) VideoLib.savePosition(ctx, req.key, player.currentPosition, player.duration)
+            if (!req.live && player.duration > 0) VideoLib.savePosition(ctx, req.key, player.currentPosition, player.duration)
             player.release()
+            VideoState.playing = false
             ctl?.show(WindowInsetsCompat.Type.systemBars())
             act?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
+    // subtitles
+    var cues by remember(req.key) { mutableStateOf<List<Cue>>(emptyList()) }
+    var subDelay by remember(req.key) { mutableStateOf(0L) }
+    var subText by remember { mutableStateOf("") }
+    val pickSub = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            cues = try { SubtitleParser.load(ctx, uri) } catch (_: Throwable) { emptyList() }
+            toast(ctx, if (cues.isEmpty()) t("Couldn't read subtitles") else t("Subtitles loaded") + " (${cues.size})")
+        }
+    }
+    LaunchedEffect(cues, subDelay) {
+        while (cues.isNotEmpty()) {
+            subText = SubtitleParser.textAt(cues, player.currentPosition - subDelay)
+            kotlinx.coroutines.delay(150)
+        }
+        subText = ""
+    }
+    // A-B repeat for videos
+    var abA by remember { mutableStateOf(-1L) }
+    var abB by remember { mutableStateOf(-1L) }
+    LaunchedEffect(abB) {
+        while (abB > 0) {
+            if (player.currentPosition >= abB) player.seekTo(abA)
+            kotlinx.coroutines.delay(120)
+        }
+    }
     var landscape by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var controls by remember { mutableStateOf(true) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { c ->
@@ -275,19 +331,67 @@ fun VideoPlayerScreen(req: PlayRequest, onClose: () -> Unit) {
                     setShowNextButton(false)
                     setShowPreviousButton(false)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v -> controls = v == android.view.View.VISIBLE })
                 }
             },
+            update = { v -> v.useController = !VideoState.inPip },
             modifier = Modifier.fillMaxSize(),
         )
-        Row(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (subText.isNotBlank()) {
+            val col = if (Prefs.subColor == 0) Color.White else Color(Prefs.subColor)
+            Text(
+                subText, color = col, fontSize = Prefs.subSize.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black, blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (controls && !VideoState.inPip) 90.dp else 24.dp, start = 20.dp, end = 20.dp)
+                    .let { if (Prefs.subBg) it.clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 8.dp, vertical = 2.dp) else it },
+            )
+        }
+        error?.let { e ->
+            Column(Modifier.align(Alignment.Center).padding(24.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xCC000000)).padding(16.dp)) {
+                Text(t("Couldn't play this video"), color = Color.White, fontWeight = FontWeight.Bold)
+                Text(e, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                Text(t("Try another decoder from the ⋮ menu."), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+            }
+        }
+        if (controls && !VideoState.inPip) Row(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose, modifier = Modifier.background(Color(0x66000000), CircleShape)) { Icon(Ic.Back, null, tint = Color.White) }
             Spacer(Modifier.width(10.dp))
-            Text(req.title, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.width(10.dp))
+            Text(req.title, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (abA >= 0) Text(if (abB > 0) "A-B" else "A-", color = Color(0xFFFFC107), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp))
             IconButton(onClick = {
                 landscape = !landscape
                 act?.requestedOrientation = if (landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }, modifier = Modifier.background(Color(0x66000000), CircleShape)) { Icon(Ic.Refresh, null, tint = Color.White) }
+            Spacer(Modifier.width(6.dp))
+            Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.background(Color(0x66000000), CircleShape)) { Icon(Ic.More, null, tint = Color.White) }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text(t("Load subtitles")) }, onClick = { menu = false; pickSub.launch("*/*") })
+                    if (cues.isNotEmpty()) {
+                        DropdownMenuItem(text = { Text(t("Subtitles earlier") + " (−0.5s)") }, onClick = { subDelay -= 500; toast(ctx, t("Delay") + " " + subDelay / 1000f + "s") })
+                        DropdownMenuItem(text = { Text(t("Subtitles later") + " (+0.5s)") }, onClick = { subDelay += 500; toast(ctx, t("Delay") + " " + subDelay / 1000f + "s") })
+                        DropdownMenuItem(text = { Text(t("Turn off subtitles")) }, onClick = { menu = false; cues = emptyList() })
+                    }
+                    if (!req.live) DropdownMenuItem(
+                        text = { Text(when { abA < 0 -> t("A-B repeat: set A"); abB < 0 -> t("A-B repeat: set B"); else -> t("A-B repeat: off") }) },
+                        onClick = {
+                            menu = false
+                            when {
+                                abA < 0 -> { abA = player.currentPosition }
+                                abB < 0 -> { if (player.currentPosition > abA + 500) abB = player.currentPosition }
+                                else -> { abA = -1; abB = -1 }
+                            }
+                        },
+                    )
+                    DropdownMenuItem(text = { Text(t("Picture-in-picture")) }, onClick = { menu = false; (act as? com.rivers.rivpost.MainActivity)?.enterPip() })
+                    for ((k, label) in listOf("hw" to "HW", "hwplus" to "HW+", "sw" to "SW")) {
+                        DropdownMenuItem(
+                            text = { Text(t("Decoder") + ": " + label + if (Prefs.decoder == k) "  ✓" else "") },
+                            onClick = { menu = false; Prefs.decoder = k; toast(ctx, t("Reopen the video to use the new decoder")) },
+                        )
+                    }
+                }
+            }
         }
     }
 }

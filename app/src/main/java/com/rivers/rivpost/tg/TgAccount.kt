@@ -85,7 +85,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
     /** chatId -> (who is typing, until when in ms). */
     val typing = ConcurrentHashMap<Long, Pair<String, Long>>()
     val extraVersion = MutableStateFlow(0L)
-    private fun bumpExtra() { extraVersion.value = extraVersion.value + 1 }
+    fun bumpExtra() { extraVersion.value = extraVersion.value + 1 }
 
     @Volatile var openChatId = 0L
     @Volatile var loggingOut = false
@@ -93,6 +93,8 @@ class TgAccount(private val ctx: Context, val index: Int) {
 
     val dir = java.io.File(ctx.filesDir, "tdlib/acc_$index")
     val uploads = ConcurrentHashMap<Int, File>()
+    /** Bot keyboards: the message that carries the current keyboard of each chat. */
+    val replyMarkups = ConcurrentHashMap<Long, Message>()
 
     // ---------- anti-revoke / edit history (opt-in, local only) ----------
     private val seen = object : LinkedHashMap<String, Message>(256, 0.75f, true) {
@@ -224,6 +226,11 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 scopeMute[key] = u.notificationSettings.muteFor
             }
             is UpdateChatFolders -> folders.value = u.chatFolders.toList()
+            is UpdateChatReplyMarkup -> {
+                val m = u.replyMarkupMessage
+                if (m == null) replyMarkups.remove(u.chatId) else replyMarkups[u.chatId] = m
+                bumpExtra()
+            }
             is UpdateSupergroup -> { supergroups[u.supergroup.id] = u.supergroup; bumpExtra() }
             is UpdateBasicGroup -> { basicGroups[u.basicGroup.id] = u.basicGroup; bumpExtra() }
             is UpdateSecretChat -> { secretChats[u.secretChat.id] = u.secretChat; bumpExtra() }

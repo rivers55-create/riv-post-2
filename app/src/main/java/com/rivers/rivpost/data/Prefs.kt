@@ -195,6 +195,29 @@ object Prefs {
     var proxyAuto by BoolPref("proxy_auto", false)
     var powerSave by BoolPref("power_save", false)
 
+    // ---------- 1.3 ----------
+    var longPressSelect by BoolPref("long_press_select", true) // long-press = select, tap = menu
+    var musicTabs by StrPref("music_tabs", "all,selected,playlists,albums,artists,favorites")
+    var musicTabsOff by StrPref("music_tabs_off", "")
+    var selectedSplit by BoolPref("selected_split", false)
+    var hiddenSongs by StrPref("hidden_songs", "")
+    var hiddenChats by StrPref("hidden_song_chats", "")
+    var videoNotes by BoolPref("video_notes", true)
+    var hideShort by BoolPref("hide_short", true)
+    var minSongSecs by IntPref("min_song_secs", 60)
+    var prefetchWifiOnly by BoolPref("prefetch_wifi_only", true)
+    var playlists by StrPref("playlists", "")           // lines: name|key1,key2
+    var musicDrawer by BoolPref("music_drawer", true)
+    var decoder by StrPref("decoder", "hw")             // hw / hwplus / sw
+    var ffmpeg by BoolPref("ffmpeg", true)
+    var bgVideo by BoolPref("bg_video", false)
+    var autoPip by BoolPref("auto_pip", true)
+    var subSize by IntPref("sub_size", 20)
+    var subBg by BoolPref("sub_bg", true)
+    var subColor by IntPref("sub_color", 0)
+    var iptvLists by StrPref("iptv_lists", "")         // lines: name|url
+    var smbServers by StrPref("smb_servers", "")       // lines: name|host|share|user|pass|domain
+
     fun toggleId(set: String, id: Long): String {
         val s = idSet(set).toMutableSet()
         if (!s.remove(id)) s.add(id)

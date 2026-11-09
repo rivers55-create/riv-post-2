@@ -79,6 +79,8 @@ sealed class Screen {
     object Vault : Screen()
     class Page(val name: String) : Screen()
     class Camera(val chatId: Long) : Screen()
+    class WebApp(val req: com.rivers.rivpost.ui.WebAppRequest) : Screen()
+    class VideoNote(val chatId: Long) : Screen()
 }
 
 class MainActivity : FragmentActivity() {
@@ -138,6 +140,25 @@ class MainActivity : FragmentActivity() {
         leftAt = System.currentTimeMillis()
     }
 
+    fun enterPip() {
+        if (Build.VERSION.SDK_INT < 26) return
+        try {
+            enterPictureInPictureMode(
+                android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).build(),
+            )
+        } catch (_: Throwable) { }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Prefs.autoPip && com.rivers.rivpost.media.VideoState.playing && stack.lastOrNull() is Screen.Video) enterPip()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        com.rivers.rivpost.media.VideoState.inPip = isInPictureInPictureMode
+    }
+
     fun unlock() {
         locked = false
     }
@@ -180,6 +201,8 @@ private fun Root(act: MainActivity) {
                             if (st is AuthorizationStateReady) {
                                 LaunchedEffect(Unit) { act.askNotificationPermission() }
                                 MainNav(act, acc)
+                                com.rivers.rivpost.ui.MusicDrawer(act)
+                                com.rivers.rivpost.ui.BotAlertDialog()
                                 AuthPinDialog()
                             } else {
                                 LoginScreen(acc)
@@ -214,6 +237,8 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
         is Screen.Hub -> SettingsHub(acc, act, onBack = { act.pop() })
         is Screen.Vault -> VaultScreen(acc, act, onBack = { act.pop() })
         is Screen.Camera -> CameraScreen(acc, s.chatId, onClose = { act.pop() })
+        is Screen.WebApp -> com.rivers.rivpost.ui.WebAppScreen(s.req, onClose = { act.pop() })
+        is Screen.VideoNote -> com.rivers.rivpost.ui.VideoNoteScreen(acc, s.chatId, onClose = { act.pop() })
         is Screen.Page -> when (s.name) {
             "account" -> AccountPage(acc, onBack = { act.pop() })
             "privacy" -> PrivacyPage(acc, act, onBack = { act.pop() })
@@ -222,6 +247,9 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
             "downloads" -> DownloadsPage(acc, onBack = { act.pop() })
             "uploads" -> UploadsPage(acc, onBack = { act.pop() })
             "folders" -> FoldersPage(acc, onBack = { act.pop() })
+            "iptv" -> com.rivers.rivpost.ui.IptvScreen(act, onBack = { act.pop() })
+            "smb" -> com.rivers.rivpost.ui.SmbScreen(act, onBack = { act.pop() })
+            "hidden" -> com.rivers.rivpost.ui.HiddenSongsScreen(acc, onBack = { act.pop() })
             else -> PowerPage(onBack = { act.pop() })
         }
         is Screen.Customize -> CustomizeScreen(onBack = { act.pop() })

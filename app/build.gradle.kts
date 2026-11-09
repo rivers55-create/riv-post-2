@@ -11,8 +11,8 @@ android {
         applicationId = "com.rivers.rivpost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.3.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
@@ -48,7 +48,7 @@ android {
     packaging {
         jniLibs { useLegacyPackaging = true }
         resources {
-            excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/DEPENDENCIES", "/META-INF/versions/9/module-info.class")
+            excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/DEPENDENCIES", "/META-INF/versions/9/module-info.class", "/META-INF/versions/9/OSGI-INF/MANIFEST.MF")
         }
     }
 
@@ -85,6 +85,11 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
+    implementation("eu.agno3.jcifs:jcifs-ng:2.1.10")
+    implementation("androidx.camera:camera-video:1.4.1")
     implementation("com.airbnb.android:lottie-compose:6.6.0")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.camera:camera-core:1.4.1")

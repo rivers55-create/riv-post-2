@@ -176,6 +176,8 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SectionTitle(t("Chats"))
         SwitchRow(t("Download photos automatically"), null, Prefs.autoPhotos) { Prefs.autoPhotos = it }
         SwitchRow(t("Enter key sends"), t("For physical keyboards"), Prefs.enterSends) { Prefs.enterSends = it }
+        SwitchRow(t("Long-press selects messages"), t("Tap or ⋮ opens the menu. Off: long-press opens the menu."), Prefs.longPressSelect) { Prefs.longPressSelect = it }
+        SwitchRow(t("Video messages"), t("Hold the mic button to record a round video"), Prefs.videoNotes) { Prefs.videoNotes = it }
 
         ClickRow(t("Customize everything"), "›", onCustomize)
 
@@ -186,6 +188,19 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Built-in video player"), t("Off opens videos in another app"), Prefs.builtInVideo) { Prefs.builtInVideo = it }
         SwitchRow(t("Download voice messages automatically"), null, Prefs.autoVoice) { Prefs.autoVoice = it }
         ClickRow(t("Video sources"), "›") { onSources("video") }
+        ChoiceRow(t("Video decoder"), listOf("hw" to "HW", "hwplus" to "HW+", "sw" to "SW"), Prefs.decoder) { Prefs.decoder = it }
+        SwitchRow(t("FFmpeg audio"), t("Plays sound formats the phone can't (AC3, DTS…)"), Prefs.ffmpeg) { Prefs.ffmpeg = it }
+        SwitchRow(t("Picture-in-picture"), t("Leaving the app keeps the video in a small window"), Prefs.autoPip) { Prefs.autoPip = it }
+        SwitchRow(t("Keep playing in background"), t("Video sound continues when the app is closed"), Prefs.bgVideo) { Prefs.bgVideo = it }
+        ChoiceRow(t("Subtitle size"), listOf("16" to t("Small"), "20" to t("Medium"), "26" to t("Large"), "32" to t("Huge")), Prefs.subSize.toString()) { Prefs.subSize = it.toInt() }
+        SwitchRow(t("Subtitle background"), null, Prefs.subBg) { Prefs.subBg = it }
+        ChoiceRow(
+            t("Subtitle color"),
+            listOf("0" to t("White"), 0xFFFFEB3B.toInt().toString() to t("Yellow"), 0xFF80DEEA.toInt().toString() to t("Cyan")),
+            Prefs.subColor.toString(),
+        ) { Prefs.subColor = it.toInt() }
+        ClickRow(t("IPTV"), "›") { act.push(com.rivers.rivpost.Screen.Page("iptv")) }
+        ClickRow(t("Shared folders (SMB)"), "›") { act.push(com.rivers.rivpost.Screen.Page("smb")) }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
         SectionTitle(t("Music player"))
@@ -199,6 +214,22 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Find lyrics online"), "lrclib.net", Prefs.mOnlineLyrics) { Prefs.mOnlineLyrics = it }
         SwitchRow(t("Mini player"), null, Prefs.mMini) { Prefs.mMini = it }
         ClickRow(t("Music sources"), "›") { onSources("music") }
+        SwitchRow(t("Each selected chat gets its own tab"), null, Prefs.selectedSplit) { Prefs.selectedSplit = it }
+        SwitchRow(t("Hide short clips"), t("Hides songs shorter than the length below"), Prefs.hideShort) { Prefs.hideShort = it }
+        if (Prefs.hideShort) ChoiceRow(t("Shorter than"), listOf("30" to "30 s", "60" to "1 min", "90" to "1.5 min", "120" to "2 min"), Prefs.minSongSecs.toString()) { Prefs.minSongSecs = it.toInt() }
+        SwitchRow(t("Get the next song only on Wi-Fi"), t("Saves mobile data. Songs still download when you play them."), Prefs.prefetchWifiOnly) { Prefs.prefetchWifiOnly = it }
+        SwitchRow(t("Floating music drawer"), t("A small tab on the side of other screens to control music"), Prefs.musicDrawer) { Prefs.musicDrawer = it }
+        ClickRow(t("Hidden songs"), "›") { act.push(com.rivers.rivpost.Screen.Page("hidden")) }
+        Text(t("Music tabs"), fontSize = 16.sp, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
+        @Suppress("UNUSED_VARIABLE") val tabsWatch = Prefs.musicTabs + Prefs.musicTabsOff
+        for (k in MusicTabs.order()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { MusicTabs.move(k, -1) }) { Icon(Ic.Up, null) }
+                IconButton(onClick = { MusicTabs.move(k, 1) }) { Icon(Ic.Down, null) }
+                Text(MusicTabs.label(k), modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(checked = k !in Prefs.musicTabsOff.split(','), onCheckedChange = { MusicTabs.toggle(k) })
+            }
+        }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
         SectionTitle(t("Power tools"))

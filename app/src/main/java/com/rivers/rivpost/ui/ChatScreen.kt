@@ -2,6 +2,7 @@ package com.rivers.rivpost.ui
 
 import android.Manifest
 import android.content.ClipData
+import androidx.activity.compose.BackHandler
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
@@ -189,6 +190,17 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
     var end by mutableStateOf(false)
     var pinned by mutableStateOf<Message?>(null)
     val deleted = mutableStateListOf<Long>()
+    val selected = mutableStateListOf<Long>()
+    var anchor by mutableStateOf(0L)
+
+    /** Long-press a second message to select everything between. */
+    fun selectRange(id: Long) {
+        val a = messages.indexOfFirst { it.id == anchor }
+        val b = messages.indexOfFirst { it.id == id }
+        if (a < 0 || b < 0) { if (id !in selected) selected.add(id); anchor = id; return }
+        for (i in minOf(a, b)..maxOf(a, b)) { val mid = messages[i].id; if (mid !in selected) selected.add(mid) }
+        anchor = id
+    }
 
     suspend fun loadMore() {
         if (loading || end) return
@@ -287,6 +299,11 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var searchQuery by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Message>>(emptyList()) }
     var hidePinned by remember { mutableStateOf(false) }
+    var selDelete by remember { mutableStateOf(false) }
+    var showBotKb by remember(chatId) { mutableStateOf(true) }
+    var cmdMenu by remember { mutableStateOf(false) }
+    var botCmds by remember(chatId) { mutableStateOf<Pair<List<dev.g000sha256.tdl.dto.BotCommand>, dev.g000sha256.tdl.dto.BotMenuButton?>?>(null) }
+    BackHandler(enabled = data.selected.isNotEmpty()) { data.selected.clear() }
 
     DisposableEffect(acc, chatId) {
         acc.openChatId = chatId
@@ -443,6 +460,18 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
     val secret = if (chat?.isSecret == true) acc.secretChats[chat.secretId] else null
+    val botChat = peerUserId != 0L && isBot(acc, peerUserId)
+    val botMarkup = remember(extra) { acc.replyMarkups[chatId] }
+    LaunchedEffect(chatId) {
+        val c = (acc.client.getChat(chatId = chatId) as? TdlResult.Success)?.result
+        if (c != null && c.replyMarkupMessageId != 0L && !acc.replyMarkups.containsKey(chatId)) {
+            (acc.client.getMessage(chatId = chatId, messageId = c.replyMarkupMessageId) as? TdlResult.Success)?.result?.let {
+                acc.replyMarkups[chatId] = it
+                acc.bumpExtra()
+            }
+        }
+    }
+    LaunchedEffect(botChat) { if (botChat) botCmds = botCommands(acc, peerUserId) }
 
     Box(Modifier.fillMaxSize().background(style.chatBg)) {
         // wallpaper
@@ -472,7 +501,40 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                             modifier = Modifier.weight(1f),
                         )
                     }
-                } else ChatHeader(
+                } else if (data.selected.isNotEmpty()) SelectionBar(
+                    count = data.selected.size,
+                    onClose = { data.selected.clear() },
+                    onDownload = {
+                        val ids = data.selected.toSet()
+                        for (m in data.messages.filter { it.id in ids }) {
+                            val c = data.content[m.id] ?: m.content
+                            val tr = Track.from(acc.index, m)
+                            if (tr != null) saveToPhone(ctx, acc, tr.file, "Music", chat)
+                            else mediaFileOf(c)?.let { (f, k) -> saveToPhone(ctx, acc, f, k, chat) }
+                        }
+                        data.selected.clear()
+                    },
+                    onForward = {
+                        act.push(Screen.Forward(chatId, data.selected.sorted().toLongArray()))
+                        data.selected.clear()
+                    },
+                    onCopy = {
+                        val ids = data.selected.toSet()
+                        val txt = data.messages.filter { it.id in ids }.reversed()
+                            .map { textOf(data.content[it.id] ?: it.content) }.filter { it.isNotBlank() }.joinToString("\n\n")
+                        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("messages", txt))
+                        toast(ctx, t("Copied"))
+                        data.selected.clear()
+                    },
+                    onHide = {
+                        val ids = data.selected.toSet()
+                        val keys = data.messages.filter { it.id in ids }.mapNotNull { Track.from(acc.index, it)?.key }
+                        if (keys.isEmpty()) toast(ctx, t("No songs selected")) else { Music.hide(keys); toast(ctx, t("Hidden from Music") + " (${keys.size})") }
+                        data.selected.clear()
+                    },
+                    onDelete = { selDelete = true },
+                ) else ChatHeader(
                     acc, chat, subtitle, typing != null,
                     onBack = onBack,
                     onInfo = { act.push(Screen.Info(chatId)) },
@@ -538,6 +600,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                     onJump = { jumpTo(it) },
                                     deleted = m.id in data.deleted,
                                     onQuickForward = { quickForward(it) },
+                                    onSwitchInline = { q -> text = q },
                                 )
                             }
                         }
@@ -582,8 +645,46 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 }
             }
 
+            // ---------- bots ----------
+            if (text.startsWith("@")) InlineResults(acc, chatId, text) { text = "" }
+            if (botMarkup != null && showBotKb && botMarkup.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard) {
+                BotKeyboard(acc, act, chatId, botMarkup) { k ->
+                    send(InputMessageText(text = FormattedText(text = k, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+                    if ((botMarkup.replyMarkup as dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard).oneTime) showBotKb = false
+                }
+            }
+            val cmds = botCmds
+            Box {
+                DropdownMenu(expanded = cmdMenu, onDismissRequest = { cmdMenu = false }, shape = RoundedCornerShape(18.dp)) {
+                    val mb = cmds?.second
+                    if (mb != null && mb.url.isNotBlank()) MenuItem(Ic.Movie, mb.text.ifBlank { t("Open app") }) {
+                        cmdMenu = false
+                        acc.scope.launch { openWebApp(acc, act, chatId, peerUserId, mb.url, mb.text.ifBlank { chat?.title ?: "" }) }
+                    }
+                    for (c in cmds?.first.orEmpty()) {
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text("/" + c.command, color = style.accent, fontWeight = FontWeight.SemiBold)
+                                    if (c.description.isNotBlank()) Text(c.description, fontSize = 13.sp, maxLines = 2)
+                                }
+                            },
+                            onClick = {
+                                cmdMenu = false
+                                send(InputMessageText(text = FormattedText(text = "/" + c.command, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+                            },
+                        )
+                    }
+                }
+            }
+
             // ---------- input bar ----------
             InputBar(
+                showMenu = botChat && cmds != null && (cmds.first.isNotEmpty() || cmds.second != null),
+                onBotMenu = { cmdMenu = true },
+                hasKeyboard = botMarkup?.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard,
+                onKeyboard = { showBotKb = !showBotKb },
+                onMicLong = { if (Prefs.videoNotes) act.push(Screen.VideoNote(chatId)) },
                 text = text, onText = { text = it }, recording = recording, recSecs = recSecs,
                 onSend = { sendText() },
                 onAttach = { attach = true },
@@ -609,6 +710,22 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
+    if (selDelete) {
+        val ids = data.selected.toLongArray()
+        val mine = data.messages.filter { it.id in data.selected }.all { it.isOutgoing }
+        ChoiceDialog(
+            t("Delete") + " (${ids.size})",
+            listOfNotNull(t("Delete for me") to false, if (mine || chat?.isGroup == true || chat?.privateUserId != 0L) t("Delete for everyone") to true else null),
+            onDismiss = { selDelete = false },
+        ) { revoke ->
+            selDelete = false
+            data.selected.clear()
+            acc.scope.launch {
+                val r = acc.client.deleteMessages(chatId = chatId, messageIds = ids, revoke = revoke)
+                if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
+            }
+        }
+    }
     if (attach) AttachSheet(onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) })
     if (revokedLog) {
         val log = remember { acc.revokedLog(chatId).reversed() }
@@ -725,6 +842,27 @@ private fun ChatHeader(
 }
 
 @Composable
+private fun SelectionBar(
+    count: Int, onClose: () -> Unit, onDownload: () -> Unit, onForward: () -> Unit,
+    onCopy: () -> Unit, onHide: () -> Unit, onDelete: () -> Unit,
+) {
+    val style = LocalStyle.current
+    val fg = style.navBarFg
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).height(56.dp).clip(RoundedCornerShape(28.dp)).background(style.navBar),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) { Icon(Ic.Close, null, tint = fg) }
+        Text("$count " + t("Selected"), color = fg, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        IconButton(onClick = onDownload) { Icon(Ic.Download, null, tint = fg) }
+        IconButton(onClick = onForward) { Icon(Ic.Forward, null, tint = fg) }
+        IconButton(onClick = onCopy) { Icon(Ic.Copy, null, tint = fg) }
+        IconButton(onClick = onHide) { Icon(Ic.Hide, null, tint = fg) }
+        IconButton(onClick = onDelete) { Icon(Ic.Delete, null, tint = Color(0xFFE57373)) }
+    }
+}
+
+@Composable
 private fun PinnedBar(acc: TgAccount, m: Message, onClick: () -> Unit, onHide: () -> Unit) {
     val style = LocalStyle.current
     val mini = when (val c = m.content) {
@@ -762,6 +900,7 @@ private fun InfoBanner(text: String) {
 
 @Composable
 private fun InputBar(
+    showMenu: Boolean, onBotMenu: () -> Unit, hasKeyboard: Boolean, onKeyboard: () -> Unit, onMicLong: () -> Unit,
     text: String, onText: (String) -> Unit, recording: Boolean, recSecs: Int,
     onSend: () -> Unit, onAttach: () -> Unit, onGif: () -> Unit, onMic: () -> Unit, onCancelRec: () -> Unit, onSendRec: () -> Unit,
 ) {
@@ -784,7 +923,11 @@ private fun InputBar(
                 Spacer(Modifier.width(10.dp))
                 Text(t("Recording") + "  " + Fmt.duration(recSecs), color = fg, modifier = Modifier.weight(1f))
             } else {
-                if (Prefs.gifButton) IconButton(onClick = onGif) {
+                if (showMenu) Box(
+                    Modifier.padding(start = 4.dp).clip(RoundedCornerShape(16.dp)).background(style.accent).clickable(onClick = onBotMenu)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) { Text(t("Menu"), color = onColor(style.accent), fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
+                else if (Prefs.gifButton) IconButton(onClick = onGif) {
                     Box(Modifier.clip(RoundedCornerShape(6.dp)).background(fg.copy(alpha = 0.15f)).padding(horizontal = 4.dp, vertical = 1.dp)) {
                         Text("GIF", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg.copy(alpha = 0.8f))
                     }
@@ -801,6 +944,7 @@ private fun InputBar(
                         if (Prefs.enterSends && ev.key == Key.Enter) { onSend(); true } else false
                     },
                 )
+                if (hasKeyboard) IconButton(onClick = onKeyboard) { Icon(Ic.Keyboard, null, tint = fg.copy(alpha = 0.75f)) }
                 IconButton(onClick = onAttach) { Icon(Ic.Attach, null, tint = fg.copy(alpha = 0.75f)) }
             }
         }
@@ -808,7 +952,12 @@ private fun InputBar(
         val showSend = recording || text.isNotBlank()
         Box(
             Modifier.size(56.dp).clip(CircleShape).background(style.accent)
-                .clickable { if (recording) onSendRec() else if (text.isNotBlank()) onSend() else onMic() },
+                .pointerInput(recording, text.isNotBlank()) {
+                    detectTapGestures(
+                        onTap = { if (recording) onSendRec() else if (text.isNotBlank()) onSend() else onMic() },
+                        onLongPress = { if (!recording && text.isBlank()) onMicLong() },
+                    )
+                },
             contentAlignment = Alignment.Center,
         ) { Icon(if (showSend) Ic.Send else Ic.Mic, null, tint = onColor(style.accent)) }
     }
@@ -841,7 +990,7 @@ private fun MessageItem(
     info: MessageInteractionInfo?, showName: Boolean,
     onPhoto: (String) -> Unit, onReply: (Message) -> Unit, onEdit: (Message) -> Unit,
     onReact: (Message, String) -> Unit, onJump: (Long) -> Unit,
-    deleted: Boolean = false, onQuickForward: (Message) -> Unit = {},
+    deleted: Boolean = false, onQuickForward: (Message) -> Unit = {}, onSwitchInline: (String) -> Unit = {},
 ) {
     val style = LocalStyle.current
     val ctx = LocalContext.current
@@ -876,7 +1025,9 @@ private fun MessageItem(
     val track = remember(m.id) { Track.from(acc.index, m) }
 
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
+        Modifier.fillMaxWidth()
+            .background(if (m.id in data.selected) style.accent.copy(alpha = 0.18f) else Color.Transparent)
+            .padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
             .graphicsLayer { translationX = dragX; alpha = if (deleted) 0.55f else 1f }
             .pointerInput(m.id, Prefs.swipeForward) {
                 if (Prefs.swipeForward) detectHorizontalDragGestures(
@@ -887,7 +1038,18 @@ private fun MessageItem(
         horizontalArrangement = if (out) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (data.selected.isNotEmpty()) {
+            val on = m.id in data.selected
+            Box(
+                Modifier.size(26.dp).clip(CircleShape).background(if (on) Color(0xFF4CD964) else Color.Transparent)
+                    .border(2.dp, if (on) Color.White else style.inMeta, CircleShape)
+                    .clickable { if (!data.selected.remove(m.id)) { data.selected.add(m.id); data.anchor = m.id } },
+                contentAlignment = Alignment.Center,
+            ) { if (on) Icon(Ic.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+            if (out) Spacer(Modifier.weight(1f)) else Spacer(Modifier.width(8.dp))
+        }
         Box(Modifier.weight(1f, fill = false)) {
+            Column(horizontalAlignment = if (out) Alignment.End else Alignment.Start) {
             Column(
                 Modifier.widthIn(max = if (borderless) 400.dp else 310.dp)
                     .let { mod ->
@@ -900,10 +1062,21 @@ private fun MessageItem(
                     .clip(shape)
                     .background(if (isSticker || borderless) Color.Transparent else bubble)
                     .let { mod -> if (Prefs.bubbleBorder > 0 && !isSticker && !borderless) mod.border(Prefs.bubbleBorder.dp, style.border, shape) else mod }
-                    .pointerInput(m.id) {
+                    .pointerInput(m.id, data.selected.isNotEmpty()) {
+                        val selecting = data.selected.isNotEmpty()
                         detectTapGestures(
-                            onLongPress = { menu = true },
-                            onDoubleTap = { if (Prefs.doubleTapReact) onReact(m, Prefs.quickReaction) },
+                            onLongPress = {
+                                when {
+                                    selecting -> data.selectRange(m.id)
+                                    Prefs.longPressSelect -> { data.selected.add(m.id); data.anchor = m.id }
+                                    else -> menu = true
+                                }
+                            },
+                            onTap = {
+                                if (selecting) { if (!data.selected.remove(m.id)) { data.selected.add(m.id); data.anchor = m.id } }
+                                else if (Prefs.longPressSelect) menu = true
+                            },
+                            onDoubleTap = { if (!selecting && Prefs.doubleTapReact) onReact(m, Prefs.quickReaction) },
                         )
                     }
                     .padding(if (isSticker) 0.dp else 3.dp),
@@ -933,7 +1106,7 @@ private fun MessageItem(
                         }
                     }
                 }
-                MessageBody(acc, act, m, content, fg, meta, onPhoto)
+                MessageBody(acc, act, m, content, fg, meta, onPhoto, onMenu = { menu = true })
                 // reactions
                 val reactions = info?.reactions?.reactions?.filter { it.type is ReactionTypeEmoji }.orEmpty()
                 if (reactions.isNotEmpty()) {
@@ -973,6 +1146,8 @@ private fun MessageItem(
                     }
                 }
             }
+                if (m.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupInlineKeyboard) InlineButtons(acc, act, m, onSwitchInline)
+            }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(18.dp)) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
                     for (e in QuickReactions) {
@@ -981,6 +1156,25 @@ private fun MessageItem(
                 }
                 HorizontalDivider()
                 MenuItem(Ic.Reply, t("Reply")) { menu = false; onReply(m) }
+                if (track != null) MenuItem(Ic.Download, t("Save to Music")) {
+                    menu = false
+                    saveToPhone(ctx, acc, track.file, "Music", chat)
+                }
+                MenuItem(Ic.Pin, if (m.isPinned) t("Unpin") else t("Pin")) {
+                    menu = false
+                    acc.scope.launch {
+                        val r = if (m.isPinned) acc.client.unpinChatMessage(chatId = m.chatId, messageId = m.id)
+                        else acc.client.pinChatMessage(chatId = m.chatId, messageId = m.id, disableNotification = false, onlyForSelf = false)
+                        if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
+                    }
+                }
+                MenuItem(Ic.Info, t("Report")) {
+                    menu = false
+                    acc.scope.launch {
+                        acc.client.reportChat(chatId = m.chatId, optionId = ByteArray(0), messageIds = longArrayOf(m.id), text = "")
+                        withContext(Dispatchers.Main) { toast(ctx, t("Reported")) }
+                    }
+                }
                 val txt = textOf(content)
                 if (txt.isNotEmpty()) MenuItem(Ic.Copy, t("Copy")) {
                     menu = false
@@ -1073,7 +1267,7 @@ private fun textOf(c: MessageContent): String = when (c) {
 }
 
 @Composable
-private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: MessageContent, fg: Color, meta: Color, onPhoto: (String) -> Unit) {
+private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: MessageContent, fg: Color, meta: Color, onPhoto: (String) -> Unit, onMenu: () -> Unit = {}) {
     val ctx = LocalContext.current
     when (c) {
         is MessageText -> RichText(c.text, fg)
@@ -1127,7 +1321,7 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             val track = remember(m.id) { Track.from(acc.index, m) }
             val video = remember(m.id) { VideoItem.from(acc.index, m) }
             when {
-                track != null -> SongRow(track, fg, meta) { Music.playFromChat(acc, m) }
+                track != null -> SongRow(track, fg, meta, onMenu) { Music.playFromChat(acc, m) }
                 video != null && Prefs.builtInVideo -> FileRow(acc, c.document.document, "🎬 " + c.document.fileName, fg, meta, play = true) {
                     act.push(Screen.Video(video.request()))
                 }
@@ -1137,7 +1331,7 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
         }
         is MessageAudio -> {
             val track = remember(m.id) { Track.from(acc.index, m) }
-            if (track != null) SongRow(track, fg, meta) { Music.playFromChat(acc, m) }
+            if (track != null) SongRow(track, fg, meta, onMenu) { Music.playFromChat(acc, m) }
             if (c.caption.text.isNotBlank()) RichText(c.caption, fg)
         }
         is MessageVoiceNote -> VoiceRow(acc, c.voiceNote.voice, c.voiceNote.duration, c.voiceNote.waveform, fg, meta)
@@ -1170,20 +1364,37 @@ private fun previewFor(c: MessageContent): String = when (c) {
 }
 
 @Composable
-private fun SongRow(t0: Track, fg: Color, meta: Color, onPlay: () -> Unit) {
+private fun SongRow(t0: Track, fg: Color, meta: Color, onMenu: () -> Unit, onPlay: () -> Unit) {
+    val style = LocalStyle.current
     val playing = Music.current?.key == t0.key
-    Row(Modifier.widthIn(min = 230.dp).clickable(onClick = onPlay).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(50.dp)) {
-            TrackArt(t0, Modifier.fillMaxSize(), RoundedCornerShape(12.dp))
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(Color(0x55000000)), contentAlignment = Alignment.Center) {
-                Icon(if (playing && Music.isPlaying) Ic.Pause else Ic.Play, null, tint = Color.White)
+    val acc = com.rivers.rivpost.tg.Tg.accounts.value[t0.acc]
+    val cur = if (acc != null) rememberFile(acc, t0.file, autoDownload = false) else null
+    val downloaded = cur?.local?.isDownloadingCompleted == true
+    val pos = if (playing) rememberMusicPosition() else 0L
+    Row(Modifier.widthIn(min = 250.dp).padding(start = 6.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(64.dp).clickable(onClick = onPlay)) {
+            TrackArt(t0, Modifier.fillMaxSize(), CircleShape)
+            Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(0x44000000)), contentAlignment = Alignment.Center) {
+                if (playing && Music.loading) CircularProgressIndicator(Modifier.size(28.dp), color = Color.White, strokeWidth = 2.dp)
+                else Icon(if (playing && Music.isPlaying) Ic.Pause else Ic.Play, null, tint = Color.White, modifier = Modifier.size(34.dp))
+            }
+            if (!downloaded) Box(
+                Modifier.align(Alignment.BottomEnd).size(24.dp).clip(CircleShape).background(style.accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                val p = cur?.let { f -> val tot = if (f.size > 0) f.size else f.expectedSize; if (f.local.isDownloadingActive && tot > 0) f.local.downloadedSize.toFloat() / tot else -1f } ?: -1f
+                if (p >= 0f) CircularProgressIndicator(progress = { p }, color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                else Icon(Ic.Download, null, tint = Color.White, modifier = Modifier.size(15.dp))
             }
         }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f, fill = false)) {
-            Text(t0.title, color = fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(t0.artist + (if (t0.duration > 0) " · " + Fmt.duration(t0.duration) else "") + " · " + t0.ext, color = meta, fontSize = 13.sp, maxLines = 1)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f, fill = false).clickable(onClick = onPlay)) {
+            Text(t0.title, color = style.link, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(t0.artist, color = meta, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val total = if (t0.duration > 0) t0.duration else ((if (playing) Music.duration else 0L) / 1000).toInt()
+            Text(Fmt.duration((pos / 1000).toInt()) + " / " + Fmt.duration(total), color = meta, fontSize = 13.sp)
         }
+        IconButton(onClick = onMenu, modifier = Modifier.size(36.dp)) { Icon(Ic.More, null, tint = meta) }
     }
 }
 
