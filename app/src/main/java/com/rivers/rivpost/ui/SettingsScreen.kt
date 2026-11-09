@@ -391,6 +391,25 @@ fun ProxyScreen(acc: TgAccount, onBack: () -> Unit) {
             TextButton(onClick = { scope.launch { val b = Proxies.useFastest(); tick++; toast(ctx, if (b != null) t("Using") + " " + b.label else t("No proxy answered")) } }) { Text(t("Use fastest")) }
             TextButton(onClick = { Prefs.proxyOn = false; Tg.applyProxyAll(); tick++ }) { Text(t("Turn off")) }
         }
+        SectionTitle(t("Paste proxy links"))
+        var paste by remember { mutableStateOf("") }
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            OutlinedTextField(
+                value = paste, onValueChange = { paste = it }, minLines = 2, maxLines = 6,
+                label = { Text(t("One or many t.me/proxy or tg://proxy links")) }, modifier = Modifier.fillMaxWidth(),
+            )
+            Row {
+                TextButton(onClick = {
+                    val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    paste = cm.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString() ?: ""
+                }) { Text(t("Paste")) }
+                TextButton(onClick = {
+                    val n = Proxies.importText(paste)
+                    toast(ctx, if (n > 0) "$n " + t("proxies added") else t("No proxy links found"))
+                    if (n > 0) { paste = ""; tick++ }
+                }) { Text(t("Add all")) }
+            }
+        }
         SectionTitle(t("Add a proxy"))
         ChoiceRow(t("Type"), listOf("socks5" to "SOCKS5", "mtproto" to "MTProto"), type) { type = it }
         Column(Modifier.padding(horizontal = 20.dp)) {

@@ -216,6 +216,7 @@ private fun rememberMenu(act: MainActivity, acc: TgAccount): List<Pair<Pair<Stri
             scope.launch { acc.privateChat(acc.myId)?.let { act.push(Screen.Chat(it)) } }
             Unit
         },
+        (t("Proxy") + (if (Prefs.proxyOn) " ✓" else "") to Ic.Refresh) to { act.push(Screen.Proxy) },
         (t("Customize") to Ic.Palette) to { act.push(Screen.Customize) },
         (t("Settings") to Ic.Settings) to { act.push(Screen.Hub) },
     )
@@ -533,10 +534,12 @@ private fun MediaThumb(acc: TgAccount, m: dev.g000sha256.tdl.dto.Message) {
         is MessageVideo -> c.video.minithumbnail?.data
         is MessageAnimation -> c.animation.minithumbnail?.data
         is MessageAudio -> c.audio.albumCoverMinithumbnail?.data
+        is dev.g000sha256.tdl.dto.MessageVideoNote -> c.videoNote.minithumbnail?.data
         else -> null
     } ?: return
     val bmp = remember(m.id) { miniBitmap(mini) } ?: return
-    Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)))
+    val round = m.content is dev.g000sha256.tdl.dto.MessageVideoNote
+    Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.size(20.dp).clip(if (round) CircleShape else RoundedCornerShape(4.dp)))
     Spacer(Modifier.width(5.dp))
 }
 

@@ -11,8 +11,8 @@ android {
         applicationId = "com.rivers.rivpost"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 

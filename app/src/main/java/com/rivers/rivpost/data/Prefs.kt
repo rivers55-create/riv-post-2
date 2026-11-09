@@ -149,7 +149,7 @@ object Prefs {
     // ---------- 1.2: look ----------
     var oled by BoolPref("oled", false)                // pure black
     var flat by BoolPref("flat", false)                // no rounded cards, borders or shadows
-    var glass by BoolPref("glass", true)               // see-through menus, drawer and sheets
+    var glass by BoolPref("glass2", false)               // see-through menus, drawer and sheets
     var wallTint by BoolPref("wall_tint", false)       // accent from wallpaper
     var wallAccent by IntPref("wall_accent", 0)
     var bubbleShape by StrPref("bubble_shape", "rounded") // rounded / pill / square / borderless

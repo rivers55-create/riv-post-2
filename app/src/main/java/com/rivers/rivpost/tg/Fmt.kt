@@ -24,7 +24,7 @@ object Fmt {
             is MessageAudio -> "🎵 " + listOf(c.audio.performer, c.audio.title).filter { it.isNotBlank() }
                 .joinToString(" – ").ifBlank { c.audio.fileName.ifBlank { t("Music") } }
             is MessageVoiceNote -> "🎤 " + t("Voice message") + " " + duration(c.voiceNote.duration)
-            is MessageVideoNote -> "⏺ " + t("Video message")
+            is MessageVideoNote -> "📹 " + t("Video message")
             is MessageSticker -> c.sticker.emoji + " " + t("Sticker")
             is MessageLocation -> "📍 " + t("Location")
             is MessageContact -> "👤 " + t("Contact")

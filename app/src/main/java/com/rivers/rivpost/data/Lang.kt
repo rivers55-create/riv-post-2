@@ -19,6 +19,16 @@ object Lang {
     }
 
     val AR: Map<String, String> = mapOf(
+        "Add this proxy?" to "إضافة هذا البروكسي؟",
+        "Proxy added and turned on" to "تمت إضافة البروكسي وتشغيله",
+        "Add and use" to "إضافة واستخدام",
+        "Just save" to "حفظ فقط",
+        "Paste proxy links" to "لصق روابط البروكسي",
+        "One or many t.me/proxy or tg://proxy links" to "رابط أو أكثر من t.me/proxy أو tg://proxy",
+        "Paste" to "لصق",
+        "proxies added" to "بروكسي تمت إضافته",
+        "No proxy links found" to "لم يتم العثور على روابط بروكسي",
+        "Add all" to "إضافة الكل",
         "*bold* _italic_ `code` turn into formatting when you send" to "*عريض* _مائل_ `كود` تتحول إلى تنسيق عند الإرسال",
         "30 days" to "30 يومًا",
         "7 days" to "7 أيام",

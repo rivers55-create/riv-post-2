@@ -35,6 +35,29 @@ object Proxies {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var started = false
 
+    /** Reads a proxy share link. */
+    fun parseLink(raw: String): SavedProxy? {
+        val s = raw.trim().replace("&amp;", "&")
+        val m = Regex("(?i)(?:tg://|https?://(?:t\\.me|telegram\\.me)/)(proxy|socks)\\?(\\S+)").find(s) ?: return null
+        val kind = m.groupValues[1].lowercase()
+        val q = m.groupValues[2].split("&").mapNotNull {
+            val i = it.indexOf('=')
+            if (i <= 0) null else it.substring(0, i).lowercase() to java.net.URLDecoder.decode(it.substring(i + 1), "UTF-8")
+        }.toMap()
+        val host = q["server"]?.takeIf { it.isNotBlank() } ?: return null
+        val port = q["port"]?.toIntOrNull() ?: return null
+        return if (kind == "proxy") SavedProxy("mtproto", host, port, "", "", q["secret"] ?: return null)
+        else SavedProxy("socks5", host, port, q["user"] ?: "", q["pass"] ?: "", "")
+    }
+
+    /** Adds every proxy link found in a block of text. Returns how many were added. */
+    fun importText(text: String): Int {
+        val links = Regex("(?i)(?:tg://|https?://(?:t\\.me|telegram\\.me)/)(?:proxy|socks)\\?\\S+").findAll(text).map { it.value }.toList()
+        var n = 0
+        for (l in links) parseLink(l)?.let { save(it); n++ }
+        return n
+    }
+
     fun list(): List<SavedProxy> = Prefs.proxies.split("\n").mapNotNull { SavedProxy.parse(it) }
 
     fun save(p: SavedProxy) {

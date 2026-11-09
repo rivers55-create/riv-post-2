@@ -310,6 +310,10 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         data.loadMore()
     }
     val newest = data.messages.firstOrNull()?.id ?: 0L
+    val newestOut = data.messages.firstOrNull()?.isOutgoing == true
+    LaunchedEffect(newest) {
+        if (newest != 0L && (newestOut || listState.firstVisibleItemIndex <= 1)) listState.animateScrollToItem(0)
+    }
     LaunchedEffect(newest) {
         if (newest != 0L && (chat?.unread ?: 0) > 0 && !Prefs.ghost && !Prefs.readFreeze) acc.markAllRead(chatId, data.messages.take(60).map { it.id }.toLongArray())
     }
@@ -1460,7 +1464,9 @@ private fun WaveBars(bars: FloatArray, prog: Float, fg: Color) {
 object LinkEdit {
     var pending by mutableStateOf<String?>(null)
     var direct: ((String) -> Unit)? = null
+    var proxyLink by mutableStateOf<String?>(null)
     fun open(url: String) {
+        if (com.rivers.rivpost.tg.Proxies.parseLink(url) != null) { proxyLink = url; return }
         if (Prefs.editLinks) pending = url else direct?.invoke(url)
     }
 }
@@ -1473,6 +1479,29 @@ fun LinkEditDialog() {
         catch (_: Throwable) { toast(ctx, t("Couldn't open the link")) }
     }
     LinkEdit.direct = { go(it) }
+    LinkEdit.proxyLink?.let { link ->
+        val px = com.rivers.rivpost.tg.Proxies.parseLink(link)
+        if (px != null) androidx.compose.material3.AlertDialog(
+            onDismissRequest = { LinkEdit.proxyLink = null },
+            title = { Text(t("Add this proxy?")) },
+            text = { Text(px.label) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    com.rivers.rivpost.tg.Proxies.save(px)
+                    com.rivers.rivpost.tg.Proxies.use(px)
+                    LinkEdit.proxyLink = null
+                    toast(ctx, t("Proxy added and turned on"))
+                }) { Text(t("Add and use")) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    com.rivers.rivpost.tg.Proxies.save(px)
+                    LinkEdit.proxyLink = null
+                    toast(ctx, t("Saved"))
+                }) { Text(t("Just save")) }
+            },
+        )
+    }
     val p = LinkEdit.pending ?: return
     var text by remember(p) { mutableStateOf(p) }
     androidx.compose.material3.AlertDialog(
