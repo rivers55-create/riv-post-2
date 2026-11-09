@@ -66,7 +66,7 @@ import dev.g000sha256.tdl.dto.AuthorizationStateReady
 
 sealed class Screen {
     object Chats : Screen()
-    class Chat(val id: Long, val jump: Long = 0) : Screen()
+    class Chat(val id: Long, val jump: Long = 0, val thread: Long = 0, val topic: Int = 0, val flat: Boolean = false) : Screen()
     object Settings : Screen()
     object Proxy : Screen()
     object Customize : Screen()
@@ -199,7 +199,7 @@ private fun Root(act: MainActivity) {
                             val acc = Tg.get(idx)
                             val st by acc.auth.collectAsState()
                             if (st is AuthorizationStateReady) {
-                                LaunchedEffect(Unit) { act.askNotificationPermission() }
+                                LaunchedEffect(Unit) { act.askNotificationPermission(); if (Prefs.fbOn) com.rivers.rivpost.push.Push.start(act) }
                                 MainNav(act, acc)
                                 com.rivers.rivpost.ui.MusicDrawer(act)
                                 com.rivers.rivpost.ui.BotAlertDialog()
@@ -217,6 +217,7 @@ private fun Root(act: MainActivity) {
 
 @Composable
 private fun MainNav(act: MainActivity, acc: TgAccount) {
+    MusicNav.openPage = { act.push(Screen.Page(it)) }
     MusicNav.openChat = { accIndex, chatId ->
         if (accIndex != Tg.activeIndex.value) Tg.switchTo(accIndex)
         act.push(Screen.Chat(chatId))
@@ -228,7 +229,12 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
     BackHandler(enabled = act.stack.size > 1) { act.pop() }
     when (val s = act.stack.lastOrNull() ?: Screen.Chats) {
         is Screen.Chats -> HomeScreen(act, acc)
-        is Screen.Chat -> key(s.id, s.jump) { ChatScreen(acc, act, s.id, onBack = { act.pop() }, jump = s.jump) }
+        is Screen.Chat -> {
+            val sg = acc.chats[s.id]?.supergroupId ?: 0L
+            val forum = sg != 0L && acc.supergroups[sg]?.isForum == true
+            if (forum && s.thread == 0L && s.topic == 0 && !s.flat && Prefs.forumTopicsView) com.rivers.rivpost.ui.ForumTopicsScreen(acc, act, s.id, onBack = { act.pop() })
+            else key(s.id, s.jump, s.thread, s.topic) { ChatScreen(acc, act, s.id, onBack = { act.pop() }, jump = s.jump, thread = s.thread, topic = s.topic) }
+        }
         is Screen.Settings -> SettingsScreen(
             act, acc, onBack = { act.pop() }, onProxy = { act.push(Screen.Proxy) },
             onCustomize = { act.push(Screen.Customize) }, onSources = { act.push(Screen.Sources(it)) },
@@ -239,7 +245,7 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
         is Screen.Camera -> CameraScreen(acc, s.chatId, onClose = { act.pop() })
         is Screen.WebApp -> com.rivers.rivpost.ui.WebAppScreen(s.req, onClose = { act.pop() })
         is Screen.VideoNote -> com.rivers.rivpost.ui.VideoNoteScreen(acc, s.chatId, onClose = { act.pop() })
-        is Screen.Page -> if (s.name.startsWith("members:")) com.rivers.rivpost.ui.MembersScreen(acc, act, s.name.removePrefix("members:").toLong(), onBack = { act.pop() }) else when (s.name) {
+        is Screen.Page -> if (com.rivers.rivpost.ui.isMorePage(s.name)) com.rivers.rivpost.ui.MorePage(acc, act, s.name, onBack = { act.pop() }) else when (s.name) {
             "account" -> AccountPage(acc, onBack = { act.pop() })
             "privacy" -> PrivacyPage(acc, act, onBack = { act.pop() })
             "devices" -> DevicesPage(acc, onBack = { act.pop() })

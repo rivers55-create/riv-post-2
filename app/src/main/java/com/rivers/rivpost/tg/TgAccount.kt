@@ -98,6 +98,13 @@ class TgAccount(private val ctx: Context, val index: Int) {
     val uploads = ConcurrentHashMap<Int, File>()
     /** Bot keyboards: the message that carries the current keyboard of each chat. */
     val replyMarkups = ConcurrentHashMap<Long, Message>()
+    /** Chats with active stories (chatId -> stories). */
+    val stories = ConcurrentHashMap<Long, ChatActiveStories>()
+
+    fun hasUnseenStories(chatId: Long): Boolean {
+        val s = stories[chatId] ?: return false
+        return s.stories.any { it.storyId > s.maxReadStoryId }
+    }
 
     // ---------- anti-revoke / edit history (opt-in, local only) ----------
     private val seen = object : LinkedHashMap<String, Message>(256, 0.75f, true) {
@@ -235,6 +242,11 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 scopeMute[key] = u.notificationSettings.muteFor
             }
             is UpdateChatFolders -> folders.value = u.chatFolders.toList()
+            is UpdateChatActiveStories -> {
+                val a = u.activeStories
+                if (a.stories.isEmpty()) stories.remove(a.chatId) else stories[a.chatId] = a
+                bumpExtra()
+            }
             is UpdateChatReplyMarkup -> {
                 val m = u.replyMarkupMessage
                 if (m == null) replyMarkups.remove(u.chatId) else replyMarkups[u.chatId] = m
@@ -314,6 +326,7 @@ class TgAccount(private val ctx: Context, val index: Int) {
                     r.result.profilePhoto?.small?.let { track(it) }
                 }
                 load(ChatListMain())
+                try { client.loadActiveStories(storyList = StoryListMain()) } catch (_: Throwable) { }
             }
             is AuthorizationStateClosed -> Tg.onClosed(this)
             else -> {}

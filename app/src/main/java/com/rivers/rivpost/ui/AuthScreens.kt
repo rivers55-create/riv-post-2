@@ -1,5 +1,7 @@
 package com.rivers.rivpost.ui
 
+import androidx.compose.ui.graphics.asImageBitmap
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -181,6 +183,12 @@ fun LoginScreen(acc: TgAccount) {
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text(t("Next")) }
                 Spacer(Modifier.height(8.dp))
+                TextButton(onClick = {
+                    acc.scope.launch {
+                        val r = acc.client.requestQrCodeAuthentication(otherUserIds = LongArray(0))
+                        if (r is dev.g000sha256.tdl.TdlResult.Failure) error = r.message
+                    }
+                }) { Text(t("Log in with QR code")) }
                 TextButton(onClick = { Prefs.apiId = 0; Prefs.apiHash = "" }) { Text(t("Change API keys")) }
             }
             is AuthorizationStateWaitCode -> {
@@ -251,8 +259,17 @@ fun LoginScreen(acc: TgAccount) {
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text(t("Create account")) }
             }
-            is AuthorizationStateWaitEmailAddress, is AuthorizationStateWaitEmailCode,
             is AuthorizationStateWaitOtherDeviceConfirmation -> {
+                Text(t("Scan this from Telegram on your other device"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+                Text(t("Settings → Devices → Link Desktop Device"), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                val bmp = remember(s.link) { qrBitmap(s.link, 720) }
+                if (bmp != null) androidx.compose.foundation.Image(bmp, null, modifier = Modifier.size(260.dp))
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { acc.scope.launch { acc.client.logOut() } }) { Text(t("Use phone number instead")) }
+            }
+            is AuthorizationStateWaitEmailAddress, is AuthorizationStateWaitEmailCode -> {
                 Text(
                     t("This account needs a sign-in method Riv Post doesn't support yet. Please sign in with the phone number on another Telegram app first, then try again."),
                     textAlign = TextAlign.Center,
@@ -294,3 +311,12 @@ private fun friendly(e: String): String = when {
     e.contains("API_ID") || e.contains("api_id") -> t("The API keys are not valid. Check them in Settings.")
     else -> e
 }
+
+
+/** Makes a QR code picture for the sign-in link. */
+fun qrBitmap(text: String, size: Int): androidx.compose.ui.graphics.ImageBitmap? = try {
+    val m = com.google.zxing.qrcode.QRCodeWriter().encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size, mapOf(com.google.zxing.EncodeHintType.MARGIN to 1))
+    val b = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    for (x in 0 until size) for (y in 0 until size) b.setPixel(x, y, if (m[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+    b.asImageBitmap()
+} catch (_: Throwable) { null }

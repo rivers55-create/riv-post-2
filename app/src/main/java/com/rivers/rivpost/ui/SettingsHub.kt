@@ -181,6 +181,9 @@ fun SettingsHub(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
                     HubRow(Ic.Chat, Color(0xFFF5A623), t("Chat Settings"), t("Wallpaper, Night Mode, Animations")) { act.push(Screen.Settings) }
                     HubRow(Ic.Lock, Color(0xFF4CD964), t("Privacy & Security"), t("Last Seen, Ghost mode, Devices, Passcode")) { act.push(Screen.Page("privacy")) }
                     HubRow(Ic.Muted, Color(0xFFE53935), t("Notifications"), t("Sounds, Groups, Channels")) { act.push(Screen.Settings) }
+                    HubRow(Ic.Muted, Color(0xFFFF7043), t("Notification exceptions"), t("Chats with their own setting")) { act.push(Screen.Page("exceptions")) }
+                    HubRow(Ic.Refresh, Color(0xFFFFA000), t("Push notifications (Firebase)"), if (Prefs.fbOn) t("On") else t("Off")) { act.push(Screen.Page("firebase")) }
+                    HubRow(Ic.Smile, Color(0xFF26A69A), t("Sticker packs"), t("Add, remove, reorder")) { act.push(Screen.Page("stickers")) }
                     HubRow(Ic.Download, Color(0xFF5B7CF0), t("Data and Storage"), t("Downloads, uploads, cache, save folders")) { act.push(Screen.Page("data")) }
                     HubRow(Ic.Doc, Color(0xFF29B6F6), t("Chat Folders"), t("Sort chats into folders")) { act.push(Screen.Page("folders")) }
                     HubRow(Ic.PhoneAndroid, Color(0xFF26C6DA), t("Devices"), t("Manage connected devices")) { act.push(Screen.Page("devices")) }
@@ -286,6 +289,8 @@ fun PrivacyPage(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
         SwitchRow(t("Lock the drawer and account switcher"), t("Asks for your PIN or fingerprint"), Prefs.drawerLock) { Prefs.drawerLock = it }
         ClickRow(t("Hidden chats"), null) { act.push(Screen.Vault) }
         ClickRow(t("Devices"), null) { act.push(Screen.Page("devices")) }
+        ClickRow(t("Two-Step Verification"), "›") { act.push(Screen.Page("twostep")) }
+        ClickRow(t("Blocked users"), "›") { act.push(Screen.Page("blocked")) }
         SwitchRow(t("Auto-mute when leaving the app"), t("Stops music and voice playback"), Prefs.autoMute) { Prefs.autoMute = it }
         SectionTitle(t("Message history (testing)"))
         SwitchRow(
@@ -361,6 +366,7 @@ fun DataPage(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
         SectionTitle(t("Transfers"))
         ClickRow(t("Downloads"), "›") { act.push(Screen.Page("downloads")) }
         ClickRow(t("Uploads"), "›") { act.push(Screen.Page("uploads")) }
+        ClickRow(t("Data usage"), "›") { act.push(Screen.Page("datausage")) }
         SectionTitle(t("Save to phone"))
         OutlinedTextField(
             Prefs.saveFolder, { Prefs.saveFolder = it.filter { c -> c.isLetterOrDigit() || c == ' ' || c == '_' || c == '-' }.take(40) },

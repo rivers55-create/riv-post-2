@@ -127,6 +127,17 @@ fun StickerPanel(acc: TgAccount, onEmoji: (String) -> Unit, onSend: (InputMessag
             0 -> {
                 val list = remember { emojiList() }
                 LazyVerticalGrid(GridCells.Adaptive(44.dp), Modifier.fillMaxSize()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(Modifier.padding(4.dp)) {
+                            Text(t("Games") + ":", color = style.navBarFg.copy(alpha = 0.7f), fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+                            for (d in listOf("🎲", "🎯", "🏀", "⚽", "🎳", "🎰")) {
+                                Box(Modifier.size(40.dp).clip(CircleShape).background(style.accent.copy(alpha = 0.15f)).clickable {
+                                    onSend(dev.g000sha256.tdl.dto.InputMessageDice(emoji = d, clearDraft = false))
+                                }, contentAlignment = Alignment.Center) { Text(d, fontSize = 22.sp) }
+                                androidx.compose.foundation.layout.Spacer(Modifier.size(4.dp))
+                            }
+                        }
+                    }
                     items(list) { e ->
                         Box(Modifier.size(44.dp).clickable { onEmoji(e) }, contentAlignment = Alignment.Center) { Text(e, fontSize = 26.sp) }
                     }

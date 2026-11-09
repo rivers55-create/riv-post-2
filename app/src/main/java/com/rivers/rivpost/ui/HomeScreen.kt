@@ -218,6 +218,7 @@ private fun rememberMenu(act: MainActivity, acc: TgAccount): List<Pair<Pair<Stri
             Prefs.theme = if (Prefs.theme == "light") "dark" else "light"
         },
         (t("New Group") to Ic.Group) to { act.push(Screen.NewGroup) },
+        (t("New Channel") to Ic.Group) to { act.push(Screen.Page("newchannel")) },
         (t("Saved Messages") to Ic.Bookmark) to {
             scope.launch { acc.privateChat(acc.myId)?.let { act.push(Screen.Chat(it)) } }
             Unit
@@ -404,6 +405,7 @@ private fun ChatListPage(acc: TgAccount, act: MainActivity, list: ChatList, quer
         return
     }
     LazyColumn(state = state, modifier = Modifier.fillMaxSize(), flingBehavior = rivFling()) {
+        if (list is ChatListMain && filter == null && query.isBlank() && !vault) item(key = "stories") { StoriesRow(acc, act) }
         items(rows, key = { it.first.id }) { (c, pinned) ->
             ChatRow(acc, c, pinned, list, onClick = { act.push(Screen.Chat(c.id)) })
             if (style.dividers) HorizontalDivider(
@@ -450,7 +452,12 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (Prefs.showAvatars) {
-                ChatAvatar(acc, c, style.avatar)
+                val ring = acc.stories.containsKey(c.id)
+                if (ring) Box(
+                    Modifier.clip(CircleShape).border(2.dp, if (acc.hasUnseenStories(c.id)) style.accent else Color.Gray, CircleShape).padding(3.dp)
+                        .clickable { MusicNav.openPage?.invoke("story:${c.id}") ?: Unit },
+                ) { ChatAvatar(acc, c, style.avatar - 6.dp) }
+                else ChatAvatar(acc, c, style.avatar)
                 Spacer(Modifier.width(12.dp))
             }
             Column(Modifier.weight(1f)) {
@@ -618,6 +625,7 @@ private fun DrawerContent(acc: TgAccount, act: MainActivity, close: () -> Unit) 
         }
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         DrawerItem(Ic.Group, t("New Group")) { close(); act.push(Screen.NewGroup) }
+        DrawerItem(Ic.Group, t("New Channel")) { close(); act.push(Screen.Page("newchannel")) }
         DrawerItem(Ic.Bookmark, t("Saved Messages")) {
             close()
             acc.scope.launch { acc.privateChat(acc.myId)?.let { id -> act.runOnUiThread { act.push(Screen.Chat(id)) } } }

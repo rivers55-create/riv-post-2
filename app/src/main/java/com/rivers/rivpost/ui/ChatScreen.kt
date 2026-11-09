@@ -186,7 +186,31 @@ import kotlinx.coroutines.withContext
 val QuickReactions = listOf("❤️", "👍", "🔥", "😂", "😮", "😢", "🙏", "👎")
 
 /** Loads and keeps the messages of one open chat (newest first). */
-class ChatData(val acc: TgAccount, val chatId: Long) {
+class ChatData(val acc: TgAccount, val chatId: Long, val thread: Long = 0, val topic: Int = 0) {
+    val topicId: dev.g000sha256.tdl.dto.MessageTopic? =
+        if (thread != 0L) dev.g000sha256.tdl.dto.MessageTopicThread(messageThreadId = thread)
+        else if (topic != 0) dev.g000sha256.tdl.dto.MessageTopicForum(forumTopicId = topic) else null
+
+    private fun belongs(m: Message): Boolean = when {
+        thread != 0L -> (m.topicId as? dev.g000sha256.tdl.dto.MessageTopicThread)?.messageThreadId == thread || m.id == thread
+        topic != 0 -> (m.topicId as? dev.g000sha256.tdl.dto.MessageTopicForum)?.forumTopicId == topic
+        else -> true
+    }
+
+    private suspend fun history(from: Long, offset: Int, limit: Int) = when {
+        thread != 0L -> acc.client.getMessageThreadHistory(chatId = chatId, messageId = thread, fromMessageId = from, offset = offset, limit = limit)
+        topic != 0 -> acc.client.getForumTopicHistory(chatId = chatId, forumTopicId = topic, fromMessageId = from, offset = offset, limit = limit)
+        else -> acc.client.getChatHistory(chatId = chatId, fromMessageId = from, offset = offset, limit = limit, onlyLocal = false)
+    }
+
+    /** An album is selected as a whole. */
+    fun albumOf(id: Long): List<Long> {
+        val m = messages.firstOrNull { it.id == id } ?: return listOf(id)
+        if (m.mediaAlbumId == 0L) return listOf(id)
+        return messages.filter { it.mediaAlbumId == m.mediaAlbumId }.map { it.id }
+    }
+
+    fun select(id: Long) { for (x in albumOf(id)) if (x !in selected) selected.add(x); anchor = id }
     val messages = mutableStateListOf<Message>()
     val content = mutableStateMapOf<Long, MessageContent>()
     val interaction = mutableStateMapOf<Long, MessageInteractionInfo?>()
@@ -214,7 +238,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
         for (i in idx.min()..idx.max()) { val mid = messages[i].id; if (mid !in selected) selected.add(mid) }
     }
 
-    fun toggle(id: Long) { if (!selected.remove(id)) { selected.add(id); anchor = id } }
+    fun toggle(id: Long) { if (id in selected) selected.removeAll(albumOf(id)) else select(id) }
 
     suspend fun loadMore() {
         if (loading || end) return
@@ -224,7 +248,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
         var tries = 0
         while (got < 30 && tries < 5) {
             tries++
-            val r = acc.client.getChatHistory(chatId = chatId, fromMessageId = from, offset = 0, limit = 50, onlyLocal = false)
+            val r = history(from, 0, 50)
             val list = (r as? TdlResult.Success)?.result?.messages?.filterNotNull() ?: break
             val fresh = list.filter { m -> messages.none { it.id == m.id } }
             if (fresh.isEmpty()) { end = true; break }
@@ -239,7 +263,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
     /** Loads the messages around one message (for jumping to replies, pins, search results). */
     suspend fun loadAround(id: Long): Int {
         messages.indexOfFirst { it.id == id }.let { if (it >= 0) return it }
-        val r = acc.client.getChatHistory(chatId = chatId, fromMessageId = id, offset = -25, limit = 60, onlyLocal = false)
+        val r = history(id, -25, 60)
         val list = (r as? TdlResult.Success)?.result?.messages?.filterNotNull() ?: return -1
         list.forEach { acc.remember(it) }
         messages.clear()
@@ -259,8 +283,8 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
 
     fun onEvent(e: MsgEvent) {
         when (e) {
-            is MsgEvent.New -> if (e.m.chatId == chatId && messages.none { it.id == e.m.id }) messages.add(0, e.m)
-            is MsgEvent.Replaced -> if (e.m.chatId == chatId) {
+            is MsgEvent.New -> if (e.m.chatId == chatId && belongs(e.m) && messages.none { it.id == e.m.id }) messages.add(0, e.m)
+            is MsgEvent.Replaced -> if (e.m.chatId == chatId && belongs(e.m)) {
                 val i = messages.indexOfFirst { it.id == e.oldId }
                 val exists = messages.any { it.id == e.m.id }
                 if (i >= 0 && !exists) {
@@ -287,13 +311,19 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
 }
 
 @Composable
-fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit, jump: Long = 0) {
+fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit, jump: Long = 0, thread: Long = 0, topic: Int = 0) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val cs = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val data = remember(acc, chatId) { ChatData(acc, chatId) }
+    val data = remember(acc, chatId, thread, topic) { ChatData(acc, chatId, thread, topic) }
+    var topicName by remember { mutableStateOf("") }
+    LaunchedEffect(topic) {
+        if (topic != 0) topicName = (acc.client.getForumTopic(chatId = chatId, forumTopicId = topic) as? TdlResult.Success)?.result?.info?.name ?: ""
+    }
+    val mentionIds = remember { mutableStateMapOf<String, Long>() }
+    var sendAs by remember { mutableStateOf(false) }
     val version by acc.chatsVersion.collectAsState()
     val uv by acc.usersVersion.collectAsState()
     val extra by acc.extraVersion.collectAsState()
@@ -409,6 +439,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         acc.scope.launch {
             val res = acc.client.sendMessage(
                 chatId = chatId,
+                topicId = data.topicId,
                 replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
                 options = opts,
                 inputMessageContent = content,
@@ -417,6 +448,21 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             else if (opts?.schedulingState != null) withContext(Dispatchers.Main) { toast(ctx, t("Scheduled")) }
         }
         scope.launch { listState.scrollToItem(0) }
+    }
+
+    fun withMentions(f: FormattedText): FormattedText {
+        if (mentionIds.isEmpty()) return f
+        val ents = f.entities.toMutableList()
+        for ((name, uid) in mentionIds) {
+            var i = f.text.indexOf(name)
+            while (i >= 0) {
+                if (ents.none { e -> i < e.offset + e.length && e.offset < i + name.length })
+                    ents.add(TextEntity(offset = i, length = name.length, type = dev.g000sha256.tdl.dto.TextEntityTypeMentionName(userId = uid)))
+                i = f.text.indexOf(name, i + name.length)
+            }
+        }
+        mentionIds.clear()
+        return FormattedText(text = f.text, entities = ents.sortedBy { it.offset }.toTypedArray())
     }
 
     fun sendText(opts: MessageSendOptions? = null) {
@@ -439,12 +485,12 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             acc.scope.launch {
                 val parsed = (acc.client.parseTextEntities(text = s, parseMode = TextParseModeMarkdown(version = 1)) as? TdlResult.Success)?.result
                 withContext(Dispatchers.Main) {
-                    send(InputMessageText(text = parsed ?: FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true), opts)
+                    send(InputMessageText(text = withMentions(parsed ?: FormattedText(text = s, entities = emptyArray<TextEntity>())), linkPreviewOptions = null, clearDraft = true), opts)
                 }
             }
             return
         }
-        send(InputMessageText(text = FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true), opts)
+        send(InputMessageText(text = withMentions(FormattedText(text = s, entities = emptyArray<TextEntity>())), linkPreviewOptions = null, clearDraft = true), opts)
     }
 
     fun options(silent: Boolean, at: Int = 0) = MessageSendOptions(
@@ -614,6 +660,9 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         if (peerUserId != 0L) MenuItem(Ic.Movie, t("Video Call")) { menu = false; toast(ctx, t("Calls are coming in a later version")) }
                         MenuItem(Ic.Search, t("Search")) { menu = false; searching = true }
                         MenuItem(Ic.Image, t("Change Wallpaper")) { menu = false; confirm = "wallpaper" }
+                        MenuItem(Ic.Clock, t("Scheduled messages")) { menu = false; act.push(Screen.Page("scheduled:$chatId")) }
+                        if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Settings, t("Manage")) { menu = false; act.push(Screen.Page("admin:$chatId")) }
+                        if (chat?.isGroup == true) MenuItem(Ic.Account, t("Send as")) { menu = false; sendAs = true }
                         MenuItem(Ic.Lock, if (secured) t("Allow screenshots") else t("Block screenshots")) {
                             menu = false
                             Prefs.secureChats = Prefs.toggleId(Prefs.secureChats, chatId)
@@ -627,6 +676,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             // ---------- pinned ----------
             val pin = data.pinned
             if (pin != null && Prefs.pinnedBar && !hidePinned && !searching) PinnedBar(acc, pin, onClick = { jumpTo(pin.id) }, onHide = { hidePinned = true })
+            if (thread != 0L) InfoBanner("💬 " + t("Comments"))
+            if (topic != 0) InfoBanner("# " + topicName.ifBlank { t("Topic") })
             if (data.selected.isEmpty() && !searching) MiniPlayer()
             if (secret != null && secret.state is SecretChatStatePending) InfoBanner("🔒 " + t("Waiting for the other person to come online…"))
             if (secret != null && secret.state is SecretChatStateClosed) InfoBanner("🔒 " + t("This secret chat was closed"))
@@ -719,7 +770,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
 
             // ---------- bots ----------
             if (text.startsWith("@") && !(chat?.isGroup == true && !text.contains(' '))) InlineResults(acc, chatId, text) { text = "" }
-            if (chat?.isGroup == true && Prefs.mentionHints) MentionSuggestions(acc, chatId, text) { text = it }
+            if (chat?.isGroup == true && Prefs.mentionHints) MentionSuggestions(acc, chatId, text) { newText, uid, name -> text = newText; if (uid != 0L) mentionIds[name] = uid }
             if (botMarkup != null && showBotKb && botMarkup.replyMarkup is dev.g000sha256.tdl.dto.ReplyMarkupShowKeyboard) {
                 BotKeyboard(acc, act, chatId, botMarkup) { k ->
                     send(InputMessageText(text = FormattedText(text = k, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
@@ -795,6 +846,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
+    if (sendAs) SendAsDialog(acc, chatId) { sendAs = false }
     if (pollDialog) CreatePollDialog(onDismiss = { pollDialog = false }) { send(it) }
     if (selDelete) {
         val ids = data.selected.toLongArray()
@@ -815,12 +867,14 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     if (attach) AttachSheet(
         onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) },
         onPoll = if (chat?.isGroup == true || chat?.isChannel == true) ({ attach = false; pollDialog = true }) else null,
+        onLiveLocation = { secs, l -> com.rivers.rivpost.tg.LiveLoc.start(ctx, acc, chatId, secs, l) { toast(ctx, it) } },
         onSendAlbum = { list ->
             val r = replyTo
             replyTo = null
             acc.scope.launch {
                 val res = acc.client.sendMessageAlbum(
                     chatId = chatId,
+                    topicId = data.topicId,
                     replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
                     inputMessageContents = list.toTypedArray(),
                 )
@@ -939,6 +993,39 @@ private fun ChatHeader(
             if (chat != null && chat.privateUserId != 0L && !acc.isSaved(chat)) IconButton(onClick = onCall) { Icon(Ic.Phone, null, tint = fg) }
             IconButton(onClick = onMenu) { Icon(Ic.More, null, tint = fg) }
         }
+    }
+}
+
+@Composable
+private fun LocationCard(lat: Double, lon: Double, title: String, sub: String, fg: Color) {
+    val ctx = LocalContext.current
+    val style = LocalStyle.current
+    Row(
+        Modifier.padding(6.dp).widthIn(min = 220.dp).clip(RoundedCornerShape(12.dp)).background(style.accent.copy(alpha = 0.12f)).clickable {
+            try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:$lat,$lon?q=$lat,$lon")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            catch (_: Throwable) { toast(ctx, t("No maps app found")) }
+        }.padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("📍", fontSize = 30.sp)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(title, color = fg, fontWeight = FontWeight.SemiBold)
+            if (sub.isNotBlank()) Text(sub, color = fg.copy(alpha = 0.75f), fontSize = 13.sp)
+            Text("%.5f, %.5f".format(lat, lon) + " · " + t("Open map"), color = style.accent, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun InfoCard(title: String, body: String, fg: Color, onClick: () -> Unit) {
+    val style = LocalStyle.current
+    Column(
+        Modifier.padding(6.dp).widthIn(min = 220.dp, max = 300.dp).clip(RoundedCornerShape(12.dp)).background(style.accent.copy(alpha = 0.12f))
+            .clickable(onClick = onClick).padding(10.dp),
+    ) {
+        Text(title, color = fg, fontWeight = FontWeight.SemiBold)
+        if (body.isNotBlank()) Text(body, color = fg.copy(alpha = 0.8f), fontSize = 13.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1229,7 +1316,7 @@ private fun MessageItem(
                     onTap = { if (selecting) data.toggle(m.id) },
                     onLongPress = {
                         if (selecting) data.selectRange(m.id)
-                        else if (Prefs.longPressSelect) { data.selected.add(m.id); data.anchor = m.id }
+                        else if (Prefs.longPressSelect) data.select(m.id)
                     },
                 )
             }
@@ -1250,7 +1337,7 @@ private fun MessageItem(
             Box(
                 Modifier.size(26.dp).clip(CircleShape).background(if (on) Color(0xFF4CD964) else Color.Transparent)
                     .border(2.dp, if (on) Color.White else style.inMeta, CircleShape)
-                    .clickable { if (!data.selected.remove(m.id)) { data.selected.add(m.id); data.anchor = m.id } },
+                    .clickable { data.toggle(m.id) },
                 contentAlignment = Alignment.Center,
             ) { if (on) Icon(Ic.Check, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
             if (out) Spacer(Modifier.weight(1f)) else Spacer(Modifier.width(8.dp))
@@ -1275,12 +1362,12 @@ private fun MessageItem(
                             onLongPress = {
                                 when {
                                     selecting -> data.selectRange(m.id)
-                                    Prefs.longPressSelect -> { data.selected.add(m.id); data.anchor = m.id }
+                                    Prefs.longPressSelect -> data.select(m.id)
                                     else -> menu = true
                                 }
                             },
                             onTap = {
-                                if (selecting) { if (!data.selected.remove(m.id)) { data.selected.add(m.id); data.anchor = m.id } }
+                                if (selecting) data.toggle(m.id)
                                 else if (Prefs.longPressSelect) menu = true
                             },
                             onDoubleTap = { if (!selecting && Prefs.doubleTapReact) onReact(m, Prefs.quickReaction) },
@@ -1439,6 +1526,26 @@ private fun MessageItem(
         HistoryAndSelect(history, { history = null }, selectDialog, textOf(content), { selectDialog = false })
         if (translate) TranslateDialog(acc, m, textOf(content)) { translate = false }
         if (seenBy) SeenByDialog(acc, m) { seenBy = false }
+        if (isPost && Prefs.commentsButton && info?.replyInfo != null) {
+            Spacer(Modifier.width(6.dp))
+            Column(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(style.navBar.copy(alpha = 0.85f)).clickable {
+                    acc.scope.launch {
+                        val r = acc.client.getMessageThread(chatId = m.chatId, messageId = m.id)
+                        withContext(Dispatchers.Main) {
+                            when (r) {
+                                is TdlResult.Success -> act.push(Screen.Chat(r.result.chatId, thread = r.result.messageThreadId))
+                                is TdlResult.Failure -> toast(ctx, r.message)
+                            }
+                        }
+                    }
+                }.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("💬", fontSize = 16.sp)
+                Text(compact(info.replyInfo!!.replyCount), color = style.navBarFg, fontSize = 11.sp)
+            }
+        }
         if (isPost && Prefs.shareButton) {
             Spacer(Modifier.width(6.dp))
             Box(
@@ -1571,18 +1678,46 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             if (c.caption.text.isNotBlank()) RichText(c.caption, fg)
         }
         is MessageVoiceNote -> VoiceRow(acc, c.voiceNote.voice, c.voiceNote.duration, c.voiceNote.waveform, fg, meta)
+        is dev.g000sha256.tdl.dto.MessageDice -> Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(c.emoji, fontSize = 64.sp)
+            if (c.value > 0) Text(t("Result") + ": " + c.value, color = fg, fontWeight = FontWeight.Bold)
+        }
+        is dev.g000sha256.tdl.dto.MessageLocation -> LocationCard(c.location.latitude, c.location.longitude, t("Location"), "", fg)
+        is dev.g000sha256.tdl.dto.MessageLiveLocation -> LocationCard(
+            c.location.location.latitude, c.location.location.longitude, "📡 " + t("Live location"),
+            if (c.expiresIn > 0) t("Updating for") + " " + Fmt.duration(c.expiresIn) else t("Ended"), fg,
+        )
+        is dev.g000sha256.tdl.dto.MessageVenue -> LocationCard(c.venue.location.latitude, c.venue.location.longitude, c.venue.title, c.venue.address, fg)
+        is dev.g000sha256.tdl.dto.MessageGame -> InfoCard("🎮 " + c.game.title, c.game.description.ifBlank { c.game.text.text }, fg) {
+            acc.scope.launch {
+                val r = acc.client.getCallbackQueryAnswer(chatId = m.chatId, messageId = m.id, payload = dev.g000sha256.tdl.dto.CallbackQueryPayloadGame(gameShortName = c.game.shortName))
+                val url = (r as? TdlResult.Success)?.result?.url
+                withContext(Dispatchers.Main) { if (!url.isNullOrBlank()) act.push(Screen.WebApp(WebAppRequest(acc.index, c.game.title, url))) else toast(ctx, (r as? TdlResult.Failure)?.message ?: "") }
+            }
+        }
+        is dev.g000sha256.tdl.dto.MessageInvoice -> InfoCard(
+            "🧾 " + c.productInfo.title, c.productInfo.description.text + "\n" + "%.2f".format(c.totalAmount / 100.0) + " " + c.currency, fg,
+        ) { toast(ctx, t("Payments aren't supported in Riv Post")) }
+        is dev.g000sha256.tdl.dto.MessageGiveaway -> InfoCard(
+            "🎁 " + t("Giveaway"), "${c.winnerCount} " + t("winners") + " · " + t("ends") + " " + Fmt.listTime(c.parameters.winnersSelectionDate), fg,
+        ) { }
+        is dev.g000sha256.tdl.dto.MessageStory -> InfoCard("📖 " + t("Story"), acc.chats[c.storyPosterChatId]?.title ?: "", fg) {
+            act.push(Screen.Page("story:" + c.storyPosterChatId))
+        }
         is MessageSticker -> {
             val s = c.sticker
             val animated = Prefs.animStickers && (s.format is StickerFormatTgs || s.format is StickerFormatWebm)
             val f = if (s.format is StickerFormatWebp || animated) s.sticker else s.thumbnail?.file
             val cur = rememberFile(acc, f, autoDownload = true)
             val ok = cur != null && cur.local.isDownloadingCompleted && cur.local.path.isNotEmpty()
-            when {
+            var pack by remember { mutableStateOf(false) }
+            if (pack && s.setId != 0L) StickerPackDialog(acc, s.setId) { pack = false }
+            Box(Modifier.clickable { pack = true }) { when {
                 ok && s.format is StickerFormatTgs && animated -> TgsSticker(cur!!.local.path, Modifier.size(Prefs.stickerSize.dp))
                 ok && s.format is StickerFormatWebm && animated -> LoopVideo(cur!!.local.path, Modifier.size(Prefs.stickerSize.dp))
                 ok -> AsyncImage(model = java.io.File(cur!!.local.path), contentDescription = s.emoji, modifier = Modifier.size(Prefs.stickerSize.dp))
                 else -> Text(s.emoji.ifBlank { "🙂" }, fontSize = 64.sp, modifier = Modifier.padding(8.dp))
-            }
+            } }
         }
         else -> Text(
             previewFor(c), color = fg, fontSize = Prefs.textSize.sp, fontStyle = FontStyle.Italic,

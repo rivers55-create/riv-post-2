@@ -3,6 +3,7 @@ package com.rivers.rivpost.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -191,7 +192,7 @@ fun CreatePollDialog(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Uni
 
 /** Members whose name or username matches what's typed after "@". */
 @Composable
-fun MentionSuggestions(acc: TgAccount, chatId: Long, text: String, onPick: (String) -> Unit) {
+fun MentionSuggestions(acc: TgAccount, chatId: Long, text: String, onPick: (String, Long, String) -> Unit) {
     val q = Regex("(?:^|\\s)@(\\w*)$").find(text)?.groupValues?.get(1) ?: return
     val style = LocalStyle.current
     var list by remember { mutableStateOf<List<Long>>(emptyList()) }
@@ -207,8 +208,9 @@ fun MentionSuggestions(acc: TgAccount, chatId: Long, text: String, onPick: (Stri
             val un = u?.usernames?.activeUsernames?.firstOrNull()
             Row(
                 Modifier.fillMaxWidth().clickable {
-                    val name = un ?: acc.userName(uid).replace(' ', '_')
-                    onPick(text.dropLast(q.length + 1) + "@" + name + " ")
+                    val base = text.dropLast(q.length + 1)
+                    if (un != null) onPick("$base@$un ", 0L, "")
+                    else { val name = acc.userName(uid); onPick("$base$name ", uid, name) }
                 }.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -314,7 +316,10 @@ fun MembersScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () ->
     Column(Modifier.fillMaxSize().background(cs.background)) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Ic.Back, null) }
-            Text(t("Members") + (acc.chats[chatId]?.let { " · " + acc.memberCount(it) } ?: ""), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text(t("Members") + (acc.chats[chatId]?.let { " · " + acc.memberCount(it) } ?: ""), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(t("Hold a member for admin options"), fontSize = 12.sp, color = cs.onSurfaceVariant)
+            }
         }
         OutlinedTextField(
             value = query, onValueChange = { query = it }, singleLine = true, placeholder = { Text(t("Search members")) },
@@ -325,8 +330,15 @@ fun MembersScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () ->
         else LazyColumn {
             items(l, key = { it.memberId.toString() + it.joinedChatDate }) { mem ->
                 val uid = (mem.memberId as? MessageSenderUser)?.userId ?: 0L
+                var menu by remember { mutableStateOf(false) }
+                val ctx = LocalContext.current
+                androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    MenuItem(Ic.Account, t("Make admin")) { menu = false; acc.scope.launch { memberAction(acc, ctx, chatId, mem.memberId, "promote") } }
+                    MenuItem(Ic.Close, t("Remove admin")) { menu = false; acc.scope.launch { memberAction(acc, ctx, chatId, mem.memberId, "demote") } }
+                    MenuItem(Ic.Delete, t("Remove from group"), Color(0xFFE53935)) { menu = false; acc.scope.launch { memberAction(acc, ctx, chatId, mem.memberId, "ban") } }
+                }
                 Row(
-                    Modifier.fillMaxWidth().clickable(enabled = uid != 0L) {
+                    Modifier.fillMaxWidth().combinedClickable(enabled = uid != 0L, onLongClick = { menu = true }) {
                         acc.scope.launch {
                             val c = acc.privateChat(uid)
                             if (c != null) withContext(Dispatchers.Main) { act.push(Screen.Info(c)) }

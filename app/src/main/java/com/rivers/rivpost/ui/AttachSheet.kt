@@ -149,7 +149,9 @@ fun AttachSheet(
     onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, onCamera: (() -> Unit)? = null,
     onSendAlbum: ((List<InputMessageContent>) -> Unit)? = null,
     onPoll: (() -> Unit)? = null,
+    onLiveLocation: ((Int, Location) -> Unit)? = null,
 ) {
+    var locPick by remember { mutableStateOf<Location?>(null) }
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val scope = rememberCoroutineScope()
@@ -242,6 +244,7 @@ fun AttachSheet(
         if (r.values.any { it }) {
             val l = lastLocation(ctx)
             if (l == null) toast(ctx, t("Turn on location and try again"))
+            else if (onLiveLocation != null) locPick = l
             else {
                 onSend(InputMessageLocation(location = dev.g000sha256.tdl.dto.Location(latitude = l.latitude, longitude = l.longitude, horizontalAccuracy = l.accuracy.toDouble())))
                 onDismiss()
@@ -249,6 +252,18 @@ fun AttachSheet(
         } else toast(ctx, t("Location permission is needed"))
     }
 
+    locPick?.let { l ->
+        ChoiceDialog(
+            t("Location"),
+            listOf(t("Send my current location") to 0, t("Share live for 15 minutes") to 900, t("Share live for 1 hour") to 3600, t("Share live for 8 hours") to 28800),
+            onDismiss = { locPick = null },
+        ) { secs ->
+            locPick = null
+            if (secs == 0) onSend(InputMessageLocation(location = dev.g000sha256.tdl.dto.Location(latitude = l.latitude, longitude = l.longitude, horizontalAccuracy = l.accuracy.toDouble())))
+            else onLiveLocation?.invoke(secs, l)
+            onDismiss()
+        }
+    }
     editing?.let { (g, path) ->
         PhotoEditor(path, edits[g.uri]?.second ?: "", onDone = { out, cap ->
             edits[g.uri] = out to cap

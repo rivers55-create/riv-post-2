@@ -441,6 +441,7 @@ fun ChatInfoScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -
                         ActionTile(Ic.Chat, t("Message"), Modifier.weight(1f)) { onBack(); act.push(Screen.Chat(chatId)) }
                         ActionTile(Ic.Muted, if (muted) t("Unmute") else t("Mute"), Modifier.weight(1f)) { acc.setMuted(c, !muted) }
                         if (c.isGroup) ActionTile(Ic.Group, t("Members"), Modifier.weight(1f)) { act.push(Screen.Page("members:$chatId")) }
+                        if (c.isGroup || c.isChannel) ActionTile(Ic.Settings, t("Manage"), Modifier.weight(1f)) { act.push(Screen.Page("admin:$chatId")) }
                         if (userId != 0L) {
                             ActionTile(Ic.Phone, t("Call"), Modifier.weight(1f)) { toast(ctx, t("Calls are coming in a later version")) }
                             ActionTile(Ic.Movie, t("Video"), Modifier.weight(1f)) { toast(ctx, t("Calls are coming in a later version")) }
