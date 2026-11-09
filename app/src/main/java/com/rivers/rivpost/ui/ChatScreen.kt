@@ -422,8 +422,14 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     LaunchedEffect(searchQuery) {
         delay(350)
         results = if (searchQuery.isBlank()) emptyList()
+        else if (chat?.isSecret == true) (acc.client.searchSecretMessages(chatId = chatId, query = searchQuery, offset = "", limit = 50) as? TdlResult.Success)
+            ?.result?.messages?.toList() ?: emptyList()
         else (acc.client.searchChatMessages(chatId = chatId, query = searchQuery, fromMessageId = 0, offset = 0, limit = 50) as? TdlResult.Success)
             ?.result?.messages?.toList() ?: emptyList()
+    }
+
+    LaunchedEffect(HashtagNav.tag) {
+        if (HashtagNav.tag.isNotBlank()) { searching = true; searchQuery = HashtagNav.tag; HashtagNav.tag = "" }
     }
 
     fun jumpTo(id: Long) {
@@ -686,6 +692,14 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         }
                         MenuItem(Ic.Image, t("Change Wallpaper")) { menu = false; confirm = "wallpaper" }
                         MenuItem(Ic.Clock, t("Scheduled messages")) { menu = false; act.push(Screen.Page("scheduled:$chatId")) }
+                        if (data.pinned != null) MenuItem(Ic.Pin, t("Unpin all messages")) {
+                            menu = false
+                            acc.scope.launch {
+                                val r = acc.client.unpinAllChatMessages(chatId = chatId)
+                                withContext(Dispatchers.Main) { toast(ctx, if (r is TdlResult.Failure) r.message else t("Done")) }
+                            }
+                        }
+                        if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Info, t("Recent actions")) { menu = false; act.push(Screen.Page("adminlog:$chatId")) }
                         if (chat?.isGroup == true || chat?.isChannel == true) MenuItem(Ic.Settings, t("Manage")) { menu = false; act.push(Screen.Page("admin:$chatId")) }
                         if (chat?.isGroup == true) MenuItem(Ic.Account, t("Send as")) { menu = false; sendAs = true }
                         MenuItem(Ic.Lock, if (secured) t("Allow screenshots") else t("Block screenshots")) {
@@ -1362,6 +1376,8 @@ private fun MessageItem(
     var history by remember { mutableStateOf<List<String>?>(null) }
     var selectDialog by remember { mutableStateOf(false) }
     var translate by remember { mutableStateOf(false) }
+    var votersDialog by remember { mutableStateOf(false) }
+    var forwardsDialog by remember { mutableStateOf(false) }
     var replacePhoto by remember { mutableStateOf(false) }
     val pickReplace = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
         replacePhoto = false
@@ -1537,6 +1553,32 @@ private fun MessageItem(
                         if (r is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, r.message) }
                     }
                 }
+                if (m.isOutgoing && chat?.privateUserId != 0L && chat?.isSecret != true) {
+                    val rd = readDateText(acc, m)
+                    if (rd.isNotBlank()) Text(rd, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                }
+                if (content is dev.g000sha256.tdl.dto.MessagePoll && !content.poll.isAnonymous) MenuItem(Ic.Poll, t("View votes")) { menu = false; votersDialog = true }
+                if (content is dev.g000sha256.tdl.dto.MessagePoll && m.isOutgoing && !content.poll.isClosed) MenuItem(Ic.Close, t("Stop poll")) {
+                    menu = false
+                    acc.scope.launch { acc.client.stopPoll(chatId = m.chatId, messageId = m.id) }
+                }
+                if (chat?.isChannel == true) MenuItem(Ic.Forward, t("Public shares")) { menu = false; forwardsDialog = true }
+                if (chat?.isGroup == true && !m.isOutgoing) {
+                    MenuItem(Ic.Delete, t("Delete all from this person")) {
+                        menu = false
+                        acc.scope.launch {
+                            val r = acc.client.deleteChatMessagesBySender(chatId = m.chatId, senderId = m.senderId)
+                            withContext(Dispatchers.Main) { toast(ctx, if (r is TdlResult.Failure) r.message else t("Done")) }
+                        }
+                    }
+                    if ((chat?.supergroupId ?: 0L) != 0L) MenuItem(Ic.Info, t("Report spam")) {
+                        menu = false
+                        acc.scope.launch {
+                            val r = acc.client.reportSupergroupSpam(supergroupId = chat!!.supergroupId, messageIds = longArrayOf(m.id))
+                            withContext(Dispatchers.Main) { toast(ctx, if (r is TdlResult.Failure) r.message else t("Reported")) }
+                        }
+                    }
+                }
                 MenuItem(Ic.Info, t("Report")) {
                     menu = false
                     acc.scope.launch {
@@ -1611,6 +1653,8 @@ private fun MessageItem(
         HistoryAndSelect(history, { history = null }, selectDialog, textOf(content), { selectDialog = false })
         if (translate) TranslateDialog(acc, m, textOf(content)) { translate = false }
         if (seenBy) SeenByDialog(acc, m) { seenBy = false }
+        if (votersDialog) PollVotersDialog(acc, m) { votersDialog = false }
+        if (forwardsDialog) PublicForwardsDialog(acc, act, m) { forwardsDialog = false }
         if (isPost && Prefs.commentsButton && info?.replyInfo != null) {
             Spacer(Modifier.width(6.dp))
             Column(
@@ -1887,7 +1931,9 @@ private fun rich(ft: FormattedText, link: Color): AnnotatedString = buildAnnotat
             }
             is TextEntityTypeTextUrl -> addLink(url(ty.url), a, b)
             is TextEntityTypeEmailAddress -> addLink(url("mailto:" + text.substring(a, b)), a, b)
-            is TextEntityTypeMention, is TextEntityTypeHashtag -> addStyle(SpanStyle(color = link), a, b)
+            is TextEntityTypeMention -> addLink(url("https://t.me/" + text.substring(a, b).removePrefix("@")), a, b)
+            is TextEntityTypeHashtag -> addLink(url("riv-hashtag:" + text.substring(a, b)), a, b)
+            is dev.g000sha256.tdl.dto.TextEntityTypeMentionName -> addStyle(SpanStyle(color = link), a, b)
             else -> {}
         }
     }
@@ -2135,6 +2181,7 @@ object LinkEdit {
     var proxyLink by mutableStateOf<String?>(null)
     fun open(url: String) {
         if (com.rivers.rivpost.tg.Proxies.parseLink(url) != null) { proxyLink = url; return }
+        if (url.startsWith("riv-hashtag:")) { HashtagNav.tag = url.removePrefix("riv-hashtag:"); return }
         if (TgLinks.isTelegram(url)) { TgLinks.open(url) { u -> if (Prefs.editLinks) pending = u else direct?.invoke(u) }; return }
         if (Prefs.editLinks) pending = url else direct?.invoke(url)
     }

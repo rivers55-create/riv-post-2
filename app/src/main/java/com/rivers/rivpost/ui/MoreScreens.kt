@@ -127,7 +127,7 @@ private suspend fun <T> TdlResult<T>.report(ctx: Context, done: String? = null):
 /** Pages opened by name (Screen.Page). Returns false if the name isn't one of these. */
 fun isMorePage(name: String): Boolean = name.substringBefore(':') in setOf(
     "members", "topics", "admin", "links", "requests", "stats", "scheduled", "newchannel", "twostep",
-    "stickers", "exceptions", "datausage", "blocked", "story", "firebase", "sendas",
+    "stickers", "exceptions", "datausage", "blocked", "story", "firebase", "sendas", "adminlog",
 )
 
 @Composable
@@ -149,6 +149,7 @@ fun MorePage(acc: TgAccount, act: MainActivity, name: String, onBack: () -> Unit
         "blocked" -> BlockedScreen(acc, onBack)
         "story" -> StoryViewer(acc, arg, onBack)
         "firebase" -> FirebaseScreen(acc, onBack)
+        "adminlog" -> AdminLogScreen(acc, arg, onBack)
     }
 }
 
@@ -256,6 +257,7 @@ fun AdminScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> U
             SwitchRow(t("Pin messages"), null, p.canPinMessages) { upd(perms(p, pin = it)) }
             SwitchRow(t("Change group info"), null, p.canChangeInfo) { upd(perms(p, info = it)) }
         }
+        GroupSettingsSection(acc, act, chatId)
     }
 }
 
@@ -297,6 +299,8 @@ fun InviteLinksScreen(acc: TgAccount, chatId: Long, onBack: () -> Unit) {
         links = acc.client.getChatInviteLinks(chatId = chatId, creatorUserId = acc.myId, isRevoked = false, offsetDate = 0, offsetInviteLink = "", limit = 50).ok()?.inviteLinks?.toList().orEmpty()
     }
     var newLink by remember { mutableStateOf(false) }
+    var openLink by remember { mutableStateOf<ChatInviteLink?>(null) }
+    openLink?.let { k -> InviteLinkDialog(acc, chatId, k, onChanged = { tick++ }) { openLink = null } }
     Page(t("Invite links"), onBack) {
         Row(Modifier.padding(horizontal = 16.dp)) {
             TextButton(onClick = { newLink = true }) { Text("+ " + t("New link")) }
@@ -305,11 +309,11 @@ fun InviteLinksScreen(acc: TgAccount, chatId: Long, onBack: () -> Unit) {
         val l = links
         if (l == null) CircularProgressIndicator(Modifier.padding(20.dp))
         else for (k in l) {
-            Column(Modifier.fillMaxWidth().clickable { copy(ctx, k.inviteLink) }.padding(horizontal = 20.dp, vertical = 10.dp)) {
+            Column(Modifier.fillMaxWidth().clickable { openLink = k }.padding(horizontal = 20.dp, vertical = 10.dp)) {
                 Text((if (k.isPrimary) "⭐ " else "") + k.name.ifBlank { k.inviteLink.removePrefix("https://") }, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${k.memberCount} " + t("joined") + (if (k.pendingJoinRequestCount > 0) " · ${k.pendingJoinRequestCount} " + t("requests") else "") +
-                        (if (k.createsJoinRequest) " · " + t("needs approval") else "") + " · " + t("Tap to copy"),
+                        (if (k.createsJoinRequest) " · " + t("needs approval") else "") + " · " + t("Tap for details"),
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

@@ -417,6 +417,10 @@ fun ChatInfoScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -
         t("Media") to SearchMessagesFilterPhotoAndVideo(), t("Files") to SearchMessagesFilterDocument(),
         t("Links") to SearchMessagesFilterUrl(), t("Voice") to SearchMessagesFilterVoiceNote(), t("Music") to SearchMessagesFilterAudio(),
     )
+    var counts by remember { mutableStateOf<List<Int>>(emptyList()) }
+    LaunchedEffect(chatId) {
+        counts = tabs.map { (_, f) -> (acc.client.getChatMessageCount(chatId = chatId, filter = f, returnLocal = false) as? TdlResult.Success)?.result?.count ?: -1 }
+    }
     var media by remember(tab) { mutableStateOf<List<Message>?>(null) }
     LaunchedEffect(tab) {
         media = (acc.client.searchChatMessages(chatId = chatId, query = "", fromMessageId = 0, offset = 0, limit = 60, filter = tabs[tab].second) as? TdlResult.Success)
@@ -470,7 +474,8 @@ fun ChatInfoScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -
                         LibSwitch(t("Add to Videos (own row)"), VideoLib.isSource(chatId)) { VideoLib.toggleSource(chatId); tick++ }
                     }
                     Spacer(Modifier.height(12.dp))
-                    PillTabs(tabs.map { it.first }, tab) { tab = it }
+                    RelatedChats(acc, act, c, user?.type is dev.g000sha256.tdl.dto.UserTypeBot)
+                    PillTabs(tabs.mapIndexed { i, x -> x.first + (counts.getOrNull(i)?.takeIf { it > 0 }?.let { " $it" } ?: "") }, tab) { tab = it }
                 }
             }
             val l = media
