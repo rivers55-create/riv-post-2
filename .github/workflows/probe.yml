@@ -15,7 +15,7 @@ jobs:
           mkdir out
           gh api repos/TGX-Android/Telegram-X/releases --jq '.[0:2][] | .tag_name + " " + (.assets | map(.name + "=" + (.size|tostring)) | join(" "))' > out/releases.txt || true
           cat out/releases.txt
-          URL=$(gh api repos/TGX-Android/Telegram-X/releases --jq '[.[0].assets[] | select(.name | test("arm64.*apk$"))][0].browser_download_url')
+          URL=$(gh api repos/TGX-Android/Telegram-X/releases --jq '[.[1].assets[] | select(.name | test("^Telegram-X-[0-9.]+.apk$"))][0].browser_download_url')
           echo "URL=$URL" >> out/releases.txt
           curl -sSL "$URL" -o tgx.apk
           unzip -l tgx.apk | grep "lib/" > out/libs.txt || true
