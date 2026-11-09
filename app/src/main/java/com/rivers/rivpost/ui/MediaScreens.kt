@@ -284,7 +284,6 @@ fun SmbScreen(act: MainActivity, onBack: () -> Unit) {
     }
 }
 
-private fun Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()): Modifier = this
 
 // ---------------------------------------------------------------- hidden songs
 
