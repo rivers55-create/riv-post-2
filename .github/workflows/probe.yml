@@ -1,0 +1,35 @@
+name: Probe TGX libs
+on:
+  push:
+    branches: [ probe-tgx ]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Telegram X release APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir out
+          gh api repos/TGX-Android/Telegram-X/releases --jq '.[0:2][] | .tag_name + " " + (.assets | map(.name + "=" + (.size|tostring)) | join(" "))' > out/releases.txt || true
+          cat out/releases.txt
+          URL=$(gh api repos/TGX-Android/Telegram-X/releases --jq '[.[0].assets[] | select(.name | test("arm64.*apk$"))][0].browser_download_url')
+          echo "URL=$URL" >> out/releases.txt
+          curl -sSL "$URL" -o tgx.apk
+          unzip -l tgx.apk | grep "lib/" > out/libs.txt || true
+          unzip -o -q tgx.apk 'lib/*' -d apk || true
+          for f in apk/lib/arm64-v8a/*.so; do
+            echo "== $f" >> out/symbols.txt
+            nm -D --defined-only "$f" | grep -E " T (Java_|JNI_)" | head -400 >> out/symbols.txt || true
+            readelf -d "$f" | grep NEEDED >> out/symbols.txt || true
+          done
+          strings apk/lib/arm64-v8a/libtgcallsjni.so 2>/dev/null | grep -E "^(org|Lorg)/[a-zA-Z/$]+" | sort -u > out/classes.txt || true
+      - name: Publish
+        run: |
+          cd out
+          git init -q && git checkout -q -b probe-out
+          git add -A
+          git -c user.name="Build Bot" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "probe"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-out
