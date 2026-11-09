@@ -652,7 +652,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                             val older = data.messages.getOrNull(i + 1)
                             val albumId = m.mediaAlbumId
                             if (albumId != 0L && older?.mediaAlbumId == albumId) return@itemsIndexed
-                            val album = if (albumId == 0L) null else buildList {
+                            val album = if (albumId == 0L) null else buildList<Message> {
                                 var j = i
                                 while (j >= 0 && data.messages[j].mediaAlbumId == albumId) { add(data.messages[j]); j-- }
                             }

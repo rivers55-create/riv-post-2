@@ -101,6 +101,19 @@ object Notifier {
             .setContentText(t("Connected for new messages"))
             .setOngoing(true)
             .setContentIntent(pi)
+            .setSilent(true)
+            .setShowWhen(false)
+            .addAction(
+                0, t("Hide this notice"),
+                PendingIntent.getActivity(
+                    c, 1,
+                    Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, c.packageName)
+                        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, CH_SERVICE)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
     }
