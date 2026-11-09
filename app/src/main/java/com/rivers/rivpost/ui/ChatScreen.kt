@@ -563,6 +563,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             // ---------- pinned ----------
             val pin = data.pinned
             if (pin != null && Prefs.pinnedBar && !hidePinned && !searching) PinnedBar(acc, pin, onClick = { jumpTo(pin.id) }, onHide = { hidePinned = true })
+            if (data.selected.isEmpty() && !searching) MiniPlayer()
             if (secret != null && secret.state is SecretChatStatePending) InfoBanner("🔒 " + t("Waiting for the other person to come online…"))
             if (secret != null && secret.state is SecretChatStateClosed) InfoBanner("🔒 " + t("This secret chat was closed"))
 
@@ -839,6 +840,10 @@ private fun ChatHeader(
             IconButton(onClick = onMenu) { Icon(Ic.More, null, tint = fg) }
         }
     }
+}
+
+private fun playOrToggle(acc: TgAccount, m: Message, track: Track) {
+    if (Music.current?.key == track.key) Music.toggle() else Music.playFromChat(acc, m)
 }
 
 @Composable
@@ -1308,9 +1313,7 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             val v = c.videoNote
             val cur = rememberFile(acc, v.video, autoDownload = Prefs.autoGifs) ?: v.video
             if (cur.local.isDownloadingCompleted && cur.local.path.isNotEmpty()) {
-                Box(Modifier.size(220.dp).clip(CircleShape).clickable { openFile(ctx, cur.local.path, "video/mp4") }) {
-                    LoopVideo(cur.local.path, Modifier.fillMaxSize())
-                }
+                VideoNoteBubble(cur.local.path, v.duration, meta)
             } else {
                 Box(Modifier.size(220.dp).clip(CircleShape)) {
                     MediaBox(acc, v.video, v.minithumbnail, v.thumbnail, 1f, auto = true, isPhoto = false, label = Fmt.duration(v.duration), onOpen = { })
@@ -1321,7 +1324,7 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             val track = remember(m.id) { Track.from(acc.index, m) }
             val video = remember(m.id) { VideoItem.from(acc.index, m) }
             when {
-                track != null -> SongRow(track, fg, meta, onMenu) { Music.playFromChat(acc, m) }
+                track != null -> SongRow(track, fg, meta, onMenu) { playOrToggle(acc, m, track) }
                 video != null && Prefs.builtInVideo -> FileRow(acc, c.document.document, "🎬 " + c.document.fileName, fg, meta, play = true) {
                     act.push(Screen.Video(video.request()))
                 }
@@ -1331,7 +1334,7 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
         }
         is MessageAudio -> {
             val track = remember(m.id) { Track.from(acc.index, m) }
-            if (track != null) SongRow(track, fg, meta, onMenu) { Music.playFromChat(acc, m) }
+            if (track != null) SongRow(track, fg, meta, onMenu) { playOrToggle(acc, m, track) }
             if (c.caption.text.isNotBlank()) RichText(c.caption, fg)
         }
         is MessageVoiceNote -> VoiceRow(acc, c.voiceNote.voice, c.voiceNote.duration, c.voiceNote.waveform, fg, meta)

@@ -69,8 +69,10 @@ object Fmt {
         }
     }
 
-    fun clock(unix: Int): String =
-        SimpleDateFormat("HH:mm", Locale.US).format(Date(unix * 1000L))
+    fun clock(unix: Int): String {
+        val h24 = try { android.text.format.DateFormat.is24HourFormat(Tg.app) } catch (_: Throwable) { true }
+        return SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", if (h24) Locale.US else Locale.getDefault()).format(Date(unix * 1000L))
+    }
 
     /** Time for the chat list: today → clock, this week → day, else date. */
     fun listTime(unix: Int): String {

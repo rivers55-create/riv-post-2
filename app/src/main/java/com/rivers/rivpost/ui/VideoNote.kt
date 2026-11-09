@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -185,6 +186,102 @@ fun VideoNoteScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
                 Spacer(Modifier.size(48.dp))
             }
             Text(if (recording != null) t("Tap to send") else t("Tap to start"), color = Color.White.copy(alpha = 0.7f), modifier = Modifier.padding(bottom = 16.dp).height(22.dp))
+        }
+    }
+}
+
+/** Only one video message plays with sound at a time. */
+object VideoNotePlaying {
+    var path by mutableStateOf("")
+}
+
+/**
+ * A round video message in the chat. Plays silently on loop; tap to play with sound,
+ * tap again to pause. A ring around it and a seek bar under it show the progress.
+ */
+@Composable
+fun VideoNoteBubble(path: String, duration: Int, meta: Color) {
+    val ctx = LocalContext.current
+    val style = LocalStyle.current
+    val active = VideoNotePlaying.path == path
+    val player = remember(path) {
+        androidx.media3.exoplayer.ExoPlayer.Builder(ctx).build().apply {
+            setMediaItem(androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(java.io.File(path))))
+            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+            volume = 0f
+            prepare()
+            playWhenReady = com.rivers.rivpost.data.Prefs.autoGifs
+        }
+    }
+    DisposableEffect(path) { onDispose { player.release(); if (VideoNotePlaying.path == path) VideoNotePlaying.path = "" } }
+    var playing by remember { mutableStateOf(false) }
+    var pos by remember { mutableStateOf(0L) }
+    var dur by remember { mutableStateOf(duration * 1000L) }
+    var seeking by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(active) {
+        if (active) {
+            if (com.rivers.rivpost.music.Music.isPlaying) com.rivers.rivpost.music.Music.toggle()
+            player.volume = 1f
+            player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF
+            player.seekTo(0)
+            player.play()
+        } else {
+            player.volume = 0f
+            player.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+            if (!com.rivers.rivpost.data.Prefs.autoGifs) player.pause() else player.play()
+        }
+        while (true) {
+            playing = player.isPlaying
+            pos = player.currentPosition
+            if (player.duration > 0) dur = player.duration
+            if (active && player.playbackState == androidx.media3.common.Player.STATE_ENDED) { VideoNotePlaying.path = ""; break }
+            delay(100)
+        }
+    }
+    val prog = seeking ?: if (active && dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+        Box(
+            Modifier.size(230.dp).clip(CircleShape).clickable {
+                if (!active) VideoNotePlaying.path = path
+                else if (player.isPlaying) player.pause() else player.play()
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            AndroidView(
+                factory = { c ->
+                    androidx.media3.ui.PlayerView(c).apply {
+                        useController = false
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        this.player = player
+                    }
+                },
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+            )
+            if (active) androidx.compose.foundation.Canvas(Modifier.fillMaxSize().padding(3.dp)) {
+                drawArc(
+                    style.accent, -90f, 360f * prog, false,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                )
+            }
+            if (active && !playing) Box(Modifier.size(56.dp).clip(CircleShape).background(Color(0x88000000)), contentAlignment = Alignment.Center) {
+                Icon(Ic.Play, null, tint = Color.White, modifier = Modifier.size(34.dp))
+            }
+            if (!active) Text(
+                "🔇 " + Fmt.duration(duration), color = Color.White, fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x88000000)).padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        if (active) Row(Modifier.width(240.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }, modifier = Modifier.size(36.dp)) {
+                Icon(if (playing) Ic.Pause else Ic.Play, null, tint = style.accent)
+            }
+            androidx.compose.material3.Slider(
+                value = prog, onValueChange = { seeking = it },
+                onValueChangeFinished = { seeking?.let { player.seekTo((it * dur).toLong()) }; seeking = null },
+                modifier = Modifier.weight(1f),
+            )
+            Text(Fmt.duration((pos / 1000).toInt()), color = meta, fontSize = 12.sp)
         }
     }
 }

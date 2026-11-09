@@ -461,7 +461,7 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                     if (muted) { Spacer(Modifier.width(4.dp)); Icon(Ic.Muted, null, Modifier.size(15.dp), tint = cs.onSurfaceVariant) }
                     Spacer(Modifier.weight(1f))
                     if (m != null && m.isOutgoing && !acc.isSaved(c)) {
-                        Icon(if (m.id <= c.lastReadOutbox) Ic.DoneAll else Ic.Check, null, Modifier.size(17.dp), tint = style.accent)
+                        Icon(if (m.id <= c.lastReadOutbox) Ic.DoneAll else Ic.Check, null, Modifier.size(17.dp), tint = Color(0xFF6E9BEF))
                         Spacer(Modifier.width(4.dp))
                     }
                     val time = if (m != null) Fmt.listTime(m.date) else ""
@@ -470,9 +470,9 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                             Modifier.clip(CircleShape).background(cs.surfaceContainerHigh).padding(horizontal = 8.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Ic.Pin, null, Modifier.size(13.dp), tint = cs.onSurfaceVariant)
+                            Icon(Ic.Pin, null, Modifier.size(13.dp).graphicsLayer { rotationZ = 45f }, tint = cs.onSurfaceVariant)
                             Spacer(Modifier.width(3.dp))
-                            Text(time, fontSize = 12.sp, color = cs.onSurfaceVariant)
+                            Text(time, fontSize = 13.sp, color = cs.onSurfaceVariant)
                         }
                     } else {
                         Text(time, fontSize = 13.sp, color = if (c.unread > 0 && !muted) style.badge else cs.onSurfaceVariant)
@@ -486,16 +486,24 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                         Text(who + t(parts.getOrElse(1) { "typing" }) + "…", fontSize = 15.sp, color = style.accent, maxLines = 1, modifier = Modifier.weight(1f))
                     } else {
                         val who = if (m != null && c.isGroup && !Fmt.isService(m)) {
-                            if (m.isOutgoing) t("You") else acc.senderName(m.senderId).split(" ").first()
+                            if (m.isOutgoing) t("You") else acc.senderName(m.senderId)
                         } else ""
-                        if (who.isNotBlank()) Text("$who: ", fontSize = 15.sp, color = style.title.copy(alpha = 0.85f), maxLines = 1)
-                        if (Prefs.mediaThumbs && m != null) MediaThumb(acc, m)
+                        if (Prefs.mediaThumbs && m != null && who.isBlank()) MediaThumb(acc, m)
                         val content = m?.content
                         val colored = content != null && content !is MessageText
+                        val body = Fmt.preview(acc, m).replace('\n', ' ')
                         Text(
-                            Fmt.preview(acc, m).replace('\n', ' '),
-                            fontSize = 15.sp, maxLines = style.previewLines, overflow = TextOverflow.Ellipsis,
-                            color = if (colored) style.accent else cs.onSurfaceVariant, modifier = Modifier.weight(1f),
+                            androidx.compose.ui.text.buildAnnotatedString {
+                                if (who.isNotBlank()) {
+                                    pushStyle(androidx.compose.ui.text.SpanStyle(color = style.title.copy(alpha = 0.9f)))
+                                    append("$who: ")
+                                    pop()
+                                }
+                                pushStyle(androidx.compose.ui.text.SpanStyle(color = if (colored) style.accent else cs.onSurfaceVariant))
+                                append(body)
+                                pop()
+                            },
+                            fontSize = 15.sp, maxLines = style.previewLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                         )
                     }
                     if (c.mentions > 0) { Spacer(Modifier.width(6.dp)); CountBadge("@", style.badge) }
