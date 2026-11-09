@@ -174,7 +174,8 @@ private fun Color.compositeOver(under: Color): Color {
 
 @Composable
 fun RivTheme(content: @Composable () -> Unit) {
-    @Suppress("UNUSED_VARIABLE") val tick by androidx.compose.runtime.produceState(0) { while (true) { kotlinx.coroutines.delay(60_000); value++ } }
+    val tickState = androidx.compose.runtime.produceState(0) { while (true) { kotlinx.coroutines.delay(60_000); value++ } }
+    @Suppress("UNUSED_VARIABLE") val tick = tickState.value
     val dark = isDark(isSystemInDarkTheme())
     val st = makeStyle(dark)
     val a = st.accent
