@@ -903,6 +903,12 @@ object Lang {
         "requests" to "طلبات",
         "stickers" to "ملصقات",
         "winners" to "فائزون",
+        "Clean up video titles" to "تنظيف عناوين الفيديو",
+        "Removes channel tags, links, quality labels and emoji spam. Only in Riv Post." to "يزيل وسوم القنوات والروابط وعلامات الجودة والإيموجي الزائدة. داخل Riv Post فقط.",
+        "TMDB API key (optional)" to "مفتاح TMDB (اختياري)",
+        "Adds posters, ratings and descriptions. Get a free key at themoviedb.org → Settings → API." to "يضيف الملصقات والتقييمات والأوصاف. احصل على مفتاح مجاني من themoviedb.org ← الإعدادات ← API.",
+        "Swipe between tabs" to "السحب بين التبويبات",
+        "Chat folders and music tabs" to "مجلدات المحادثات وتبويبات الموسيقى",
     )
 }
 

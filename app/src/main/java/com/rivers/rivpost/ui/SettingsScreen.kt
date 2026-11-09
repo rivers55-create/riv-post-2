@@ -180,6 +180,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Video messages"), t("Hold the mic button to record a round video"), Prefs.videoNotes) { Prefs.videoNotes = it }
         SwitchRow(t("Link previews"), null, Prefs.linkPreviews) { Prefs.linkPreviews = it }
         SwitchRow(t("Stories row in chat list"), null, Prefs.storiesRow) { Prefs.storiesRow = it }
+        SwitchRow(t("Swipe between tabs"), t("Chat folders and music tabs"), Prefs.swipeTabs) { Prefs.swipeTabs = it }
         SwitchRow(t("Comments button on channel posts"), null, Prefs.commentsButton) { Prefs.commentsButton = it }
         SwitchRow(t("Open forum groups as topics"), t("Off opens them as one chat"), Prefs.forumTopicsView) { Prefs.forumTopicsView = it }
         SwitchRow(t("Suggest members when typing @"), null, Prefs.mentionHints) { Prefs.mentionHints = it }
@@ -207,6 +208,13 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
             listOf("0" to t("White"), 0xFFFFEB3B.toInt().toString() to t("Yellow"), 0xFF80DEEA.toInt().toString() to t("Cyan")),
             Prefs.subColor.toString(),
         ) { Prefs.subColor = it.toInt() }
+        SwitchRow(t("Clean up video titles"), t("Removes channel tags, links, quality labels and emoji spam. Only in Riv Post."), Prefs.cleanTitles) { Prefs.cleanTitles = it }
+        OutlinedTextField(
+            Prefs.tmdbKey, { Prefs.tmdbKey = it.trim(); com.rivers.rivpost.media.Meta.online.clear() },
+            label = { Text(t("TMDB API key (optional)")) }, singleLine = true,
+            supportingText = { Text(t("Adds posters, ratings and descriptions. Get a free key at themoviedb.org → Settings → API.")) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        )
         ClickRow(t("IPTV"), "›") { act.push(com.rivers.rivpost.Screen.Page("iptv")) }
         ClickRow(t("Shared folders (SMB)"), "›") { act.push(com.rivers.rivpost.Screen.Page("smb")) }
 

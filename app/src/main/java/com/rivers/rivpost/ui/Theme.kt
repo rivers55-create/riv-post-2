@@ -219,7 +219,7 @@ fun rivTypography(): androidx.compose.material3.Typography {
     val plat = if (Prefs.systemEmoji) androidx.compose.ui.text.PlatformTextStyle(
         emojiSupportMatch = androidx.compose.ui.text.EmojiSupportMatch.None
     ) else null
-    fun f(t: androidx.compose.ui.text.TextStyle) = t.copy(fontFamily = ff ?: t.fontFamily, platformStyle = plat ?: t.platformStyle)
+    fun f(t: androidx.compose.ui.text.TextStyle) = t.copy(fontFamily = ff ?: t.fontFamily, platformStyle = plat ?: t.platformStyle, textDirection = androidx.compose.ui.text.style.TextDirection.Content)
     return androidx.compose.material3.Typography(
         displayLarge = f(b.displayLarge), displayMedium = f(b.displayMedium), displaySmall = f(b.displaySmall),
         headlineLarge = f(b.headlineLarge), headlineMedium = f(b.headlineMedium), headlineSmall = f(b.headlineSmall),

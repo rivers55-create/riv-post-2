@@ -739,8 +739,12 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
             }
             return
         }
-        val k = keys.getOrElse(tab) { "all" }
         val all = filt(MusicLib.songs)
+        val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = tab.coerceIn(0, keys.lastIndex)) { keys.size }
+        LaunchedEffect(tab) { if (pager.currentPage != tab && tab < keys.size) pager.animateScrollToPage(tab) }
+        LaunchedEffect(pager.settledPage) { if (tab != pager.settledPage) tab = pager.settledPage }
+        androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = Prefs.swipeTabs) { pageIndex ->
+        val k = keys.getOrElse(pageIndex) { "all" }
         when {
             k.startsWith("chat:") -> AllSongs(filt(MusicLib.picked[k.removePrefix("chat:").toLongOrNull() ?: 0L].orEmpty()))
             k == "selected" -> {
@@ -781,6 +785,7 @@ fun MusicLibraryPage(acc: TgAccount, onPickSources: () -> Unit) {
             k == "artists" -> GroupList(all.groupBy { it.artist }.toList().sortedBy { it.first.lowercase() }) { openGroup = it }
             k == "favorites" -> SongList(filt(MusicLib.everything()).filter { Music.isFavorite(it) })
             else -> AllSongs(all)
+        }
         }
     }
     if (newList) NameDialog(t("New playlist"), onDismiss = { newList = false }) { Music.newPlaylist(it); newList = false }

@@ -202,7 +202,14 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                     }
                     "videos" -> VideoLibraryPage(acc, onPlay = { act.push(Screen.Video(it)) }) { act.push(Screen.Sources("video")) }
                     "profile" -> ProfilePage(acc, act)
-                    else -> ChatListPage(acc, act, lists[folderTab].second, query, ver, filterOf.getOrNull(folderTab))
+                    else -> if (showTabs && Prefs.swipeTabs) {
+                        val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = folderTab.coerceIn(0, lists.lastIndex)) { lists.size }
+                        LaunchedEffect(folderTab) { if (pager.currentPage != folderTab && folderTab < lists.size) pager.animateScrollToPage(folderTab) }
+                        LaunchedEffect(pager.settledPage) { if (folderTab != pager.settledPage) folderTab = pager.settledPage }
+                        androidx.compose.foundation.pager.HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
+                            ChatListPage(acc, act, lists[i].second, query, ver, filterOf.getOrNull(i))
+                        }
+                    } else ChatListPage(acc, act, lists[folderTab].second, query, ver, filterOf.getOrNull(folderTab))
                 }
             }
         }

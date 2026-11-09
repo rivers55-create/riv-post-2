@@ -38,6 +38,8 @@ data class VideoItem(
     val thumb: File?,
     val mini: ByteArray?,
     val mime: String,
+    val fileName: String = "",
+    val caption: String = "",
 ) {
     val key: String get() = "$chatId:$msgId"
 
@@ -52,7 +54,7 @@ data class VideoItem(
                     accIndex, m.chatId, m.id, m.date, v.video,
                     c.caption.text.lineSequence().firstOrNull()?.take(80)?.ifBlank { null }
                         ?: v.fileName.substringBeforeLast('.').ifBlank { "Video" },
-                    v.duration, v.width, v.height, th, v.minithumbnail?.data, v.mimeType,
+                    v.duration, v.width, v.height, th, v.minithumbnail?.data, v.mimeType, v.fileName, c.caption.text,
                 )
             }
             is MessageDocument -> {
@@ -63,7 +65,7 @@ data class VideoItem(
                     VideoItem(
                         accIndex, m.chatId, m.id, m.date, d.document,
                         d.fileName.substringBeforeLast('.').ifBlank { c.caption.text.take(80).ifBlank { "Video" } },
-                        0, 0, 0, th, d.minithumbnail?.data, d.mimeType.ifBlank { "video/mp4" },
+                        0, 0, 0, th, d.minithumbnail?.data, d.mimeType.ifBlank { "video/mp4" }, d.fileName, c.caption.text,
                     )
                 } else null
             }

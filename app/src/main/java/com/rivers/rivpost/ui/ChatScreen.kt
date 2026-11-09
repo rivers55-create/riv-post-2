@@ -60,6 +60,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -1217,7 +1218,7 @@ private fun InputBar(
                         focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                         focusedTextColor = fg, unfocusedTextColor = fg, cursorColor = style.accent,
                     ),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = Prefs.textSize.sp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = Prefs.textSize.sp, textDirection = androidx.compose.ui.text.style.TextDirection.Content),
                     modifier = Modifier.weight(1f).onPreviewKeyEvent { ev ->
                         if (Prefs.enterSends && ev.key == Key.Enter) { onSend(); true } else false
                     },
@@ -1775,6 +1776,7 @@ private fun RichText(ft: FormattedText, fg: Color) {
     val s = remember(ft, link) { rich(ft, link) }
     Text(
         s, color = fg, fontSize = Prefs.textSize.sp, lineHeight = (Prefs.textSize + 6).sp,
+        style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Content, textAlign = androidx.compose.ui.text.style.TextAlign.Start),
         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp),
     )
 }

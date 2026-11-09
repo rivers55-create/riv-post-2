@@ -97,7 +97,7 @@ data class PlayRequest(
     val url: String = "", val userAgent: String = "", val referer: String = "", val live: Boolean = false,
 )
 
-fun VideoItem.request(): PlayRequest = PlayRequest(acc, file, title, key)
+fun VideoItem.request(): PlayRequest = PlayRequest(acc, file, com.rivers.rivpost.media.Meta.title(this), key)
 
 // ---------------------------------------------------------------- library (Netflix style)
 
@@ -143,8 +143,17 @@ fun VideoLibraryPage(acc: TgAccount, onPlay: (PlayRequest) -> Unit, onPickSource
                     )
                 )
                 Column(Modifier.align(Alignment.BottomStart).padding(18.dp)) {
-                    Text(hero.title, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(acc.chats[hero.chatId]?.title ?: "", color = cs.onSurfaceVariant, fontSize = 14.sp, maxLines = 1)
+                    val info = rememberOnline(hero)
+                    Text(com.rivers.rivpost.media.Meta.title(hero), fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        listOfNotNull(
+                            info?.year?.takeIf { it.isNotBlank() }, info?.rating?.takeIf { it > 0 }?.let { "★ %.1f".format(it) },
+                            acc.chats[hero.chatId]?.title,
+                        ).joinToString("  ·  "),
+                        color = cs.onSurfaceVariant, fontSize = 14.sp, maxLines = 1,
+                    )
+                    val about = info?.overview?.takeIf { it.isNotBlank() } ?: com.rivers.rivpost.media.Meta.description(hero)
+                    if (about.isNotBlank()) Text(about, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                     Spacer(Modifier.height(10.dp))
                     Row {
                         Button(
@@ -205,7 +214,7 @@ private fun VideoRow(acc: TgAccount, title: String, list: List<VideoItem>, onPla
                                 Box(Modifier.fillMaxWidth(p).fillMaxHeight().background(Color(0xFFE53935)))
                             }
                         }
-                        Text(v.title, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                        Text(com.rivers.rivpost.media.Meta.title(v), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
@@ -220,11 +229,14 @@ private fun VideoRow(acc: TgAccount, title: String, list: List<VideoItem>, onPla
 }
 
 @Composable
-private fun Poster(acc: TgAccount, v: VideoItem, modifier: Modifier, shape: RoundedCornerShape) {
+private fun Poster(acc: TgAccount, v: VideoItem, modifier: Modifier, shape: RoundedCornerShape, wide: Boolean = true) {
     val th = rememberFile(acc, v.thumb, autoDownload = true, priority = 2)
     val mb = remember(v.key) { miniBitmap(v.mini) }
+    val info = rememberOnline(v)
+    val art = if (wide) info?.backdrop?.ifBlank { info.poster } else info?.poster
     Box(modifier.clip(shape).background(Color(0xFF2A2236)), contentAlignment = Alignment.Center) {
         when {
+            !art.isNullOrBlank() -> AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             th != null && th.local.isDownloadingCompleted && th.local.path.isNotEmpty() ->
                 AsyncImage(model = java.io.File(th.local.path), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             mb != null -> Image(mb, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -437,4 +449,13 @@ fun TgsSticker(path: String, modifier: Modifier) {
     if (j == null) { Box(modifier); return }
     val comp by rememberLottieComposition(LottieCompositionSpec.JsonString(j))
     LottieAnimation(comp, iterations = LottieConstants.IterateForever, modifier = modifier)
+}
+
+
+@Composable
+private fun rememberOnline(v: VideoItem): com.rivers.rivpost.media.OnlineInfo? {
+    val ctx = LocalContext.current
+    if (Prefs.tmdbKey.isBlank()) return null
+    val info by produceState<com.rivers.rivpost.media.OnlineInfo?>(null, v.key, Prefs.tmdbKey) { value = com.rivers.rivpost.media.Meta.lookup(ctx, v) }
+    return info
 }
