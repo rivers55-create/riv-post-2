@@ -172,7 +172,7 @@ fun CallsPage(acc: TgAccount, act: MainActivity) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Text(
-                t("Calling from Riv Post is coming in a later version. Here is your call history."),
+                t("Your call history. Tap the phone to call back."),
                 fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(16.dp),
             )
         }
@@ -199,7 +199,8 @@ fun CallsPage(acc: TgAccount, act: MainActivity) {
                         )
                     }
                 }
-                Icon(Ic.Phone, null, tint = LocalStyle.current.accent)
+                val uid = c?.privateUserId ?: 0L
+                if (uid != 0L && Prefs.voiceCalls) IconButton(onClick = { com.rivers.rivpost.calls.Calls.start(act, acc, uid) }) { Icon(Ic.Phone, null, tint = LocalStyle.current.accent) }
             }
         }
         item { Spacer(Modifier.height(90.dp)) }

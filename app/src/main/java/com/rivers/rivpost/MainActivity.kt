@@ -108,6 +108,8 @@ class MainActivity : FragmentActivity() {
     private fun handleIntent(i: Intent?) {
         if (i == null) return
         if (i.getBooleanExtra("open_player", false)) Music.playerOpen = true
+        if (i.getBooleanExtra("call_open", false)) { i.removeExtra("call_open"); com.rivers.rivpost.calls.Calls.minimize(false) }
+        if (i.getBooleanExtra("call_accept", false)) { i.removeExtra("call_accept"); com.rivers.rivpost.calls.Calls.minimize(false); window.decorView.post { com.rivers.rivpost.calls.Calls.accept(this) } }
         val data = i.dataString
         if (i.action == Intent.ACTION_VIEW && data != null && com.rivers.rivpost.ui.TgLinks.isTelegram(data)) {
             com.rivers.rivpost.ui.TgLinks.act = this
@@ -211,6 +213,7 @@ private fun Root(act: MainActivity) {
                                 com.rivers.rivpost.ui.TgLinkDialogs()
                                 LaunchedEffect(Unit) { com.rivers.rivpost.ui.TgLinks.act = act }
                                 AuthPinDialog()
+                                com.rivers.rivpost.ui.CallOverlay(act)
                             } else {
                                 LoginScreen(acc)
                             }

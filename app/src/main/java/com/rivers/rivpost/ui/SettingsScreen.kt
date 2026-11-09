@@ -189,6 +189,8 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Swipe right to translate"), null, Prefs.swipeTranslate) { Prefs.swipeTranslate = it }
         SwitchRow(t("\"Seen\" under your last message"), null, Prefs.seenRow) { Prefs.seenRow = it }
         SwitchRow(t("Map previews"), null, Prefs.mapPreviews) { Prefs.mapPreviews = it }
+        SwitchRow(t("Voice calls"), t("Call people and answer calls in Riv Post"), Prefs.voiceCalls) { Prefs.voiceCalls = it }
+        if (Prefs.voiceCalls) SwitchRow(t("Direct connection in calls"), t("Better quality. Off sends calls through Telegram's servers so the other person can't see your IP address."), Prefs.callP2p) { Prefs.callP2p = it }
         SwitchRow(t("Earpiece for voice messages"), t("Hold the phone to your ear while one plays"), Prefs.earpiece) { Prefs.earpiece = it }
         SwitchRow(t("Save edited photos to gallery"), null, Prefs.saveEdited) { Prefs.saveEdited = it }
         SwitchRow(t("Hide keyboard when scrolling"), null, Prefs.hideKbScroll) { Prefs.hideKbScroll = it }

@@ -301,6 +301,8 @@ class TgAccount(private val ctx: Context, val index: Int) {
             }
             is UpdateMessageSendSucceeded -> events.tryEmit(MsgEvent.Replaced(u.oldMessageId, u.message))
             is UpdateMessageSendFailed -> events.tryEmit(MsgEvent.Replaced(u.oldMessageId, u.message))
+            is UpdateCall -> com.rivers.rivpost.calls.Calls.onCall(this, u.call)
+            is UpdateNewCallSignalingData -> com.rivers.rivpost.calls.Calls.onSignaling(u.callId, u.data)
             is UpdateDeleteMessages -> if (u.isPermanent) {
                 if (Prefs.antiRevoke) logDeleted(u.chatId, u.messageIds)
                 events.tryEmit(MsgEvent.Deleted(u.chatId, u.messageIds))

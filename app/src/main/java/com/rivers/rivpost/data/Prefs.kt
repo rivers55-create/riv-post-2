@@ -213,6 +213,8 @@ object Prefs {
     var autoFileMb by IntPref("auto_file_mb", 5)
     var autoplayVideos by BoolPref("autoplay_videos", true)
     var earpiece by BoolPref("earpiece", true)
+    var voiceCalls by BoolPref("voice_calls", true)
+    var callP2p by BoolPref("call_p2p", true)
     var nightFrom by IntPref("night_from", 20)
     var nightTo by IntPref("night_to", 7)
     var saveEdited by BoolPref("save_edited", false)

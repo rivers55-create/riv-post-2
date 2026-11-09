@@ -680,7 +680,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                     acc, chat, subtitle, typing != null,
                     onBack = onBack,
                     onInfo = { act.push(Screen.Info(chatId)) },
-                    onCall = { toast(ctx, t("Calls are coming in a later version")) },
+                    onCall = { com.rivers.rivpost.calls.Calls.start(act, acc, peerUserId) },
                     onMenu = { menu = true },
                 )
                 Box(Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 12.dp)) {
@@ -1090,7 +1090,7 @@ private fun ChatHeader(
             }
             Spacer(Modifier.width(6.dp))
             Row(Modifier.height(56.dp).clip(RoundedCornerShape(28.dp)).background(bg), verticalAlignment = Alignment.CenterVertically) {
-                if (chat != null && chat.privateUserId != 0L && !acc.isSaved(chat)) IconButton(onClick = onCall) { Icon(Ic.Phone, null, tint = fg) }
+                if (chat != null && chat.privateUserId != 0L && !acc.isSaved(chat) && Prefs.voiceCalls && acc.users[chat.privateUserId]?.type !is dev.g000sha256.tdl.dto.UserTypeBot) IconButton(onClick = onCall) { Icon(Ic.Phone, null, tint = fg) }
                 IconButton(onClick = onMenu) { Icon(Ic.More, null, tint = fg) }
             }
         }
@@ -1105,7 +1105,7 @@ private fun ChatHeader(
                     if (subtitle.isNotBlank()) Text(subtitle, fontSize = 13.sp, maxLines = 1, color = if (typing) style.accent else fg.copy(alpha = 0.7f))
                 }
             }
-            if (chat != null && chat.privateUserId != 0L && !acc.isSaved(chat)) IconButton(onClick = onCall) { Icon(Ic.Phone, null, tint = fg) }
+            if (chat != null && chat.privateUserId != 0L && !acc.isSaved(chat) && Prefs.voiceCalls && acc.users[chat.privateUserId]?.type !is dev.g000sha256.tdl.dto.UserTypeBot) IconButton(onClick = onCall) { Icon(Ic.Phone, null, tint = fg) }
             IconButton(onClick = onMenu) { Icon(Ic.More, null, tint = fg) }
         }
     }
