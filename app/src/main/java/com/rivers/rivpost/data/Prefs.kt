@@ -183,7 +183,8 @@ object Prefs {
     var filterTabs by StrPref("filter_tabs", "")        // unread,groups,channels,private,bots
     var swipeAccounts by BoolPref("swipe_accounts", true)
     var localPins by StrPref("local_pins", "")
-    var swipeForward by BoolPref("swipe_forward", true)
+    var swipeForward by BoolPref("swipe_forward2", false)
+    var swipeReply by BoolPref("swipe_reply", true)
     var quickForwardChat by StrPref("quick_forward_chat", "")  // empty = Saved Messages
     var markdown by BoolPref("markdown", true)
     var saveFolder by StrPref("save_folder", "Riv Post")

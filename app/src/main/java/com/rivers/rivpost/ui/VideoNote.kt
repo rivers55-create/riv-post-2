@@ -111,17 +111,21 @@ fun VideoNoteScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
                         onClose()
                     } else {
                         sending = true
-                        acc.scope.launch {
-                            val r = acc.client.sendMessage(
-                                chatId = chatId, replyTo = null,
-                                inputMessageContent = InputMessageVideoNote(
-                                    videoNote = InputVideoNote(videoNote = InputFileLocal(path = out.absolutePath), thumbnail = null, duration = dur, length = 384),
-                                    selfDestructType = null,
-                                ),
-                            )
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                if (r is TdlResult.Failure) toast(ctx, t("Couldn't send") + ": " + r.message)
-                                onClose()
+                        val square = java.io.File(ctx.cacheDir, "vnote_sq_" + System.currentTimeMillis() + ".mp4")
+                        squareVideo(ctx, out, square) { ok ->
+                            val file = if (ok) square else out
+                            acc.scope.launch {
+                                val r = acc.client.sendMessage(
+                                    chatId = chatId, replyTo = null,
+                                    inputMessageContent = InputMessageVideoNote(
+                                        videoNote = InputVideoNote(videoNote = InputFileLocal(path = file.absolutePath), thumbnail = null, duration = dur, length = 384),
+                                        selfDestructType = null,
+                                    ),
+                                )
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    if (r is TdlResult.Failure) toast(ctx, t("Couldn't send") + ": " + r.message)
+                                    onClose()
+                                }
                             }
                         }
                     }
@@ -188,6 +192,31 @@ fun VideoNoteScreen(acc: TgAccount, chatId: Long, onClose: () -> Unit) {
             Text(if (recording != null) t("Tap to send") else t("Tap to start"), color = Color.White.copy(alpha = 0.7f), modifier = Modifier.padding(bottom = 16.dp).height(22.dp))
         }
     }
+}
+
+/** Telegram only shows square videos as round video messages, so crop to 384×384. */
+private fun squareVideo(ctx: android.content.Context, input: java.io.File, output: java.io.File, done: (Boolean) -> Unit) {
+    try {
+        val edited = androidx.media3.transformer.EditedMediaItem.Builder(androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(input)))
+            .setEffects(
+                androidx.media3.transformer.Effects(
+                    emptyList(),
+                    listOf(androidx.media3.effect.Presentation.createForWidthAndHeight(384, 384, androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)),
+                ),
+            ).build()
+        val tr = androidx.media3.transformer.Transformer.Builder(ctx)
+            .setVideoMimeType(androidx.media3.common.MimeTypes.VIDEO_H264)
+            .addListener(object : androidx.media3.transformer.Transformer.Listener {
+                override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult) {
+                    input.delete(); done(true)
+                }
+                override fun onError(
+                    composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult,
+                    exportException: androidx.media3.transformer.ExportException,
+                ) { done(false) }
+            }).build()
+        tr.start(edited, output.absolutePath)
+    } catch (_: Throwable) { done(false) }
 }
 
 /** Only one video message plays with sound at a time. */

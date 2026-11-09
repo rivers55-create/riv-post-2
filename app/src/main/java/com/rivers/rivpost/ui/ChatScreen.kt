@@ -1034,9 +1034,12 @@ private fun MessageItem(
             .background(if (m.id in data.selected) style.accent.copy(alpha = 0.18f) else Color.Transparent)
             .padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
             .graphicsLayer { translationX = dragX; alpha = if (deleted) 0.55f else 1f }
-            .pointerInput(m.id, Prefs.swipeForward) {
-                if (Prefs.swipeForward) detectHorizontalDragGestures(
-                    onDragEnd = { if (dragX < -140f) onQuickForward(m); dragX = 0f },
+            .pointerInput(m.id, Prefs.swipeForward, Prefs.swipeReply) {
+                if (Prefs.swipeForward || Prefs.swipeReply) detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragX < -140f) { if (Prefs.swipeReply) onReply(m) else onQuickForward(m) }
+                        dragX = 0f
+                    },
                     onDragCancel = { dragX = 0f },
                 ) { _, d -> dragX = (dragX + d).coerceIn(-220f, 0f) }
             },

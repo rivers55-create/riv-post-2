@@ -242,7 +242,8 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
             }
         }
         SwitchRow(t("Swipe the bottom bar to switch accounts"), null, Prefs.swipeAccounts) { Prefs.swipeAccounts = it }
-        SwitchRow(t("Swipe a message left to forward it"), t("Goes to Saved Messages unless you pick a chat below"), Prefs.swipeForward) { Prefs.swipeForward = it }
+        SwitchRow(t("Swipe a message left to reply"), null, Prefs.swipeReply) { Prefs.swipeReply = it; if (it) Prefs.swipeForward = false }
+        SwitchRow(t("Swipe a message left to forward it instead"), t("Goes to Saved Messages unless you pick a chat below"), Prefs.swipeForward) { Prefs.swipeForward = it; if (it) Prefs.swipeReply = false }
         ChoiceRow(
             t("Quick forward goes to"),
             listOf("" to t("Saved Messages")) + acc.chatList(dev.g000sha256.tdl.dto.ChatListMain()).take(30).map { it.first.id.toString() to it.first.title },

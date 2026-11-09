@@ -737,6 +737,8 @@ object Lang {
         "White" to "أبيض",
         "Yellow" to "أصفر",
         "more hidden songs not loaded yet" to "أغانٍ مخفية أخرى لم تُحمّل بعد",
+        "Swipe a message left to reply" to "اسحب الرسالة لليسار للرد",
+        "Swipe a message left to forward it instead" to "اسحب الرسالة لليسار لإعادة توجيهها بدلاً من ذلك",
     )
 }
 
