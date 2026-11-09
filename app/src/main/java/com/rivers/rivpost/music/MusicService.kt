@@ -26,9 +26,9 @@ private class QueuePlayer(p: Player) : ForwardingPlayer(p) {
     override fun seekToNextMediaItem() { Music.next() }
     override fun seekToPrevious() { Music.previous() }
     override fun seekToPreviousMediaItem() { Music.previous() }
-    override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) { Music.setShuffle(shuffleModeEnabled) }
+    override fun setShuffleModeEnabled(shuffleModeEnabled: Boolean) { Music.applyShuffle(shuffleModeEnabled) }
     override fun setRepeatMode(repeatMode: Int) {
-        Music.setRepeat(when (repeatMode) { Player.REPEAT_MODE_ALL -> 1; Player.REPEAT_MODE_ONE -> 2; else -> 0 })
+        Music.applyRepeat(when (repeatMode) { Player.REPEAT_MODE_ALL -> 1; Player.REPEAT_MODE_ONE -> 2; else -> 0 })
     }
 }
 

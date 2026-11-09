@@ -263,18 +263,18 @@ object Music {
     fun seekTo(ms: Long) { exo?.seekTo(ms.coerceAtLeast(0)) }
     fun seekBy(ms: Long) { seekTo(position + ms) }
 
-    fun toggleShuffle() = setShuffle(!shuffle)
+    fun toggleShuffle() = applyShuffle(!shuffle)
 
-    fun setShuffle(on: Boolean) {
+    fun applyShuffle(on: Boolean) {
         shuffle = on
         rebuildOrder(index.coerceAtLeast(0))
         exo?.shuffleModeEnabled = on   // so the phone's media panel shows it
     }
 
-    fun cycleRepeat() = setRepeat((repeat + 1) % 3)
+    fun cycleRepeat() = applyRepeat((repeat + 1) % 3)
 
     /** 0 off, 1 all, 2 one. The phone's media panel reads it from the player. */
-    fun setRepeat(r: Int) {
+    fun applyRepeat(r: Int) {
         repeat = r
         exo?.repeatMode = when (r) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
     }
