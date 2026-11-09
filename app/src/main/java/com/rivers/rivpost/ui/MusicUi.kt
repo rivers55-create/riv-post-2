@@ -17,6 +17,7 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -1003,7 +1004,7 @@ fun MusicCard(s: Track, modifier: Modifier = Modifier) {
 /** Drag the player up or down to move it to the top or bottom of the screen. */
 fun Modifier.moveDrag(): Modifier = this.pointerInput(Unit) {
     var dy = 0f
-    androidx.compose.foundation.gestures.detectVerticalDragGestures(
+    detectVerticalDragGestures(
         onDragEnd = {
             if (dy < -120f) Prefs.miniPos = "top" else if (dy > 120f) Prefs.miniPos = "bottom"
             dy = 0f
