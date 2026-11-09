@@ -1,0 +1,425 @@
+== apk/lib/arm64-v8a/libc++_shared.so
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+== apk/lib/arm64-v8a/libcryptox.so
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libdatastore_shared_counter.so
+0000000000000e54 T Java_androidx_datastore_core_NativeSharedCounter_nativeCreateSharedCounter
+0000000000000f14 T Java_androidx_datastore_core_NativeSharedCounter_nativeGetCounterValue
+0000000000000f2c T Java_androidx_datastore_core_NativeSharedCounter_nativeIncrementAndGetCounterValue
+0000000000000ddc T Java_androidx_datastore_core_NativeSharedCounter_nativeTruncateFile
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libimage_processing_util_jni.so
+0000000000006540 T Java_androidx_camera_core_ImageProcessingUtil_nativeConvertAndroid420ToABGR@@VERS_1.0
+00000000000068f4 T Java_androidx_camera_core_ImageProcessingUtil_nativeConvertAndroid420ToBitmap@@VERS_1.0
+00000000000060cc T Java_androidx_camera_core_ImageProcessingUtil_nativeCopyBetweenByteBufferAndBitmap@@VERS_1.0
+0000000000007154 T Java_androidx_camera_core_ImageProcessingUtil_nativeGetYUVImageVUOff@@VERS_1.0
+000000000000719c T Java_androidx_camera_core_ImageProcessingUtil_nativeNewDirectByteBuffer@@VERS_1.0
+0000000000006a3c T Java_androidx_camera_core_ImageProcessingUtil_nativeRotateYUV@@VERS_1.0
+00000000000061bc T Java_androidx_camera_core_ImageProcessingUtil_nativeShiftPixel@@VERS_1.0
+00000000000063d8 T Java_androidx_camera_core_ImageProcessingUtil_nativeWriteJpegToSurface@@VERS_1.0
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libjnigraphics.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/liblanguage_id_l2c_jni.so
+00000000000406c0 T Java_com_google_mlkit_nl_languageid_bundled_internal_ThickLanguageIdentifier_nativeDestroy@@VERS_1.0
+00000000000401c0 T Java_com_google_mlkit_nl_languageid_bundled_internal_ThickLanguageIdentifier_nativeIdentifyPossibleLanguages@@VERS_1.0
+00000000000400c0 T Java_com_google_mlkit_nl_languageid_bundled_internal_ThickLanguageIdentifier_nativeInitFromBuffer@@VERS_1.0
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libleveldbjni.so
+0000000000015ca8 T Java_me_vkryl_leveldb_NativeBridge_dbAsBoolean
+0000000000017b0c T Java_me_vkryl_leveldb_NativeBridge_dbAsByteArray
+00000000000174f8 T Java_me_vkryl_leveldb_NativeBridge_dbAsDouble
+0000000000016ee4 T Java_me_vkryl_leveldb_NativeBridge_dbAsFloat
+00000000000162bc T Java_me_vkryl_leveldb_NativeBridge_dbAsInt
+0000000000017bb0 T Java_me_vkryl_leveldb_NativeBridge_dbAsIntArray
+00000000000168d0 T Java_me_vkryl_leveldb_NativeBridge_dbAsLong
+000000000001831c T Java_me_vkryl_leveldb_NativeBridge_dbAsLongArray
+0000000000018a88 T Java_me_vkryl_leveldb_NativeBridge_dbAsString
+000000000002cf94 T Java_me_vkryl_leveldb_NativeBridge_dbBatchClear
+000000000002cab0 T Java_me_vkryl_leveldb_NativeBridge_dbBatchCreate
+000000000002cf54 T Java_me_vkryl_leveldb_NativeBridge_dbBatchDestroy
+000000000002caec T Java_me_vkryl_leveldb_NativeBridge_dbBatchPerform
+000000000002d0d0 T Java_me_vkryl_leveldb_NativeBridge_dbBatchRemove
+0000000000019208 T Java_me_vkryl_leveldb_NativeBridge_dbClear
+000000000001304c T Java_me_vkryl_leveldb_NativeBridge_dbClose
+000000000001d5f0 T Java_me_vkryl_leveldb_NativeBridge_dbContains
+0000000000014f88 T Java_me_vkryl_leveldb_NativeBridge_dbFind
+0000000000013c8c T Java_me_vkryl_leveldb_NativeBridge_dbFindAll
+0000000000014594 T Java_me_vkryl_leveldb_NativeBridge_dbFindByValue
+0000000000015ae4 T Java_me_vkryl_leveldb_NativeBridge_dbFindFinish
+0000000000020200 T Java_me_vkryl_leveldb_NativeBridge_dbGetBoolean
+0000000000020c40 T Java_me_vkryl_leveldb_NativeBridge_dbGetByte
+0000000000024ca0 T Java_me_vkryl_leveldb_NativeBridge_dbGetByteArray
+00000000000220c8 T Java_me_vkryl_leveldb_NativeBridge_dbGetDouble
+0000000000025dec T Java_me_vkryl_leveldb_NativeBridge_dbGetDoubleArray
+0000000000021680 T Java_me_vkryl_leveldb_NativeBridge_dbGetFloat
+0000000000025318 T Java_me_vkryl_leveldb_NativeBridge_dbGetFloatArray
+000000000001f448 T Java_me_vkryl_leveldb_NativeBridge_dbGetInt
+00000000000236f8 T Java_me_vkryl_leveldb_NativeBridge_dbGetIntArray
+000000000001df24 T Java_me_vkryl_leveldb_NativeBridge_dbGetIntOrLong
+000000000001fb24 T Java_me_vkryl_leveldb_NativeBridge_dbGetLong
+00000000000241cc T Java_me_vkryl_leveldb_NativeBridge_dbGetLongArray
+00000000000137f0 T Java_me_vkryl_leveldb_NativeBridge_dbGetProperty
+0000000000013064 T Java_me_vkryl_leveldb_NativeBridge_dbGetSize
+0000000000013130 T Java_me_vkryl_leveldb_NativeBridge_dbGetSizeByPrefix
+0000000000022b10 T Java_me_vkryl_leveldb_NativeBridge_dbGetString
+00000000000268c0 T Java_me_vkryl_leveldb_NativeBridge_dbGetStringArray
+000000000001d850 T Java_me_vkryl_leveldb_NativeBridge_dbGetValueSize
+0000000000015b3c T Java_me_vkryl_leveldb_NativeBridge_dbNextKey
+000000000001243c T Java_me_vkryl_leveldb_NativeBridge_dbOpen
+00000000000285d0 T Java_me_vkryl_leveldb_NativeBridge_dbPutBoolean
+00000000000286b0 T Java_me_vkryl_leveldb_NativeBridge_dbPutByte
+0000000000029f0c T Java_me_vkryl_leveldb_NativeBridge_dbPutByteArray
+0000000000028870 T Java_me_vkryl_leveldb_NativeBridge_dbPutDouble
+000000000002b33c T Java_me_vkryl_leveldb_NativeBridge_dbPutDoubleArray
+0000000000028790 T Java_me_vkryl_leveldb_NativeBridge_dbPutFloat
+000000000002a920 T Java_me_vkryl_leveldb_NativeBridge_dbPutFloatArray
+0000000000028410 T Java_me_vkryl_leveldb_NativeBridge_dbPutInt
+0000000000028aec T Java_me_vkryl_leveldb_NativeBridge_dbPutIntArray
+00000000000284f0 T Java_me_vkryl_leveldb_NativeBridge_dbPutLong
+00000000000294f8 T Java_me_vkryl_leveldb_NativeBridge_dbPutLongArray
+0000000000028950 T Java_me_vkryl_leveldb_NativeBridge_dbPutString
+000000000002bd60 T Java_me_vkryl_leveldb_NativeBridge_dbPutStringArray
+0000000000028334 T Java_me_vkryl_leveldb_NativeBridge_dbPutVoid
+00000000000197b4 T Java_me_vkryl_leveldb_NativeBridge_dbRemove
+000000000001a880 T Java_me_vkryl_leveldb_NativeBridge_dbRemoveByAnyPrefix
+0000000000019d84 T Java_me_vkryl_leveldb_NativeBridge_dbRemoveByPrefix
+0000000000011b44 T Java_me_vkryl_leveldb_NativeBridge_dbRepair
+0000000000011940 T Java_me_vkryl_leveldb_NativeBridge_dbVersion
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++_shared.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libsslx.so
+ 0x0000000000000001 (NEEDED)             Shared library: [libcryptox.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libsurface_util_jni.so
+0000000000000838 T Java_androidx_camera_core_impl_utils_SurfaceUtil_nativeGetSurfaceInfo@@VERS_1.0
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libtdjni.so
+0000000000602d94 T JNI_OnLoad
+ 0x0000000000000001 (NEEDED)             Shared library: [libsslx.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcryptox.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libz.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++_shared.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libtgcallsjni.so
+000000000025548c T JNI_OnLoad
+000000000025513c T Java_org_thunderdog_challegram_N_getTgCallsVersions
+000000000024d618 T Java_org_thunderdog_challegram_N_toHexString
+0000000000254098 T Java_org_thunderdog_challegram_voip_TgCallsController_debugLog
+0000000000254558 T Java_org_thunderdog_challegram_voip_TgCallsController_destroyInstance
+0000000000254374 T Java_org_thunderdog_challegram_voip_TgCallsController_fetchNetworkStats
+0000000000253fd0 T Java_org_thunderdog_challegram_voip_TgCallsController_lastError
+000000000024d698 T Java_org_thunderdog_challegram_voip_TgCallsController_newInstance
+0000000000253fb0 T Java_org_thunderdog_challegram_voip_TgCallsController_preferredConnectionId
+0000000000254160 T Java_org_thunderdog_challegram_voip_TgCallsController_processIncomingSignalingData
+000000000025434c T Java_org_thunderdog_challegram_voip_TgCallsController_updateAudioOutputGainControlEnabled
+000000000025432c T Java_org_thunderdog_challegram_voip_TgCallsController_updateEchoCancellationStrength
+0000000000254304 T Java_org_thunderdog_challegram_voip_TgCallsController_updateMicrophoneDisabled
+00000000002542b8 T Java_org_thunderdog_challegram_voip_TgCallsController_updateNetworkType
+0000000000264184 T Java_org_webrtc_AudioTrack_nativeSetVolume
+000000000029a2d8 T Java_org_webrtc_BuiltinAudioDecoderFactoryFactory_nativeCreateBuiltinAudioDecoderFactory
+000000000029a31c T Java_org_webrtc_BuiltinAudioEncoderFactoryFactory_nativeCreateBuiltinAudioEncoderFactory
+0000000000264218 T Java_org_webrtc_CallSessionFileRotatingLogSink_nativeAddSink
+0000000000264508 T Java_org_webrtc_CallSessionFileRotatingLogSink_nativeDeleteSink
+0000000000264548 T Java_org_webrtc_CallSessionFileRotatingLogSink_nativeGetLogData
+000000000026498c T Java_org_webrtc_DataChannel_nativeBufferedAmount
+0000000000264c2c T Java_org_webrtc_DataChannel_nativeClose
+0000000000264c48 T Java_org_webrtc_DataChannel_nativeId
+0000000000264c64 T Java_org_webrtc_DataChannel_nativeLabel
+0000000000264da4 T Java_org_webrtc_DataChannel_nativeRegisterObserver
+00000000002658a8 T Java_org_webrtc_DataChannel_nativeSend
+0000000000265aa8 T Java_org_webrtc_DataChannel_nativeState
+0000000000265d0c T Java_org_webrtc_DataChannel_nativeUnregisterObserver
+0000000000265fc4 T Java_org_webrtc_DtmfSender_nativeCanInsertDtmf
+0000000000265fe8 T Java_org_webrtc_DtmfSender_nativeDuration
+0000000000265ff8 T Java_org_webrtc_DtmfSender_nativeInsertDtmf
+00000000002660cc T Java_org_webrtc_DtmfSender_nativeInterToneGap
+00000000002660dc T Java_org_webrtc_DtmfSender_nativeTones
+000000000029a360 T Java_org_webrtc_EglBase10Impl_nativeGetCurrentNativeEGLContext
+000000000029a808 T Java_org_webrtc_H264Utils_nativeIsSameH264Profile
+0000000000292394 T Java_org_webrtc_Histogram_nativeAddSample
+00000000002923a8 T Java_org_webrtc_Histogram_nativeCreateCounts
+0000000000292460 T Java_org_webrtc_Histogram_nativeCreateEnumeration
+000000000029a8dc T Java_org_webrtc_JavaI420Buffer_nativeCropAndScaleI420
+000000000029aa78 T Java_org_webrtc_JniCommon_nativeAddRef
+000000000029aa88 T Java_org_webrtc_JniCommon_nativeAllocateByteBuffer
+000000000029ab6c T Java_org_webrtc_JniCommon_nativeFreeByteBuffer
+000000000029ab8c T Java_org_webrtc_JniCommon_nativeReleaseRef
+00000000002ac044 T Java_org_webrtc_LibvpxVp8Decoder_nativeCreateDecoder
+00000000002ac078 T Java_org_webrtc_LibvpxVp8Encoder_nativeCreateEncoder
+00000000002ac0c4 T Java_org_webrtc_LibvpxVp9Decoder_nativeCreateDecoder
+00000000002ac170 T Java_org_webrtc_LibvpxVp9Decoder_nativeIsSupported
+00000000002ac234 T Java_org_webrtc_LibvpxVp9Encoder_nativeCreateEncoder
+00000000002ac378 T Java_org_webrtc_LibvpxVp9Encoder_nativeIsSupported
+0000000000266ba4 T Java_org_webrtc_Logging_nativeEnableLogThreads
+0000000000266bb4 T Java_org_webrtc_Logging_nativeEnableLogTimeStamps
+0000000000266b90 T Java_org_webrtc_Logging_nativeEnableLogToDebugOutput
+0000000000266bc4 T Java_org_webrtc_Logging_nativeLog
+0000000000267d4c T Java_org_webrtc_MediaSource_nativeGetState
+0000000000269508 T Java_org_webrtc_MediaStreamTrack_nativeGetEnabled
+000000000026952c T Java_org_webrtc_MediaStreamTrack_nativeGetId
+000000000026966c T Java_org_webrtc_MediaStreamTrack_nativeGetKind
+00000000002697ac T Java_org_webrtc_MediaStreamTrack_nativeGetState
+0000000000269a10 T Java_org_webrtc_MediaStreamTrack_nativeSetEnabled
+0000000000267fb0 T Java_org_webrtc_MediaStream_nativeAddAudioTrackToNativeStream
+0000000000268078 T Java_org_webrtc_MediaStream_nativeAddVideoTrackToNativeStream
+0000000000268140 T Java_org_webrtc_MediaStream_nativeGetId
+0000000000268280 T Java_org_webrtc_MediaStream_nativeRemoveAudioTrack
+0000000000268348 T Java_org_webrtc_MediaStream_nativeRemoveVideoTrack
+0000000000292500 T Java_org_webrtc_Metrics_nativeEnable
+00000000002925c0 T Java_org_webrtc_Metrics_nativeGetAndReset
+000000000029b6d0 T Java_org_webrtc_NV12Buffer_nativeCropAndScale
+000000000029b8ec T Java_org_webrtc_NV21Buffer_nativeCropAndScale
+0000000000298e58 T Java_org_webrtc_NativeAndroidVideoTrackSource_nativeAdaptFrame
+0000000000299200 T Java_org_webrtc_NativeAndroidVideoTrackSource_nativeAdaptOutputFormat
+0000000000299324 T Java_org_webrtc_NativeAndroidVideoTrackSource_nativeOnFrameCaptured
+0000000000299b80 T Java_org_webrtc_NativeAndroidVideoTrackSource_nativeSetIsScreencast
+0000000000299b94 T Java_org_webrtc_NativeAndroidVideoTrackSource_nativeSetState
+0000000000293350 T Java_org_webrtc_NetworkMonitor_nativeNotifyConnectionTypeChanged
+000000000029364c T Java_org_webrtc_NetworkMonitor_nativeNotifyOfActiveNetworkList
+00000000002962b4 T Java_org_webrtc_NetworkMonitor_nativeNotifyOfNetworkConnect
+0000000000296684 T Java_org_webrtc_NetworkMonitor_nativeNotifyOfNetworkDisconnect
+0000000000296d04 T Java_org_webrtc_NetworkMonitor_nativeNotifyOfNetworkPreference
+000000000027c71c T Java_org_webrtc_PeerConnectionFactory_nativeCreateAudioSource
+000000000027ce98 T Java_org_webrtc_PeerConnectionFactory_nativeCreateAudioTrack
+000000000027cf64 T Java_org_webrtc_PeerConnectionFactory_nativeCreateLocalMediaStream
+000000000027d020 T Java_org_webrtc_PeerConnectionFactory_nativeCreatePeerConnection
+000000000027d904 T Java_org_webrtc_PeerConnectionFactory_nativeCreatePeerConnectionFactory
+000000000027f4b0 T Java_org_webrtc_PeerConnectionFactory_nativeCreateVideoSource
+000000000027f52c T Java_org_webrtc_PeerConnectionFactory_nativeCreateVideoTrack
+000000000027f664 T Java_org_webrtc_PeerConnectionFactory_nativeDeleteLoggable
+000000000027f708 T Java_org_webrtc_PeerConnectionFactory_nativeFindFieldTrialsFullName
+000000000027f894 T Java_org_webrtc_PeerConnectionFactory_nativeFreeFactory
+000000000027fa04 T Java_org_webrtc_PeerConnectionFactory_nativeGetNativePeerConnectionFactory
+000000000027fa0c T Java_org_webrtc_PeerConnectionFactory_nativeGetRtpReceiverCapabilities
+000000000027fabc T Java_org_webrtc_PeerConnectionFactory_nativeGetRtpSenderCapabilities
+000000000027fb6c T Java_org_webrtc_PeerConnectionFactory_nativeInitializeAndroidGlobals
+000000000027fbd0 T Java_org_webrtc_PeerConnectionFactory_nativeInitializeFieldTrials
+000000000027fe04 T Java_org_webrtc_PeerConnectionFactory_nativeInitializeInternalTracer
+000000000027ff08 T Java_org_webrtc_PeerConnectionFactory_nativeInjectLoggable
+000000000028001c T Java_org_webrtc_PeerConnectionFactory_nativePrintStackTrace
+00000000002803c8 T Java_org_webrtc_PeerConnectionFactory_nativeShutdownInternalTracer
+0000000000280598 T Java_org_webrtc_PeerConnectionFactory_nativeStartAecDump
+0000000000280604 T Java_org_webrtc_PeerConnectionFactory_nativeStartInternalTracingCapture
+0000000000280980 T Java_org_webrtc_PeerConnectionFactory_nativeStopAecDump
+0000000000280990 T Java_org_webrtc_PeerConnectionFactory_nativeStopInternalTracingCapture
+0000000000269ee0 T Java_org_webrtc_PeerConnection_nativeAddIceCandidate
+000000000026a2ac T Java_org_webrtc_PeerConnection_nativeAddIceCandidateWithObserver
+000000000026ae48 T Java_org_webrtc_PeerConnection_nativeAddLocalStream
+000000000026ae80 T Java_org_webrtc_PeerConnection_nativeAddTrack
+000000000026b624 T Java_org_webrtc_PeerConnection_nativeAddTransceiverOfType
+000000000026b858 T Java_org_webrtc_PeerConnection_nativeAddTransceiverWithTrack
+000000000026ba64 T Java_org_webrtc_PeerConnection_nativeClose
+000000000026ba84 T Java_org_webrtc_PeerConnection_nativeConnectionState
+000000000026bd4c T Java_org_webrtc_PeerConnection_nativeCreateAnswer
+000000000026c1bc T Java_org_webrtc_PeerConnection_nativeCreateDataChannel
+000000000026cdf8 T Java_org_webrtc_PeerConnection_nativeCreateOffer
+000000000026cf30 T Java_org_webrtc_PeerConnection_nativeCreatePeerConnectionObserver
+0000000000272258 T Java_org_webrtc_PeerConnection_nativeCreateSender
+0000000000272414 T Java_org_webrtc_PeerConnection_nativeFreeOwnedPeerConnection
+00000000002724b4 T Java_org_webrtc_PeerConnection_nativeGetCertificate
+00000000002727dc T Java_org_webrtc_PeerConnection_nativeGetLocalDescription
+0000000000272a1c T Java_org_webrtc_PeerConnection_nativeGetNativePeerConnection
+0000000000272a34 T Java_org_webrtc_PeerConnection_nativeGetReceivers
+0000000000272d04 T Java_org_webrtc_PeerConnection_nativeGetRemoteDescription
+0000000000272f44 T Java_org_webrtc_PeerConnection_nativeGetSenders
+0000000000273214 T Java_org_webrtc_PeerConnection_nativeGetTransceivers
+00000000002734e4 T Java_org_webrtc_PeerConnection_nativeIceConnectionState
+0000000000273550 T Java_org_webrtc_PeerConnection_nativeIceGatheringState
+00000000002735bc T Java_org_webrtc_PeerConnection_nativeNewGetStats
+0000000000273768 T Java_org_webrtc_PeerConnection_nativeNewGetStatsReceiver
+0000000000273930 T Java_org_webrtc_PeerConnection_nativeNewGetStatsSender
+0000000000273af8 T Java_org_webrtc_PeerConnection_nativeOldGetStats
+0000000000273c44 T Java_org_webrtc_PeerConnection_nativeRemoveIceCandidates
+00000000002745a0 T Java_org_webrtc_PeerConnection_nativeRemoveLocalStream
+00000000002745d0 T Java_org_webrtc_PeerConnection_nativeRemoveTrack
+00000000002746c8 T Java_org_webrtc_PeerConnection_nativeRestartIce
+00000000002746e8 T Java_org_webrtc_PeerConnection_nativeSetAudioPlayout
+000000000027471c T Java_org_webrtc_PeerConnection_nativeSetAudioRecording
+0000000000274750 T Java_org_webrtc_PeerConnection_nativeSetBitrate
+000000000027483c T Java_org_webrtc_PeerConnection_nativeSetConfiguration
+000000000027bf04 T Java_org_webrtc_PeerConnection_nativeSetLocalDescription
+000000000027c15c T Java_org_webrtc_PeerConnection_nativeSetLocalDescriptionAutomatically
+000000000027c2cc T Java_org_webrtc_PeerConnection_nativeSetRemoteDescription
+000000000027c524 T Java_org_webrtc_PeerConnection_nativeSignalingState
+000000000027c590 T Java_org_webrtc_PeerConnection_nativeStartRtcEventLog
+000000000027c6fc T Java_org_webrtc_PeerConnection_nativeStopRtcEventLog
+0000000000280a5c T Java_org_webrtc_RtcCertificatePem_nativeGenerateCertificate
+000000000028b0b8 T Java_org_webrtc_RtpReceiver_nativeGetId
+000000000028b1f8 T Java_org_webrtc_RtpReceiver_nativeGetParameters
+000000000028b290 T Java_org_webrtc_RtpReceiver_nativeGetTrack
+000000000028b2e8 T Java_org_webrtc_RtpReceiver_nativeSetFrameDecryptor
+000000000028b3a8 T Java_org_webrtc_RtpReceiver_nativeSetObserver
+000000000028b76c T Java_org_webrtc_RtpReceiver_nativeUnsetObserver
+000000000028bc74 T Java_org_webrtc_RtpSender_nativeGetDtmfSender
+000000000028bccc T Java_org_webrtc_RtpSender_nativeGetId
+000000000028be0c T Java_org_webrtc_RtpSender_nativeGetMediaType
+000000000028bed0 T Java_org_webrtc_RtpSender_nativeGetParameters
+000000000028bf68 T Java_org_webrtc_RtpSender_nativeGetStreams
+000000000028c1d4 T Java_org_webrtc_RtpSender_nativeGetTrack
+000000000028c22c T Java_org_webrtc_RtpSender_nativeSetFrameEncryptor
+000000000028c2ec T Java_org_webrtc_RtpSender_nativeSetParameters
+000000000028c3e8 T Java_org_webrtc_RtpSender_nativeSetStreams
+000000000028c4d8 T Java_org_webrtc_RtpSender_nativeSetTrack
+000000000028c770 T Java_org_webrtc_RtpTransceiver_nativeCurrentDirection
+000000000028ca44 T Java_org_webrtc_RtpTransceiver_nativeDirection
+000000000028caac T Java_org_webrtc_RtpTransceiver_nativeGetMediaType
+000000000028cb14 T Java_org_webrtc_RtpTransceiver_nativeGetMid
+000000000028cc80 T Java_org_webrtc_RtpTransceiver_nativeGetReceiver
+000000000028cd3c T Java_org_webrtc_RtpTransceiver_nativeGetSender
+000000000028cdf8 T Java_org_webrtc_RtpTransceiver_nativeSetCodecPreferences
+000000000028e118 T Java_org_webrtc_RtpTransceiver_nativeSetDirection
+000000000028e448 T Java_org_webrtc_RtpTransceiver_nativeStopInternal
+000000000028e458 T Java_org_webrtc_RtpTransceiver_nativeStopStandard
+000000000028e4c4 T Java_org_webrtc_RtpTransceiver_nativeStopped
+000000000029bfc8 T Java_org_webrtc_SoftwareVideoDecoderFactory_nativeCreate
+000000000029c0a4 T Java_org_webrtc_SoftwareVideoDecoderFactory_nativeCreateFactory
+000000000029c0c8 T Java_org_webrtc_SoftwareVideoDecoderFactory_nativeGetSupportedCodecs
+000000000029c378 T Java_org_webrtc_SoftwareVideoDecoderFactory_nativeIsSupported
+000000000029c500 T Java_org_webrtc_SoftwareVideoEncoderFactory_nativeCreateEncoder
+000000000029c5d0 T Java_org_webrtc_SoftwareVideoEncoderFactory_nativeCreateFactory
+000000000029c620 T Java_org_webrtc_SoftwareVideoEncoderFactory_nativeGetSupportedCodecs
+000000000029c830 T Java_org_webrtc_TimestampAligner_nativeCreateTimestampAligner
+000000000029c85c T Java_org_webrtc_TimestampAligner_nativeReleaseTimestampAligner
+000000000029c870 T Java_org_webrtc_TimestampAligner_nativeRtcTimeNanos
+000000000029c8d0 T Java_org_webrtc_TimestampAligner_nativeTranslateTimestamp
+000000000029237c T Java_org_webrtc_TurnCustomizer_nativeFreeTurnCustomizer
+000000000029e080 T Java_org_webrtc_VideoDecoderFallback_nativeCreate
+000000000029e340 T Java_org_webrtc_VideoDecoderWrapper_nativeOnDecodedFrame
+00000000002a2a14 T Java_org_webrtc_VideoEncoderFallback_nativeCreateEncoder
+00000000002a2b00 T Java_org_webrtc_VideoEncoderWrapper_nativeOnEncodedFrame
+00000000002abec0 T Java_org_webrtc_VideoTrack_nativeAddSink
+00000000002abfa0 T Java_org_webrtc_VideoTrack_nativeFreeSink
+00000000002abfb8 T Java_org_webrtc_VideoTrack_nativeRemoveSink
+00000000002abfcc T Java_org_webrtc_VideoTrack_nativeWrapSink
+00000000002ac43c T Java_org_webrtc_YuvHelper_nativeABGRToI420
+00000000002aca2c T Java_org_webrtc_YuvHelper_nativeCopyPlane
+00000000002acab4 T Java_org_webrtc_YuvHelper_nativeI420Copy
+00000000002acbec T Java_org_webrtc_YuvHelper_nativeI420Rotate
+00000000002acd34 T Java_org_webrtc_YuvHelper_nativeI420ToNV12
+0000000000261078 T Java_org_webrtc_audio_JavaAudioDeviceModule_nativeCreateAudioDeviceModule
+000000000025cf98 T Java_org_webrtc_audio_WebRtcAudioRecord_nativeCacheDirectBufferAddress
+000000000025d04c T Java_org_webrtc_audio_WebRtcAudioRecord_nativeDataIsRecorded
+000000000025f1a0 T Java_org_webrtc_audio_WebRtcAudioTrack_nativeCacheDirectBufferAddress
+000000000025f298 T Java_org_webrtc_audio_WebRtcAudioTrack_nativeGetPlayoutData
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libEGL.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libz.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcryptox.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libsslx.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libOpenSLES.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++_shared.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
+== apk/lib/arm64-v8a/libtgxjni.so
+0000000000134e08 T JNI_OnLoad
+00000000001352f4 T JNI_OnUnload
+00000000001477e0 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacDecodeMetadata
+000000000014848c T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacDecodeToArray
+00000000001483b8 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacDecodeToBuffer
+0000000000148810 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacFlush
+0000000000148588 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetDecodePosition
+000000000014865c T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetLastFrameFirstSampleIndex
+000000000014863c T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetLastFrameTimestamp
+0000000000148668 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetNextFrameFirstSampleIndex
+000000000014867c T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetSeekPoints
+00000000001487cc T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacGetStateString
+0000000000147374 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacInit
+00000000001487f4 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacIsDecoderAtEndOfStream
+00000000001489d8 T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacRelease
+00000000001489cc T Java_androidx_media3_decoder_flac_FlacDecoderJni_flacReset
+000000000012596c T Java_org_thunderdog_challegram_Log_closeLogImpl
+0000000000124edc T Java_org_thunderdog_challegram_Log_endCaptureImpl
+0000000000125528 T Java_org_thunderdog_challegram_Log_getDeviceInformation
+00000000001250cc T Java_org_thunderdog_challegram_Log_getLogTag
+00000000001252f8 T Java_org_thunderdog_challegram_Log_getLogTagDescription
+0000000000124fcc T Java_org_thunderdog_challegram_Log_logToFileImpl
+0000000000124aac T Java_org_thunderdog_challegram_Log_setInternalValues
+000000000012505c T Java_org_thunderdog_challegram_Log_setLogLevelImpl
+0000000000125094 T Java_org_thunderdog_challegram_Log_setLogTagsImpl
+0000000000124e58 T Java_org_thunderdog_challegram_Log_startCaptureImpl
+000000000013a5d8 T Java_org_thunderdog_challegram_N_blurBitmap
+000000000013b304 T Java_org_thunderdog_challegram_N_calcCDT
+0000000000145e14 T Java_org_thunderdog_challegram_N_cancelLottieDecoder
+000000000013be88 T Java_org_thunderdog_challegram_N_createDecoder
+00000000001462a4 T Java_org_thunderdog_challegram_N_createLottieCache
+0000000000145fdc T Java_org_thunderdog_challegram_N_createLottieDecoder
+0000000000145e24 T Java_org_thunderdog_challegram_N_decodeLottieFirstFrame
+00000000001437b0 T Java_org_thunderdog_challegram_N_destroyDecoder
+00000000001437e4 T Java_org_thunderdog_challegram_N_destroyLottieDecoder
+000000000013872c T Java_org_thunderdog_challegram_N_getEmojiSuggestionMaxLength
+0000000000138734 T Java_org_thunderdog_challegram_N_getEmojiSuggestions
+00000000001469ec T Java_org_thunderdog_challegram_N_getLottieFrame
+0000000000146238 T Java_org_thunderdog_challegram_N_getLottieSize
+0000000000136674 T Java_org_thunderdog_challegram_N_getTotalPcmDuration
+0000000000143df4 T Java_org_thunderdog_challegram_N_getVideoFrame
+0000000000137f0c T Java_org_thunderdog_challegram_N_getWaveform
+00000000001383d8 T Java_org_thunderdog_challegram_N_getWaveform2
+000000000013badc T Java_org_thunderdog_challegram_N_hasBuiltInWebpSupport
+0000000000146ccc T Java_org_thunderdog_challegram_N_iimg
+0000000000137dfc T Java_org_thunderdog_challegram_N_isOpusFile
+0000000000143de0 T Java_org_thunderdog_challegram_N_isVideoBroken
+000000000013bae4 T Java_org_thunderdog_challegram_N_loadWebpImage
+0000000000127fc0 T Java_org_thunderdog_challegram_N_onDrawFrame
+0000000000125970 T Java_org_thunderdog_challegram_N_onFatalError
+0000000000133940 T Java_org_thunderdog_challegram_N_onSurfaceChanged
+00000000001307a0 T Java_org_thunderdog_challegram_N_onSurfaceCreated
+0000000000137c28 T Java_org_thunderdog_challegram_N_openOpusFile
+000000000013ba80 T Java_org_thunderdog_challegram_N_pinBitmap
+0000000000136680 T Java_org_thunderdog_challegram_N_readOpusFile
+000000000013a358 T Java_org_thunderdog_challegram_N_readlink
+0000000000135b64 T Java_org_thunderdog_challegram_N_resumeRecord
+00000000001369b4 T Java_org_thunderdog_challegram_N_seekOpusFile
+000000000014389c T Java_org_thunderdog_challegram_N_seekVideoToStart
+0000000000127fac T Java_org_thunderdog_challegram_N_setColor
+00000000001306b8 T Java_org_thunderdog_challegram_N_setDate
+0000000000130730 T Java_org_thunderdog_challegram_N_setFastTextures
+0000000000130754 T Java_org_thunderdog_challegram_N_setFreeTextures
+00000000001306c4 T Java_org_thunderdog_challegram_N_setIcTextures
+0000000000130670 T Java_org_thunderdog_challegram_N_setPage
+0000000000130768 T Java_org_thunderdog_challegram_N_setPowerfulTextures
+000000000013078c T Java_org_thunderdog_challegram_N_setPrivateTextures
+0000000000130664 T Java_org_thunderdog_challegram_N_setScrollOffset
+000000000013071c T Java_org_thunderdog_challegram_N_setTelegramTextures
+0000000000135684 T Java_org_thunderdog_challegram_N_startRecord
+0000000000136534 T Java_org_thunderdog_challegram_N_stopRecord
+000000000013bad4 T Java_org_thunderdog_challegram_N_unpinBitmap
+0000000000135e70 T Java_org_thunderdog_challegram_N_writeFrame
+ 0x0000000000000001 (NEEDED)             Shared library: [libtdjni.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libjnigraphics.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [liblog.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libEGL.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libandroid.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libcryptox.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libsslx.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libm.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libdl.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc++_shared.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so]
