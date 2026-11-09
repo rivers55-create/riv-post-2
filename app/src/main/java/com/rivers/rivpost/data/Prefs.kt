@@ -146,6 +146,61 @@ object Prefs {
     var pinnedBar by BoolPref("pinned_bar", true)
     var gifButton by BoolPref("gif_button", true)
 
+    // ---------- 1.2: look ----------
+    var oled by BoolPref("oled", false)                // pure black
+    var flat by BoolPref("flat", false)                // no rounded cards, borders or shadows
+    var glass by BoolPref("glass", true)               // see-through menus, drawer and sheets
+    var wallTint by BoolPref("wall_tint", false)       // accent from wallpaper
+    var wallAccent by IntPref("wall_accent", 0)
+    var bubbleShape by StrPref("bubble_shape", "rounded") // rounded / pill / square / borderless
+    var bubbleShadow by IntPref("bubble_shadow", 0)    // dp
+    var bubbleBorder by IntPref("bubble_border", 0)    // dp
+    var cBorder by IntPref("c_border", 0)
+    var bubbleGlow by BoolPref("bubble_glow", false)
+    var waveStyle by StrPref("wave_style", "bars")     // bars / neon / particles / line
+    var haptics by BoolPref("haptics", true)
+    var scrollFeel by StrPref("scroll_feel", "normal") // smooth / normal / snappy
+    var stickerSize by IntPref("sticker_size", 170)
+    var systemEmoji by BoolPref("system_emoji", true)
+    var fontPath by StrPref("font_path", "")
+    var drawerBg by StrPref("drawer_bg", "accent")     // accent / gradient / avatar / image
+    var drawerImage by StrPref("drawer_image", "")
+    var chatDensity by StrPref("chat_density", "normal") // compact / normal
+    var playerGlow by BoolPref("player_glow", true)
+
+    // ---------- 1.2: privacy ----------
+    var ghost by BoolPref("ghost", false)               // no read receipts, appear offline
+    var vaultChats by StrPref("vault_chats", "")
+    var vaultPin by StrPref("vault_pin", "")
+    var secureChats by StrPref("secure_chats", "")      // screenshot lock per chat
+    var cleanForward by BoolPref("clean_forward", false)
+    var readFreeze by BoolPref("read_freeze", false)
+    var autoMute by BoolPref("auto_mute", false)
+    var drawerLock by BoolPref("drawer_lock", false)
+    var antiRevoke by BoolPref("anti_revoke", false)    // keep deleted messages + edit history (local only)
+
+    // ---------- 1.2: power user ----------
+    var filterTabs by StrPref("filter_tabs", "")        // unread,groups,channels,private,bots
+    var swipeAccounts by BoolPref("swipe_accounts", true)
+    var localPins by StrPref("local_pins", "")
+    var swipeForward by BoolPref("swipe_forward", true)
+    var quickForwardChat by StrPref("quick_forward_chat", "")  // empty = Saved Messages
+    var markdown by BoolPref("markdown", true)
+    var saveFolder by StrPref("save_folder", "Riv Post")
+    var saveByType by BoolPref("save_by_type", true)
+    var editLinks by BoolPref("edit_links", false)
+    var selectText by BoolPref("select_text", true)
+    var builtInCamera by BoolPref("builtin_camera", true)
+    var proxies by StrPref("proxies", "")               // lines: type|host|port|user|pass|secret
+    var proxyAuto by BoolPref("proxy_auto", false)
+    var powerSave by BoolPref("power_save", false)
+
+    fun toggleId(set: String, id: Long): String {
+        val s = idSet(set).toMutableSet()
+        if (!s.remove(id)) s.add(id)
+        return s.joinToString(",")
+    }
+
     fun idSet(s: String): Set<Long> = s.split(",").mapNotNull { it.trim().toLongOrNull() }.toSet()
     var videoPositions by StrPref("video_positions", "")   // uniqueId=ms;...
 

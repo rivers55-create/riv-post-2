@@ -31,6 +31,20 @@ import com.rivers.rivpost.data.Prefs
 import com.rivers.rivpost.tg.Tg
 import com.rivers.rivpost.tg.TgAccount
 import com.rivers.rivpost.music.Music
+import com.rivers.rivpost.ui.AccountPage
+import com.rivers.rivpost.ui.AuthPinDialog
+import com.rivers.rivpost.ui.CameraScreen
+import com.rivers.rivpost.ui.DataPage
+import com.rivers.rivpost.ui.DevicesPage
+import com.rivers.rivpost.ui.DownloadsPage
+import com.rivers.rivpost.ui.DrawerUnlock
+import com.rivers.rivpost.ui.FoldersPage
+import com.rivers.rivpost.ui.PowerPage
+import com.rivers.rivpost.ui.PrivacyPage
+import com.rivers.rivpost.ui.SettingsHub
+import com.rivers.rivpost.ui.UploadsPage
+import com.rivers.rivpost.ui.VaultScreen
+import com.rivers.rivpost.ui.VoicePlayer
 import com.rivers.rivpost.ui.ChatInfoScreen
 import com.rivers.rivpost.ui.CustomizeScreen
 import com.rivers.rivpost.ui.ForwardScreen
@@ -61,6 +75,10 @@ sealed class Screen {
     class Sources(val kind: String) : Screen()
     class Video(val req: PlayRequest) : Screen()
     class Forward(val fromChat: Long, val ids: LongArray) : Screen()
+    object Hub : Screen()
+    object Vault : Screen()
+    class Page(val name: String) : Screen()
+    class Camera(val chatId: Long) : Screen()
 }
 
 class MainActivity : FragmentActivity() {
@@ -101,6 +119,7 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         Tg.foreground = true
+        Tg.setOnlineAll(true)
         if (Prefs.lock && Prefs.pinHash.isNotEmpty() && leftAt > 0 &&
             System.currentTimeMillis() - leftAt >= Prefs.lockDelay * 1000L
         ) locked = true
@@ -110,6 +129,12 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         Tg.foreground = false
+        Tg.setOnlineAll(false)
+        DrawerUnlock.open = false
+        if (Prefs.autoMute) {
+            try { if (Music.isPlaying) Music.toggle() } catch (_: Throwable) { }
+            VoicePlayer.stop()
+        }
         leftAt = System.currentTimeMillis()
     }
 
@@ -155,6 +180,7 @@ private fun Root(act: MainActivity) {
                             if (st is AuthorizationStateReady) {
                                 LaunchedEffect(Unit) { act.askNotificationPermission() }
                                 MainNav(act, acc)
+                                AuthPinDialog()
                             } else {
                                 LoginScreen(acc)
                             }
@@ -185,6 +211,19 @@ private fun MainNav(act: MainActivity, acc: TgAccount) {
             onCustomize = { act.push(Screen.Customize) }, onSources = { act.push(Screen.Sources(it)) },
         )
         is Screen.Proxy -> ProxyScreen(acc, onBack = { act.pop() })
+        is Screen.Hub -> SettingsHub(acc, act, onBack = { act.pop() })
+        is Screen.Vault -> VaultScreen(acc, act, onBack = { act.pop() })
+        is Screen.Camera -> CameraScreen(acc, s.chatId, onClose = { act.pop() })
+        is Screen.Page -> when (s.name) {
+            "account" -> AccountPage(acc, onBack = { act.pop() })
+            "privacy" -> PrivacyPage(acc, act, onBack = { act.pop() })
+            "devices" -> DevicesPage(acc, onBack = { act.pop() })
+            "data" -> DataPage(acc, act, onBack = { act.pop() })
+            "downloads" -> DownloadsPage(acc, onBack = { act.pop() })
+            "uploads" -> UploadsPage(acc, onBack = { act.pop() })
+            "folders" -> FoldersPage(acc, onBack = { act.pop() })
+            else -> PowerPage(onBack = { act.pop() })
+        }
         is Screen.Customize -> CustomizeScreen(onBack = { act.pop() })
         is Screen.NewGroup -> NewGroupScreen(acc, act, onBack = { act.pop() })
         is Screen.Info -> key(s.id) { ChatInfoScreen(acc, act, s.id, onBack = { act.pop() }) }

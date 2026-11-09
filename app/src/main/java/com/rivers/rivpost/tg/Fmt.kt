@@ -11,7 +11,11 @@ object Fmt {
     /** Short text for a message (chat list and notifications). */
     fun preview(a: TgAccount, m: Message?): String {
         if (m == null) return ""
-        return when (val c = m.content) {
+        return previewContent(a, m.content, m)
+    }
+
+    fun previewContent(a: TgAccount, content: MessageContent, m: Message?): String {
+        return when (val c = content) {
             is MessageText -> c.text.text
             is MessagePhoto -> withCaption("🖼 " + t("Photo"), c.caption)
             is MessageVideo -> withCaption("🎬 " + t("Video"), c.caption)

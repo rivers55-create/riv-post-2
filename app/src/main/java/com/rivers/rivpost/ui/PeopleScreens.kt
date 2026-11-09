@@ -69,6 +69,7 @@ import com.rivers.rivpost.MainActivity
 import com.rivers.rivpost.R
 import com.rivers.rivpost.Screen
 import com.rivers.rivpost.data.t
+import com.rivers.rivpost.data.Prefs
 import com.rivers.rivpost.media.VideoLib
 import com.rivers.rivpost.music.MusicLib
 import com.rivers.rivpost.tg.ChatItem
@@ -227,7 +228,7 @@ fun ProfilePage(acc: TgAccount, act: MainActivity) {
                     acc.scope.launch { acc.privateChat(u.id)?.let { id -> act.runOnUiThread { act.push(Screen.Chat(id)) } } }
                 }
                 RowItem(Ic.Palette, t("Customize"), t("Bars, colors, bubbles, everything"), Color(0xFFE5508A)) { act.push(Screen.Customize) }
-                RowItem(Ic.Settings, t("Settings"), t("Notifications, privacy, proxy, accounts"), Color(0xFF8E85EE)) { act.push(Screen.Settings) }
+                RowItem(Ic.Settings, t("Settings"), t("Notifications, privacy, proxy, accounts"), Color(0xFF8E85EE)) { act.push(Screen.Hub) }
                 RowItem(Ic.Note, t("Music sources"), t("Choose which chats feed the music library"), Color(0xFFFF8A3D)) { act.push(Screen.Sources("music")) }
                 RowItem(Ic.Movie, t("Video sources"), t("Choose which chats get a row in Videos"), Color(0xFF00A884)) { act.push(Screen.Sources("video")) }
             }
@@ -308,8 +309,13 @@ fun ForwardScreen(acc: TgAccount, fromChat: Long, ids: LongArray, onDone: (Long?
     val ver by acc.chatsVersion.collectAsState()
     var query by remember { mutableStateOf("") }
     val chats = remember(ver, query) { acc.chatList(ChatListMain()).map { it.first }.filter { query.isBlank() || it.title.contains(query, true) } }
+    var clean by remember { mutableStateOf(Prefs.cleanForward) }
     PageScaffold(t("Forward to…"), { onDone(null) }) {
         Column {
+            Row(Modifier.fillMaxWidth().clickable { clean = !clean }.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(t("Hide \"Forwarded from\""), modifier = Modifier.weight(1f))
+                Switch(checked = clean, onCheckedChange = { clean = it })
+            }
             OutlinedTextField(
                 value = query, onValueChange = { query = it }, singleLine = true, label = { Text(t("Search")) },
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -319,7 +325,7 @@ fun ForwardScreen(acc: TgAccount, fromChat: Long, ids: LongArray, onDone: (Long?
                     Row(
                         Modifier.fillMaxWidth().clickable {
                             acc.scope.launch {
-                                val r = acc.client.forwardMessages(chatId = c.id, fromChatId = fromChat, messageIds = ids, sendCopy = false, removeCaption = false)
+                                val r = acc.client.forwardMessages(chatId = c.id, fromChatId = fromChat, messageIds = ids, sendCopy = clean, removeCaption = false)
                                 withContext(Dispatchers.Main) {
                                     if (r is TdlResult.Failure) toast(ctx, r.message) else toast(ctx, t("Forwarded"))
                                     onDone(c.id)

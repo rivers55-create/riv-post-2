@@ -172,3 +172,10 @@ fun restartApp(c: Context) {
     }
     android.os.Process.killProcess(android.os.Process.myPid())
 }
+
+/** Main color of a picture (for "colors from wallpaper"). */
+fun wallAccentFrom(path: String): Int = try {
+    val o = android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 }
+    val bmp = android.graphics.BitmapFactory.decodeFile(path, o)
+    if (bmp == null) 0 else androidx.palette.graphics.Palette.from(bmp).generate().let { (it.vibrantSwatch ?: it.lightVibrantSwatch ?: it.dominantSwatch)?.rgb ?: 0 }
+} catch (_: Throwable) { 0 }

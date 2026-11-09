@@ -105,7 +105,36 @@ fun CustomizeScreen(onBack: () -> Unit) {
                     out
                 } catch (_: Throwable) { null }
             }
-            if (f != null) Prefs.wallpaper = f.absolutePath
+            if (f != null) {
+                Prefs.wallpaper = f.absolutePath
+                Prefs.wallAccent = withContext(Dispatchers.IO) { wallAccentFrom(f.absolutePath) }
+            }
+        }
+    }
+    val pickFont = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val f = withContext(Dispatchers.IO) {
+                try {
+                    val out = java.io.File(ctx.filesDir, "font_" + System.currentTimeMillis() + ".ttf")
+                    ctx.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { i.copyTo(it) } }
+                    androidx.compose.ui.text.font.Font(out)
+                    android.graphics.Typeface.createFromFile(out)
+                    out
+                } catch (_: Throwable) { null }
+            }
+            if (f != null) Prefs.fontPath = f.absolutePath else toast(ctx, t("That file isn't a font"))
+        }
+    }
+    val pickDrawer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val f = withContext(Dispatchers.IO) {
+                try {
+                    val out = java.io.File(ctx.filesDir, "drawer_" + System.currentTimeMillis() + ".jpg")
+                    ctx.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { i.copyTo(it) } }
+                    out
+                } catch (_: Throwable) { null }
+            }
+            if (f != null) Prefs.drawerImage = f.absolutePath
         }
     }
     Scaffold(topBar = {
@@ -136,6 +165,23 @@ fun CustomizeScreen(onBack: () -> Unit) {
                 }
             }
             Choice(t("Theme"), listOf("dark" to t("Dark"), "light" to t("Light"), "system" to t("Follow phone")), Prefs.theme) { Prefs.theme = it }
+
+            SwitchRow(t("Pure black (OLED)"), t("True #000000 background in dark mode"), Prefs.oled) { Prefs.oled = it }
+            SwitchRow(t("Flat mode"), t("No rounded cards, borders or shadows"), Prefs.flat) { Prefs.flat = it }
+            SwitchRow(t("Glass look"), t("See-through menus, drawer and bars"), Prefs.glass) { Prefs.glass = it }
+            SwitchRow(t("Colors from wallpaper"), t("The accent follows your chat wallpaper"), Prefs.wallTint) { Prefs.wallTint = it }
+            SwitchRow(t("Haptics"), t("Small vibrations on tabs and long-press"), Prefs.haptics) { Prefs.haptics = it }
+            Choice(t("Scrolling feel"), listOf("smooth" to t("Smooth"), "normal" to t("Normal"), "snappy" to t("Snappy")), Prefs.scrollFeel) { Prefs.scrollFeel = it }
+            ClickRow(t("Font"), if (Prefs.fontPath.isEmpty()) t("Default") else java.io.File(Prefs.fontPath).name) { pickFont.launch("*/*") }
+            if (Prefs.fontPath.isNotEmpty()) ClickRow(t("Use the default font"), null) { Prefs.fontPath = "" }
+            SwitchRow(t("Phone's own emoji"), null, Prefs.systemEmoji) { Prefs.systemEmoji = it }
+
+            HorizontalDivider(Modifier.padding(top = 10.dp))
+            SectionTitle(t("Drawer"))
+            Choice(t("Drawer header"), listOf("accent" to t("Accent color"), "gradient" to t("Gradient"), "avatar" to t("My blurred photo"), "image" to t("A picture")), Prefs.drawerBg) {
+                Prefs.drawerBg = it
+                if (it == "image") pickDrawer.launch("image/*")
+            }
 
             HorizontalDivider(Modifier.padding(top = 10.dp))
             SectionTitle(t("Bottom bar"))
@@ -186,7 +232,16 @@ fun CustomizeScreen(onBack: () -> Unit) {
             SwitchRow(t("Pinned message bar"), null, Prefs.pinnedBar) { Prefs.pinnedBar = it }
             SwitchRow(t("Views on channel posts"), null, Prefs.showViews) { Prefs.showViews = it }
             SwitchRow(t("Share button on channel posts"), null, Prefs.shareButton) { Prefs.shareButton = it }
+            Choice(t("Bubble shape"), listOf("rounded" to t("Rounded"), "pill" to t("Pill"), "square" to t("Square"), "borderless" to t("No bubble")), Prefs.bubbleShape) { Prefs.bubbleShape = it }
             SliderRow(t("Bubble roundness"), Prefs.bubbleRadius, 0..28, autoAtMin = true) { Prefs.bubbleRadius = it }
+            SliderRow(t("Bubble shadow"), Prefs.bubbleShadow, 0..12) { Prefs.bubbleShadow = it }
+            SliderRow(t("Bubble outline"), Prefs.bubbleBorder, 0..4) { Prefs.bubbleBorder = it }
+            ColorRow(t("Outline color"), Prefs.cBorder, style.border) { Prefs.cBorder = it }
+            SwitchRow(t("Bubble glow"), null, Prefs.bubbleGlow) { Prefs.bubbleGlow = it }
+            Choice(t("Message spacing"), listOf("normal" to t("Normal"), "compact" to t("Compact")), Prefs.chatDensity) { Prefs.chatDensity = it }
+            Choice(t("Voice waveform"), listOf("bars" to t("Bars"), "neon" to t("Neon"), "particles" to t("Particles"), "line" to t("Line")), Prefs.waveStyle) { Prefs.waveStyle = it }
+            SliderRow(t("Sticker size"), Prefs.stickerSize, 100..260) { Prefs.stickerSize = it }
+            SwitchRow(t("Player glow"), t("Soft light behind the album cover"), Prefs.playerGlow) { Prefs.playerGlow = it }
             Choice(t("Bubble tails"), listOf("auto" to t("Auto"), "on" to t("On"), "off" to t("Off")), Prefs.bubbleTail) { Prefs.bubbleTail = it }
             SliderRow(t("Text size"), Prefs.textSize, 13..22) { Prefs.textSize = it }
             SwitchRow(t("Double-tap to react"), null, Prefs.doubleTapReact) { Prefs.doubleTapReact = it }

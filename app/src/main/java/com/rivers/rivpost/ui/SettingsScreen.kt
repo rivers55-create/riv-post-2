@@ -54,6 +54,10 @@ import com.rivers.rivpost.data.Lang
 import com.rivers.rivpost.data.Prefs
 import com.rivers.rivpost.data.t
 import com.rivers.rivpost.tg.Tg
+import com.rivers.rivpost.tg.Proxies
+import com.rivers.rivpost.tg.SavedProxy
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.Row
 import com.rivers.rivpost.tg.TgAccount
 import dev.g000sha256.tdl.dto.ConnectionStateConnectingToProxy
 import dev.g000sha256.tdl.dto.ConnectionStateReady
@@ -84,7 +88,7 @@ private fun ChoiceRow(title: String, options: List<Pair<String, String>>, curren
             onDismissRequest = { open = false },
             title = { Text(title) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     for ((key, label) in options) {
                         Row(
                             Modifier.fillMaxWidth().clickable { onPick(key); open = false }.padding(vertical = 6.dp),
@@ -195,6 +199,28 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Find lyrics online"), "lrclib.net", Prefs.mOnlineLyrics) { Prefs.mOnlineLyrics = it }
         SwitchRow(t("Mini player"), null, Prefs.mMini) { Prefs.mMini = it }
         ClickRow(t("Music sources"), "›") { onSources("music") }
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        SectionTitle(t("Power tools"))
+        Text(t("Extra tabs"), fontSize = 16.sp, modifier = Modifier.padding(start = 20.dp, top = 8.dp))
+        for (k in listOf("unread", "groups", "channels", "private", "bots")) {
+            val on = k in Prefs.filterTabs.split(",")
+            SwitchRow("  " + t(k.replaceFirstChar { it.uppercase() }), null, on) { v ->
+                val l = Prefs.filterTabs.split(",").filter { it.isNotBlank() && it != k }
+                Prefs.filterTabs = (if (v) l + k else l).joinToString(",")
+            }
+        }
+        SwitchRow(t("Swipe the bottom bar to switch accounts"), null, Prefs.swipeAccounts) { Prefs.swipeAccounts = it }
+        SwitchRow(t("Swipe a message left to forward it"), t("Goes to Saved Messages unless you pick a chat below"), Prefs.swipeForward) { Prefs.swipeForward = it }
+        ChoiceRow(
+            t("Quick forward goes to"),
+            listOf("" to t("Saved Messages")) + acc.chatList(dev.g000sha256.tdl.dto.ChatListMain()).take(30).map { it.first.id.toString() to it.first.title },
+            Prefs.quickForwardChat,
+        ) { Prefs.quickForwardChat = it }
+        SwitchRow(t("Forward without \"Forwarded from\""), t("Default for the forward screen"), Prefs.cleanForward) { Prefs.cleanForward = it }
+        SwitchRow(t("Markdown"), t("*bold* _italic_ `code` turn into formatting when you send"), Prefs.markdown) { Prefs.markdown = it }
+        SwitchRow(t("Edit links before opening"), null, Prefs.editLinks) { Prefs.editLinks = it }
+        SwitchRow(t("Built-in camera"), t("Off uses your phone's camera app"), Prefs.builtInCamera) { Prefs.builtInCamera = it }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
         SectionTitle(t("Notifications"))
@@ -319,17 +345,53 @@ private fun setIcon(act: MainActivity, name: String) {
 @Composable
 fun ProxyScreen(acc: TgAccount, onBack: () -> Unit) {
     val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val conn by acc.conn.collectAsState()
-    var on by remember { mutableStateOf(Prefs.proxyOn) }
     var type by remember { mutableStateOf(Prefs.proxyType) }
-    var host by remember { mutableStateOf(Prefs.proxyHost) }
-    var port by remember { mutableStateOf(Prefs.proxyPort.toString()) }
-    var user by remember { mutableStateOf(Prefs.proxyUser) }
-    var pass by remember { mutableStateOf(Prefs.proxyPass) }
-    var secret by remember { mutableStateOf(Prefs.proxySecret) }
+    var host by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("1080") }
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var tick by remember { mutableStateOf(0) }
+    val pings = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    @Suppress("UNUSED_VARIABLE") val x = tick
+    val saved = Proxies.list()
 
     SettingsPage(t("Proxy"), onBack) {
-        SwitchRow(t("Use proxy"), t("For when Telegram is blocked or slow"), on) { on = it }
+        SwitchRow(t("Use proxy"), t("For when Telegram is blocked or slow"), Prefs.proxyOn) { Prefs.proxyOn = it; Tg.applyProxyAll() }
+        SwitchRow(t("Switch to the fastest automatically"), t("When the connection drops, the saved proxy with the best ping is used"), Prefs.proxyAuto) { Prefs.proxyAuto = it }
+        Text(
+            t("Status") + ": " + when (conn) {
+                is ConnectionStateReady -> t("Connected")
+                is ConnectionStateConnectingToProxy -> t("Connecting to proxy…")
+                is ConnectionStateWaitingForNetwork -> t("Waiting for network…")
+                else -> t("Connecting…")
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+        )
+        SectionTitle(t("Saved proxies"))
+        if (saved.isEmpty()) Text(t("No saved proxies yet."), modifier = Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        for (p in saved) {
+            val active = Prefs.proxyOn && Prefs.proxyHost == p.host && Prefs.proxyPort == p.port
+            Row(Modifier.fillMaxWidth().clickable { Proxies.use(p); tick++ }.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(p.label, fontSize = 16.sp, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    val ms = pings[p.line()]
+                    Text(
+                        when { ms == null -> t("Tap Ping to test"); ms < 0 -> t("Not answering"); else -> "$ms ms" } + if (active) " · " + t("in use") else "",
+                        fontSize = 13.sp, color = when { ms == null -> MaterialTheme.colorScheme.onSurfaceVariant; ms < 0 -> Color(0xFFE53935); ms < 300 -> Color(0xFF4CD964); else -> Color(0xFFFFB300) },
+                    )
+                }
+                TextButton(onClick = { Proxies.remove(p); tick++ }) { Text(t("Delete")) }
+            }
+        }
+        Row(Modifier.padding(horizontal = 12.dp)) {
+            TextButton(onClick = { scope.launch { for (p in saved) pings[p.line()] = Proxies.ping(p) } }) { Text(t("Ping all")) }
+            TextButton(onClick = { scope.launch { val b = Proxies.useFastest(); tick++; toast(ctx, if (b != null) t("Using") + " " + b.label else t("No proxy answered")) } }) { Text(t("Use fastest")) }
+            TextButton(onClick = { Prefs.proxyOn = false; Tg.applyProxyAll(); tick++ }) { Text(t("Turn off")) }
+        }
+        SectionTitle(t("Add a proxy"))
         ChoiceRow(t("Type"), listOf("socks5" to "SOCKS5", "mtproto" to "MTProto"), type) { type = it }
         Column(Modifier.padding(horizontal = 20.dp)) {
             OutlinedTextField(value = host, onValueChange = { host = it.trim() }, label = { Text(t("Server")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -349,28 +411,19 @@ fun ProxyScreen(acc: TgAccount, onBack: () -> Unit) {
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Spacer(Modifier.height(16.dp))
-            androidx.compose.material3.Button(onClick = {
-                Prefs.proxyOn = on && host.isNotBlank()
-                Prefs.proxyType = type
-                Prefs.proxyHost = host
-                Prefs.proxyPort = port.toIntOrNull() ?: 1080
-                Prefs.proxyUser = user
-                Prefs.proxyPass = pass
-                Prefs.proxySecret = secret
-                Tg.applyProxyAll()
-                toast(ctx, t("Saved"))
-            }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(t("Save")) }
             Spacer(Modifier.height(14.dp))
-            Text(
-                t("Status") + ": " + when (conn) {
-                    is ConnectionStateReady -> t("Connected")
-                    is ConnectionStateConnectingToProxy -> t("Connecting to proxy…")
-                    is ConnectionStateWaitingForNetwork -> t("Waiting for network…")
-                    else -> t("Connecting…")
+            androidx.compose.material3.Button(
+                enabled = host.isNotBlank(),
+                onClick = {
+                    val p = SavedProxy(type, host, port.toIntOrNull() ?: 1080, user, pass, secret)
+                    Proxies.save(p)
+                    Proxies.use(p)
+                    host = ""; secret = ""; user = ""; pass = ""
+                    tick++
+                    toast(ctx, t("Saved"))
                 },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) { Text(t("Save and use")) }
         }
     }
 }

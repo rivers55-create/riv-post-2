@@ -29,8 +29,11 @@ val Accents = listOf(
     "Red" to Color(0xFFE53935),
 )
 
-fun accentColor(): Color =
-    if (Prefs.cAccent != 0) Color(Prefs.cAccent) else Accents.getOrElse(Prefs.accent) { Accents[0] }.second
+fun accentColor(): Color = when {
+    Prefs.cAccent != 0 -> Color(Prefs.cAccent)
+    Prefs.wallTint && Prefs.wallAccent != 0 && Prefs.wallpaper.isNotEmpty() -> Color(Prefs.wallAccent)
+    else -> Accents.getOrElse(Prefs.accent) { Accents[0] }.second
+}
 
 fun onColor(c: Color): Color = if (c.luminance() > 0.5f) Color(0xFF111111) else Color.White
 
@@ -67,6 +70,10 @@ data class StyleSpec(
     val dividers: Boolean,
     val rowPad: Dp,
     val previewLines: Int,
+    val flat: Boolean = false,
+    val glass: Boolean = false,
+    val border: Color = Color.Transparent,
+    val card: Dp = 22.dp,
 )
 
 val LocalStyle = staticCompositionLocalOf<StyleSpec> { error("no style") }
@@ -79,9 +86,10 @@ fun isDark(system: Boolean): Boolean = when (Prefs.theme) {
 
 fun makeStyle(dark: Boolean): StyleSpec {
     val a = accentColor()
-    val bg = pick(Prefs.cBg, if (dark) Color(0xFF120B1C) else Color(0xFFFAF8FD))
-    val surface = if (dark) lerp(bg, Color.White, 0.06f) else Color.White
-    val panel = if (dark) lerp(bg, Color.White, 0.09f) else lerp(bg, Color.Black, 0.04f)
+    val oled = dark && Prefs.oled
+    val bg = pick(Prefs.cBg, if (oled) Color.Black else if (dark) Color(0xFF120B1C) else Color(0xFFFAF8FD))
+    val surface = if (oled) Color(0xFF0A0A0A) else if (dark) lerp(bg, Color.White, 0.06f) else Color.White
+    val panel = if (oled) Color(0xFF111111) else if (dark) lerp(bg, Color.White, 0.09f) else lerp(bg, Color.Black, 0.04f)
 
     // style defaults
     var out: Color; var inn: Color; var outT: Color; var inT: Color; var outM: Color; var inM: Color
@@ -110,7 +118,7 @@ fun makeStyle(dark: Boolean): StyleSpec {
             if (!dark) topBar = Color(0xFF008069)
         }
         else -> {
-            out = a; inn = panel
+            out = a; inn = if (oled) Color(0xFF1A1A1A) else panel
             outT = onColor(a); inT = if (dark) Color(0xFFECE6F5) else Color(0xFF1D1726)
             outM = outT.copy(alpha = 0.75f)
             inM = if (dark) Color(0xFF9D92AE) else Color(0xFF7A708A)
@@ -147,6 +155,9 @@ fun makeStyle(dark: Boolean): StyleSpec {
         avatar = size, avatarShape = avatarShape,
         dividers = when (Prefs.dividers) { "on" -> true; "off" -> false; else -> dividers },
         rowPad = rowPad, previewLines = Prefs.previewLines.coerceIn(1, 2),
+        flat = Prefs.flat, glass = Prefs.glass && !Prefs.flat,
+        border = pick(Prefs.cBorder, a),
+        card = if (Prefs.flat) 0.dp else 22.dp,
     )
 }
 
@@ -183,9 +194,41 @@ fun RivTheme(content: @Composable () -> Unit) {
         surfaceContainerHighest = lerp(bg, Color.Black, 0.09f), surfaceContainerLow = lerp(bg, Color.Black, 0.015f),
         outline = Color(0xFF9C92AC), outlineVariant = Color(0xFFDDD5E8),
     )
-    MaterialTheme(colorScheme = scheme) {
+    MaterialTheme(colorScheme = scheme, typography = rivTypography()) {
         CompositionLocalProvider(LocalStyle provides st) {
             content()
         }
     }
 }
+
+private var cachedFont: Pair<String, androidx.compose.ui.text.font.FontFamily?>? = null
+
+private fun fontFamily(): androidx.compose.ui.text.font.FontFamily? {
+    val p = Prefs.fontPath
+    cachedFont?.let { if (it.first == p) return it.second }
+    val ff = if (p.isEmpty() || !java.io.File(p).exists()) null else try {
+        androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(java.io.File(p)))
+    } catch (_: Throwable) { null }
+    cachedFont = p to ff
+    return ff
+}
+
+fun rivTypography(): androidx.compose.material3.Typography {
+    val b = androidx.compose.material3.Typography()
+    val ff = fontFamily()
+    val plat = if (Prefs.systemEmoji) androidx.compose.ui.text.PlatformTextStyle(
+        emojiSupportMatch = androidx.compose.ui.text.EmojiSupportMatch.None
+    ) else null
+    fun f(t: androidx.compose.ui.text.TextStyle) = t.copy(fontFamily = ff ?: t.fontFamily, platformStyle = plat ?: t.platformStyle)
+    return androidx.compose.material3.Typography(
+        displayLarge = f(b.displayLarge), displayMedium = f(b.displayMedium), displaySmall = f(b.displaySmall),
+        headlineLarge = f(b.headlineLarge), headlineMedium = f(b.headlineMedium), headlineSmall = f(b.headlineSmall),
+        titleLarge = f(b.titleLarge), titleMedium = f(b.titleMedium), titleSmall = f(b.titleSmall),
+        bodyLarge = f(b.bodyLarge), bodyMedium = f(b.bodyMedium), bodySmall = f(b.bodySmall),
+        labelLarge = f(b.labelLarge), labelMedium = f(b.labelMedium), labelSmall = f(b.labelSmall),
+    )
+}
+
+/** Menus, drawer and sheets: see-through when "glass" is on. */
+@Composable
+fun glassColor(base: Color): Color = if (LocalStyle.current.glass) base.copy(alpha = 0.78f) else base

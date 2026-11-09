@@ -14,6 +14,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.shadow
+import dev.g000sha256.tdl.dto.TextParseModeMarkdown
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
@@ -77,6 +81,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -182,6 +187,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
     var loading by mutableStateOf(false)
     var end by mutableStateOf(false)
     var pinned by mutableStateOf<Message?>(null)
+    val deleted = mutableStateListOf<Long>()
 
     suspend fun loadMore() {
         if (loading || end) return
@@ -195,6 +201,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
             val list = (r as? TdlResult.Success)?.result?.messages?.filterNotNull() ?: break
             val fresh = list.filter { m -> messages.none { it.id == m.id } }
             if (fresh.isEmpty()) { end = true; break }
+            fresh.forEach { acc.remember(it) }
             messages.addAll(fresh)
             got += fresh.size
             from = fresh.last().id
@@ -207,6 +214,7 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
         messages.indexOfFirst { it.id == id }.let { if (it >= 0) return it }
         val r = acc.client.getChatHistory(chatId = chatId, fromMessageId = id, offset = -25, limit = 60, onlyLocal = false)
         val list = (r as? TdlResult.Success)?.result?.messages?.filterNotNull() ?: return -1
+        list.forEach { acc.remember(it) }
         messages.clear()
         messages.addAll(list.distinctBy { it.id }.sortedByDescending { it.id })
         end = false
@@ -237,8 +245,12 @@ class ChatData(val acc: TgAccount, val chatId: Long) {
                 }
             }
             is MsgEvent.Deleted -> if (e.chatId == chatId) {
-                val ids = e.ids.toSet()
-                messages.removeAll { it.id in ids }
+                if (Prefs.antiRevoke) {
+                    for (id in e.ids) if (id !in deleted) deleted.add(id)
+                } else {
+                    val ids = e.ids.toSet()
+                    messages.removeAll { it.id in ids }
+                }
             }
             is MsgEvent.Content -> if (e.chatId == chatId) content[e.id] = e.content
             is MsgEvent.Interaction -> if (e.chatId == chatId) interaction[e.id] = e.info
@@ -278,13 +290,19 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     DisposableEffect(acc, chatId) {
         acc.openChatId = chatId
         Notifier.clear(ctx, acc, chatId)
-        acc.scope.launch { acc.client.openChat(chatId = chatId) }
+        if (!Prefs.ghost) acc.scope.launch { acc.client.openChat(chatId = chatId) }
         onDispose {
             if (acc.openChatId == chatId) acc.openChatId = 0
             acc.scope.launch { acc.client.closeChat(chatId = chatId) }
             recorder.cancel()
         }
     }
+    val secured = chatId in Prefs.idSet(Prefs.secureChats)
+    DisposableEffect(chatId, secured) {
+        if (secured) act.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { act.applySecure() }
+    }
+    var revokedLog by remember { mutableStateOf(false) }
     LaunchedEffect(data) {
         launch { acc.events.collect { e -> withContext(Dispatchers.Main) { data.onEvent(e) } } }
         launch { data.pinned = (acc.client.getChatPinnedMessage(chatId = chatId) as? TdlResult.Success)?.result }
@@ -292,7 +310,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     }
     val newest = data.messages.firstOrNull()?.id ?: 0L
     LaunchedEffect(newest) {
-        if (newest != 0L && (chat?.unread ?: 0) > 0) acc.markAllRead(chatId, data.messages.take(60).map { it.id }.toLongArray())
+        if (newest != 0L && (chat?.unread ?: 0) > 0 && !Prefs.ghost && !Prefs.readFreeze) acc.markAllRead(chatId, data.messages.take(60).map { it.id }.toLongArray())
     }
     val nearTop by remember {
         derivedStateOf {
@@ -351,7 +369,26 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             }
             return
         }
+        if (Prefs.markdown && s.any { it == '*' || it == '_' || it == '`' || it == '[' }) {
+            acc.scope.launch {
+                val parsed = (acc.client.parseTextEntities(text = s, parseMode = TextParseModeMarkdown(version = 1)) as? TdlResult.Success)?.result
+                withContext(Dispatchers.Main) {
+                    send(InputMessageText(text = parsed ?: FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+                }
+            }
+            return
+        }
         send(InputMessageText(text = FormattedText(text = s, entities = emptyArray<TextEntity>()), linkPreviewOptions = null, clearDraft = true))
+    }
+
+    fun quickForward(m: Message) {
+        acc.scope.launch {
+            val target = Prefs.quickForwardChat.toLongOrNull() ?: acc.privateChat(acc.myId) ?: return@launch
+            val r = acc.client.forwardMessages(chatId = target, fromChatId = m.chatId, messageIds = longArrayOf(m.id), sendCopy = Prefs.cleanForward, removeCaption = false)
+            withContext(Dispatchers.Main) {
+                toast(ctx, if (r is TdlResult.Failure) r.message else t("Forwarded to") + " " + (acc.chats[target]?.let { c -> if (acc.isSaved(c)) t("Saved Messages") else c.title } ?: ""))
+            }
+        }
     }
 
     fun react(m: Message, emoji: String) {
@@ -379,6 +416,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             if (f != null) {
                 Prefs.wallpaper.takeIf { it.isNotEmpty() }?.let { old -> try { java.io.File(old).delete() } catch (_: Throwable) { } }
                 Prefs.wallpaper = f.absolutePath
+                Prefs.wallAccent = withContext(Dispatchers.IO) { wallAccentFrom(f.absolutePath) }
             }
         }
     }
@@ -445,6 +483,11 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                         if (peerUserId != 0L) MenuItem(Ic.Movie, t("Video Call")) { menu = false; toast(ctx, t("Calls are coming in a later version")) }
                         MenuItem(Ic.Search, t("Search")) { menu = false; searching = true }
                         MenuItem(Ic.Image, t("Change Wallpaper")) { menu = false; confirm = "wallpaper" }
+                        MenuItem(Ic.Lock, if (secured) t("Allow screenshots") else t("Block screenshots")) {
+                            menu = false
+                            Prefs.secureChats = Prefs.toggleId(Prefs.secureChats, chatId)
+                        }
+                        if (Prefs.antiRevoke) MenuItem(Ic.Delete, t("Deleted messages")) { menu = false; revokedLog = true }
                         MenuItem(Ic.Edit, t("Clear History")) { menu = false; confirm = "clear" }
                         MenuItem(Ic.Delete, t("Delete Chat"), Color(0xFFE53935)) { menu = false; confirm = "delete" }
                     }
@@ -470,7 +513,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                     }
                 } else {
                     LazyColumn(
-                        state = listState, reverseLayout = true, modifier = Modifier.fillMaxSize(),
+                        state = listState, reverseLayout = true, modifier = Modifier.fillMaxSize(), flingBehavior = rivFling(),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         itemsIndexed(data.messages, key = { _, m -> m.id }) { i, m ->
@@ -488,12 +531,23 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                                     onEdit = { msg -> editing = msg; replyTo = null; text = (msg.content as? MessageText)?.text?.text ?: "" },
                                     onReact = { msg, e -> react(msg, e) },
                                     onJump = { jumpTo(it) },
+                                    deleted = m.id in data.deleted,
+                                    onQuickForward = { quickForward(it) },
                                 )
                             }
                         }
                         if (data.loading) item {
                             Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
                         }
+                    }
+                    if ((Prefs.ghost || Prefs.readFreeze) && (chat?.unread ?: 0) > 0) {
+                        Text(
+                            (if (Prefs.ghost) "👻 " else "") + t("Mark read") + " (${chat?.unread})",
+                            color = onColor(style.accent), fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.align(Alignment.TopCenter).padding(8.dp).clip(CircleShape).background(style.accent)
+                                .clickable { acc.markAllRead(chatId, data.messages.take(100).map { it.id }.toLongArray()) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
                     val showDown by remember { derivedStateOf { listState.firstVisibleItemIndex > 3 } }
                     if (showDown) Box(
@@ -550,7 +604,27 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
-    if (attach) AttachSheet(onDismiss = { attach = false }, onSend = { send(it) })
+    if (attach) AttachSheet(onDismiss = { attach = false }, onSend = { send(it) }, onCamera = { act.push(Screen.Camera(chatId)) })
+    if (revokedLog) {
+        val log = remember { acc.revokedLog(chatId).reversed() }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { revokedLog = false },
+            title = { Text(t("Deleted messages")) },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    if (log.isEmpty()) item { Text(t("Nothing deleted yet.")) }
+                    items(log) { l ->
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            Text((l.getOrNull(2) ?: "") + " · " + Fmt.listTime(l.getOrNull(1)?.toIntOrNull() ?: 0), fontSize = 13.sp, color = style.accent)
+                            Text(l.getOrNull(3) ?: "")
+                        }
+                    }
+                }
+            },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { revokedLog = false }) { Text(t("Close")) } },
+        )
+    }
+    LinkEditDialog()
     viewer?.let { path -> PhotoViewer(path) { viewer = null } }
     if (muteDialog && chat != null) ChoiceDialog(
         t("Mute"), listOf(t("1 hour") to 3600, t("8 hours") to 8 * 3600, t("2 days") to 2 * 86400, t("Forever") to 366 * 86400),
@@ -762,6 +836,7 @@ private fun MessageItem(
     info: MessageInteractionInfo?, showName: Boolean,
     onPhoto: (String) -> Unit, onReply: (Message) -> Unit, onEdit: (Message) -> Unit,
     onReact: (Message, String) -> Unit, onJump: (Long) -> Unit,
+    deleted: Boolean = false, onQuickForward: (Message) -> Unit = {},
 ) {
     val style = LocalStyle.current
     val ctx = LocalContext.current
@@ -776,28 +851,50 @@ private fun MessageItem(
     val bubble = if (out) style.outBubble else style.inBubble
     val fg = if (out) style.outText else style.inText
     val meta = if (out) style.outMeta else style.inMeta
-    val r = style.radius
-    val small = 4.dp
+    val r = when (Prefs.bubbleShape) { "pill" -> 26.dp; "square" -> 3.dp; "borderless" -> 0.dp; else -> style.radius }
+    val small = if (Prefs.bubbleShape == "square") 0.dp else 4.dp
     val shape = when {
+        Prefs.bubbleShape == "pill" -> RoundedCornerShape(r)
         !style.tail || !showName -> RoundedCornerShape(r)
         out -> RoundedCornerShape(topStart = r, topEnd = r, bottomEnd = small, bottomStart = r)
         else -> RoundedCornerShape(topStart = r, topEnd = r, bottomEnd = r, bottomStart = small)
     }
+    val borderless = Prefs.bubbleShape == "borderless"
+    val compact = Prefs.chatDensity == "compact"
     val isSticker = content is MessageSticker
+    var dragX by remember(m.id) { mutableFloatStateOf(0f) }
+    var history by remember { mutableStateOf<List<String>?>(null) }
+    var selectDialog by remember { mutableStateOf(false) }
     var replied by remember(m.id) { mutableStateOf<Message?>(null) }
     LaunchedEffect(m.id) { if (m.replyTo is MessageReplyToMessage) replied = data.replyOf(m) }
     val video = remember(m.id) { VideoItem.from(acc.index, m) }
     val track = remember(m.id) { Track.from(acc.index, m) }
 
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = if (showName) 3.dp else 0.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = if (compact) 0.dp else if (showName) 3.dp else 0.dp)
+            .graphicsLayer { translationX = dragX; alpha = if (deleted) 0.55f else 1f }
+            .pointerInput(m.id, Prefs.swipeForward) {
+                if (Prefs.swipeForward) androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                    onDragEnd = { if (dragX < -140f) onQuickForward(m); dragX = 0f },
+                    onDragCancel = { dragX = 0f },
+                ) { _, d -> dragX = (dragX + d).coerceIn(-220f, 0f) }
+            },
         horizontalArrangement = if (out) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f, fill = false)) {
             Column(
-                Modifier.widthIn(max = 310.dp).clip(shape)
-                    .background(if (isSticker) Color.Transparent else bubble)
+                Modifier.widthIn(max = if (borderless) 400.dp else 310.dp)
+                    .let { mod ->
+                        if (!isSticker && !borderless && (Prefs.bubbleShadow > 0 || Prefs.bubbleGlow)) mod.shadow(
+                            elevation = if (Prefs.bubbleGlow) 10.dp else Prefs.bubbleShadow.dp, shape = shape,
+                            ambientColor = if (Prefs.bubbleGlow) style.accent else Color.Black,
+                            spotColor = if (Prefs.bubbleGlow) style.accent else Color.Black,
+                        ) else mod
+                    }
+                    .clip(shape)
+                    .background(if (isSticker || borderless) Color.Transparent else bubble)
+                    .let { mod -> if (Prefs.bubbleBorder > 0 && !isSticker && !borderless) mod.border(Prefs.bubbleBorder.dp, style.border, shape) else mod }
                     .pointerInput(m.id) {
                         detectTapGestures(
                             onLongPress = { menu = true },
@@ -852,7 +949,14 @@ private fun MessageItem(
                 ) {
                     val views = info?.viewCount ?: 0
                     if (isPost && Prefs.showViews && views > 0) Text("👁 " + compact(views) + "  ", fontSize = 12.sp, color = meta)
-                    if (m.editDate > 0) Text(t("edited") + " ", fontSize = 12.sp, color = meta)
+                    if (deleted) Text("🗑 " + t("deleted") + "  ", fontSize = 12.sp, color = Color(0xFFE57373))
+                    if (m.editDate > 0) {
+                        val canSee = Prefs.antiRevoke && acc.hasHistory(m.chatId, m.id)
+                        Text(
+                            t("edited") + (if (canSee) " ⓘ" else "") + " ", fontSize = 12.sp, color = meta,
+                            modifier = if (canSee) Modifier.clickable { history = acc.editHistory(m.chatId, m.id) } else Modifier,
+                        )
+                    }
                     Text(Fmt.clock(m.date), fontSize = 12.sp, color = meta)
                     if (m.isOutgoing) {
                         Spacer(Modifier.width(3.dp))
@@ -881,6 +985,12 @@ private fun MessageItem(
                 }
                 if (m.isOutgoing && content is MessageText) MenuItem(Ic.Edit, t("Edit")) { menu = false; onEdit(m) }
                 MenuItem(Ic.Forward, t("Forward")) { menu = false; act.push(Screen.Forward(m.chatId, longArrayOf(m.id))) }
+                if (txt.isNotEmpty()) MenuItem(Ic.Edit, t("Select text")) { menu = false; selectDialog = true }
+                val savable = mediaFileOf(content)
+                if (savable != null) MenuItem(Ic.Download, t("Save to phone")) {
+                    menu = false
+                    saveToPhone(ctx, acc, savable.first, savable.second, chat)
+                }
                 if (video != null) MenuItem(Ic.Movie, if (VideoLib.inMyList(video)) t("Remove from Videos") else t("Add to Videos")) {
                     menu = false
                     VideoLib.toggleMyList(video)
@@ -903,6 +1013,7 @@ private fun MessageItem(
                 }
             }
         }
+        HistoryAndSelect(history, { history = null }, selectDialog, textOf(content), { selectDialog = false })
         if (isPost && Prefs.shareButton) {
             Spacer(Modifier.width(6.dp))
             Box(
@@ -913,6 +1024,32 @@ private fun MessageItem(
         }
     }
 }
+
+@Composable
+private fun HistoryAndSelect(history: List<String>?, onCloseHistory: () -> Unit, select: Boolean, text: String, onCloseSelect: () -> Unit) {
+    if (history != null) androidx.compose.material3.AlertDialog(
+        onDismissRequest = onCloseHistory,
+        title = { Text(t("Earlier versions")) },
+        text = {
+            Column(Modifier.heightIn(max = 400.dp).verticalScrollCompat()) {
+                for ((i, h) in history.withIndex()) {
+                    Text("${i + 1}.", fontSize = 12.sp, color = LocalStyle.current.accent)
+                    Text(h, modifier = Modifier.padding(bottom = 10.dp))
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onCloseHistory) { Text(t("Close")) } },
+    )
+    if (select) androidx.compose.material3.AlertDialog(
+        onDismissRequest = onCloseSelect,
+        title = { Text(t("Select text")) },
+        text = { androidx.compose.foundation.text.selection.SelectionContainer { Text(text, fontSize = 17.sp) } },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onCloseSelect) { Text(t("Close")) } },
+    )
+}
+
+@Composable
+private fun Modifier.verticalScrollCompat(): Modifier = this.then(Modifier.verticalScroll(rememberScrollState()))
 
 private fun compact(n: Int): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000f)
@@ -1006,9 +1143,9 @@ private fun MessageBody(acc: TgAccount, act: MainActivity, m: Message, c: Messag
             val cur = rememberFile(acc, f, autoDownload = true)
             val ok = cur != null && cur.local.isDownloadingCompleted && cur.local.path.isNotEmpty()
             when {
-                ok && s.format is StickerFormatTgs && animated -> TgsSticker(cur!!.local.path, Modifier.size(170.dp))
-                ok && s.format is StickerFormatWebm && animated -> LoopVideo(cur!!.local.path, Modifier.size(170.dp))
-                ok -> AsyncImage(model = java.io.File(cur!!.local.path), contentDescription = s.emoji, modifier = Modifier.size(170.dp))
+                ok && s.format is StickerFormatTgs && animated -> TgsSticker(cur!!.local.path, Modifier.size(Prefs.stickerSize.dp))
+                ok && s.format is StickerFormatWebm && animated -> LoopVideo(cur!!.local.path, Modifier.size(Prefs.stickerSize.dp))
+                ok -> AsyncImage(model = java.io.File(cur!!.local.path), contentDescription = s.emoji, modifier = Modifier.size(Prefs.stickerSize.dp))
                 else -> Text(s.emoji.ifBlank { "🙂" }, fontSize = 64.sp, modifier = Modifier.padding(8.dp))
             }
         }
@@ -1059,6 +1196,7 @@ private fun rich(ft: FormattedText, link: Color): AnnotatedString = buildAnnotat
     val text = ft.text
     append(text)
     val ls = TextLinkStyles(style = SpanStyle(color = link, textDecoration = TextDecoration.Underline))
+    fun url(u: String) = LinkAnnotation.Url(u, ls) { a -> LinkEdit.open((a as LinkAnnotation.Url).url) }
     for (e in ft.entities) {
         val a = e.offset
         val b = (e.offset + e.length).coerceAtMost(text.length)
@@ -1072,10 +1210,10 @@ private fun rich(ft: FormattedText, link: Color): AnnotatedString = buildAnnotat
                 addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = Color(0x22000000)), a, b)
             is TextEntityTypeUrl -> {
                 val u = text.substring(a, b)
-                addLink(LinkAnnotation.Url(if (u.contains("://")) u else "https://$u", ls), a, b)
+                addLink(url(if (u.contains("://")) u else "https://$u"), a, b)
             }
-            is TextEntityTypeTextUrl -> addLink(LinkAnnotation.Url(ty.url, ls), a, b)
-            is TextEntityTypeEmailAddress -> addLink(LinkAnnotation.Url("mailto:" + text.substring(a, b), ls), a, b)
+            is TextEntityTypeTextUrl -> addLink(url(ty.url), a, b)
+            is TextEntityTypeEmailAddress -> addLink(url("mailto:" + text.substring(a, b)), a, b)
             is TextEntityTypeMention, is TextEntityTypeHashtag -> addStyle(SpanStyle(color = link), a, b)
             else -> {}
         }
@@ -1224,17 +1362,7 @@ private fun VoiceRow(acc: TgAccount, file: File, duration: Int, wave: ByteArray,
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             val prog = if (playing) VoicePlayer.position else 0f
-            Canvas(Modifier.fillMaxWidth().height(28.dp)) {
-                val w = size.width / bars.size
-                for (i in bars.indices) {
-                    val h = bars[i] * size.height
-                    val played = (i + 0.5f) / bars.size <= prog
-                    drawRoundRect(
-                        if (played) fg else fg.copy(alpha = 0.4f),
-                        Offset(i * w + w * 0.2f, (size.height - h) / 2), Size(w * 0.6f, h), CornerRadius(w * 0.3f),
-                    )
-                }
-            }
+            WaveBars(bars, prog, fg)
             Spacer(Modifier.height(4.dp))
             Text(Fmt.duration(duration), color = meta, fontSize = 13.sp)
         }
@@ -1277,5 +1405,135 @@ suspend fun copyToCache(ctx: Context, uri: Uri): java.io.File? = withContext(Dis
         out
     } catch (_: Throwable) {
         null
+    }
+}
+
+@Composable
+private fun WaveBars(bars: FloatArray, prog: Float, fg: Color) {
+    val accent = LocalStyle.current.accent
+    Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+        val w = size.width / bars.size
+        when (Prefs.waveStyle) {
+            "line" -> {
+                val path = androidx.compose.ui.graphics.Path()
+                for (i in bars.indices) {
+                    val x = i * w + w / 2
+                    val y = size.height / 2 - (bars[i] - 0.5f) * size.height * 0.9f * (if (i % 2 == 0) 1 else -1)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(path, fg.copy(alpha = 0.4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx()))
+                clipRect(right = size.width * prog) { drawPath(path, fg, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx())) }
+            }
+            "particles" -> {
+                for (i in bars.indices) {
+                    val played = (i + 0.5f) / bars.size <= prog
+                    val n = (bars[i] * 4).toInt().coerceAtLeast(1)
+                    for (k in 0 until n) {
+                        val y = size.height / 2 + (k - n / 2f) * 5.dp.toPx()
+                        drawCircle(if (played) accent else fg.copy(alpha = 0.35f), radius = w * 0.28f, center = Offset(i * w + w / 2, y))
+                    }
+                }
+            }
+            "neon" -> {
+                for (i in bars.indices) {
+                    val h = bars[i] * size.height
+                    val played = (i + 0.5f) / bars.size <= prog
+                    val c = if (played) accent else fg.copy(alpha = 0.3f)
+                    if (played) drawRoundRect(c.copy(alpha = 0.3f), Offset(i * w, (size.height - h) / 2 - 2f), Size(w, h + 4f), CornerRadius(w / 2))
+                    drawRoundRect(c, Offset(i * w + w * 0.3f, (size.height - h) / 2), Size(w * 0.4f, h), CornerRadius(w * 0.2f))
+                }
+            }
+            else -> for (i in bars.indices) {
+                val h = bars[i] * size.height
+                val played = (i + 0.5f) / bars.size <= prog
+                drawRoundRect(
+                    if (played) fg else fg.copy(alpha = 0.4f),
+                    Offset(i * w + w * 0.2f, (size.height - h) / 2), Size(w * 0.6f, h), CornerRadius(w * 0.3f),
+                )
+            }
+        }
+    }
+}
+
+/** Link taps go through here so the link can be edited first (optional). */
+object LinkEdit {
+    var pending by mutableStateOf<String?>(null)
+    var direct: ((String) -> Unit)? = null
+    fun open(url: String) {
+        if (Prefs.editLinks) pending = url else direct?.invoke(url)
+    }
+}
+
+@Composable
+fun LinkEditDialog() {
+    val ctx = LocalContext.current
+    fun go(u: String) {
+        try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(u)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        catch (_: Throwable) { toast(ctx, t("Couldn't open the link")) }
+    }
+    LinkEdit.direct = { go(it) }
+    val p = LinkEdit.pending ?: return
+    var text by remember(p) { mutableStateOf(p) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { LinkEdit.pending = null },
+        title = { Text(t("Open link")) },
+        text = { androidx.compose.material3.OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { LinkEdit.pending = null; go(text.trim()) }) { Text(t("Open")) } },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("link", text))
+                LinkEdit.pending = null
+                toast(ctx, t("Copied"))
+            }) { Text(t("Copy")) }
+        },
+    )
+}
+
+/** The downloadable file of a message and its kind (for "Save to phone"). */
+private fun mediaFileOf(c: MessageContent): Pair<File, String>? = when (c) {
+    is MessagePhoto -> c.photo.sizes.maxByOrNull { it.width * it.height }?.photo?.let { it to "Photos" }
+    is MessageVideo -> c.video.video to "Videos"
+    is MessageAnimation -> c.animation.animation to "Videos"
+    is MessageAudio -> c.audio.audio to "Music"
+    is MessageVoiceNote -> c.voiceNote.voice to "Voice"
+    is MessageVideoNote -> c.videoNote.video to "Videos"
+    is MessageDocument -> c.document.document to "Files"
+    else -> null
+}
+
+private fun saveToPhone(ctx: Context, acc: TgAccount, f: File, kind: String, chat: ChatItem?) {
+    toast(ctx, t("Saving…"))
+    acc.scope.launch {
+        val r = acc.client.downloadFile(fileId = f.id, priority = 32, offset = 0, limit = 0, synchronous = true)
+        val local = (r as? TdlResult.Success)?.result?.local?.path?.takeIf { it.isNotEmpty() }
+        val ok = local != null && withContext(Dispatchers.IO) { MediaSaver.save(ctx, java.io.File(local), kind) }
+        withContext(Dispatchers.Main) { toast(ctx, if (ok) t("Saved to") + " " + Prefs.saveFolder else t("Couldn't save")) }
+    }
+}
+
+object MediaSaver {
+    fun save(ctx: Context, src: java.io.File, kind: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 29) return false
+        return try {
+            val ext = src.extension.lowercase()
+            val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+            val (collection, base) = when (kind) {
+                "Photos" -> android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI to android.os.Environment.DIRECTORY_PICTURES
+                "Videos" -> android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI to android.os.Environment.DIRECTORY_MOVIES
+                "Music", "Voice" -> android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to android.os.Environment.DIRECTORY_MUSIC
+                else -> android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI to android.os.Environment.DIRECTORY_DOWNLOADS
+            }
+            val folder = Prefs.saveFolder.ifBlank { "Riv Post" }
+            val rel = base + "/" + folder + if (Prefs.saveByType) "/$kind" else ""
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, src.name)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, rel)
+            }
+            val uri = ctx.contentResolver.insert(collection, values) ?: return false
+            ctx.contentResolver.openOutputStream(uri)?.use { out -> src.inputStream().use { it.copyTo(out) } }
+            true
+        } catch (_: Throwable) { false }
     }
 }

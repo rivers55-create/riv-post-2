@@ -57,6 +57,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -120,10 +124,18 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
     val ver by acc.chatsVersion.collectAsState()
     val extra by acc.extraVersion.collectAsState()
 
+    val filterKeys = Prefs.filterTabs.split(",").filter { it.isNotBlank() }
     val lists: List<Pair<String, ChatList>> = buildList {
         add(t("All") to ChatListMain())
         if (Prefs.showFolders) for (f in folders) add(f.name.text.text to ChatListFolder(chatFolderId = f.id))
+        for (k in filterKeys) add(t(k.replaceFirstChar { it.uppercase() }) to ChatListMain())
         if (Prefs.showArchive) add(t("Archive") to ChatListArchive())
+    }
+    val filterOf: List<String?> = buildList {
+        add(null)
+        if (Prefs.showFolders) for (f in folders) add(null)
+        for (k in filterKeys) add(k)
+        if (Prefs.showArchive) add(null)
     }
     if (folderTab >= lists.size) folderTab = 0
     val counts = remember(extra, lists.size) {
@@ -140,7 +152,7 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
     ModalNavigationDrawer(
         drawerState = drawer,
         drawerContent = {
-            ModalDrawerSheet(Modifier.widthIn(max = 320.dp)) {
+            ModalDrawerSheet(Modifier.widthIn(max = 320.dp), drawerContainerColor = glassColor(MaterialTheme.colorScheme.surfaceContainerLow)) {
                 DrawerContent(acc, act, close = { scope.launch { drawer.close() } })
             }
         },
@@ -155,6 +167,7 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                         onQuery = { query = it },
                         onSearch = { searching = !searching; if (!searching) query = "" },
                         onLogo = { scope.launch { drawer.open() } },
+                        onVault = { requireAuth(act) { act.push(Screen.Vault) } },
                         menu = menuNav,
                     )
                     if (Prefs.navPos == "top" && Prefs.navBar != "off" && tabs.size > 1) NavBar(tabs, page, mainUnread) { page = it }
@@ -165,7 +178,7 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                 Column(Modifier.navigationBarsPadding()) {
                     MiniPlayer()
                     if (showTabs && Prefs.tabsPos == "bottom") FolderTabs(lists, folderTab, counts) { folderTab = it }
-                    if (Prefs.navPos != "top" && Prefs.navBar != "off" && tabs.size > 1) NavBar(tabs, page, mainUnread) { page = it }
+                    if (Prefs.navPos != "top" && Prefs.navBar != "off" && tabs.size > 1) NavBar(tabs, page, mainUnread, Modifier.accountSwipe(act)) { page = it }
                 }
             },
             floatingActionButton = {
@@ -182,7 +195,7 @@ fun HomeScreen(act: MainActivity, acc: TgAccount) {
                     "music" -> MusicLibraryPage(acc) { act.push(Screen.Sources("music")) }
                     "videos" -> VideoLibraryPage(acc, onPlay = { act.push(Screen.Video(it)) }) { act.push(Screen.Sources("video")) }
                     "profile" -> ProfilePage(acc, act)
-                    else -> ChatListPage(acc, act, lists[folderTab].second, query, ver)
+                    else -> ChatListPage(acc, act, lists[folderTab].second, query, ver, filterOf.getOrNull(folderTab))
                 }
             }
         }
@@ -203,14 +216,14 @@ private fun rememberMenu(act: MainActivity, acc: TgAccount): List<Pair<Pair<Stri
             Unit
         },
         (t("Customize") to Ic.Palette) to { act.push(Screen.Customize) },
-        (t("Settings") to Ic.Settings) to { act.push(Screen.Settings) },
+        (t("Settings") to Ic.Settings) to { act.push(Screen.Hub) },
     )
 }
 
 @Composable
 private fun TopTitleBar(
     acc: TgAccount, page: String, searching: Boolean, query: String,
-    onQuery: (String) -> Unit, onSearch: () -> Unit, onLogo: () -> Unit,
+    onQuery: (String) -> Unit, onSearch: () -> Unit, onLogo: () -> Unit, onVault: () -> Unit,
     menu: List<Pair<Pair<String, ImageVector>, () -> Unit>>,
 ) {
     val style = LocalStyle.current
@@ -258,12 +271,16 @@ private fun TopTitleBar(
             Spacer(Modifier.width(12.dp))
             Text(
                 title, color = fg, fontWeight = FontWeight.Bold, fontSize = if (large) 28.sp else 20.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).combinedClickable(onClick = {}, onLongClick = onVault),
             )
+            if (page == "chats") IconButton(onClick = { Prefs.ghost = !Prefs.ghost; Tg.setOnlineAll(!Prefs.ghost) }) {
+                Text("👻", fontSize = 20.sp, modifier = Modifier.graphicsLayerAlpha(if (Prefs.ghost) 1f else 0.35f))
+            }
             if (page == "chats" || page == "contacts") IconButton(onClick = onSearch) { Icon(Ic.Search, null, tint = fg) }
             Box {
                 IconButton(onClick = { menuOpen = true }) { Icon(Ic.More, null, tint = fg) }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, shape = RoundedCornerShape(18.dp)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, shape = RoundedCornerShape(18.dp), containerColor = glassColor(MaterialTheme.colorScheme.surfaceContainer)) {
                     for ((label, action) in menu) {
                         DropdownMenuItem(
                             leadingIcon = { Icon(label.second, null) },
@@ -309,19 +326,23 @@ fun FolderTabs(lists: List<Pair<String, ChatList>>, selected: Int, counts: List<
 }
 
 @Composable
-fun NavBar(tabs: List<NavTab>, page: String, chatsBadge: Int, onSelect: (String) -> Unit) {
+fun NavBar(tabs: List<NavTab>, page: String, chatsBadge: Int, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
     val style = LocalStyle.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val floating = Prefs.navBar == "floating"
     Row(
         (if (floating) Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp).clip(RoundedCornerShape(34.dp))
-        else Modifier.fillMaxWidth()).background(style.navBar).padding(5.dp),
+        else Modifier.fillMaxWidth()).then(modifier).background(glassColor(style.navBar)).padding(5.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         for (tb in tabs) {
             val sel = tb.id == page
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(28.dp)).background(if (sel) style.pill else Color.Transparent)
-                    .clickable { onSelect(tb.id) }.padding(vertical = 7.dp),
+                    .clickable {
+                        if (Prefs.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        onSelect(tb.id)
+                    }.padding(vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box {
@@ -343,24 +364,38 @@ fun NavBar(tabs: List<NavTab>, page: String, chatsBadge: Int, onSelect: (String)
 // ---------------------------------------------------------------- chat list
 
 @Composable
-private fun ChatListPage(acc: TgAccount, act: MainActivity, list: ChatList, query: String, ver: Long) {
+private fun ChatListPage(acc: TgAccount, act: MainActivity, list: ChatList, query: String, ver: Long, filter: String? = null, vault: Boolean = false) {
     val style = LocalStyle.current
     val extra by acc.extraVersion.collectAsState()
     LaunchedEffect(acc, list) { acc.load(list) }
-    val rows = remember(ver, list, query, extra) {
-        val all = acc.chatList(list)
-        if (query.isBlank()) all else all.filter { it.first.title.contains(query, ignoreCase = true) }
+    val hidden = Prefs.idSet(Prefs.vaultChats)
+    val pins = Prefs.idSet(Prefs.localPins)
+    val rows = remember(ver, list, query, extra, filter, hidden, pins, vault) {
+        var all = acc.chatList(list).filter { (c, _) -> if (vault) c.id in hidden else c.id !in hidden }
+        if (filter != null) all = all.filter { (c, _) ->
+            when (filter) {
+                "unread" -> c.unread > 0 || c.markedUnread
+                "groups" -> c.isGroup
+                "channels" -> c.isChannel
+                "bots" -> c.privateUserId != 0L && acc.users[c.privateUserId]?.type is dev.g000sha256.tdl.dto.UserTypeBot
+                "private" -> c.privateUserId != 0L && acc.users[c.privateUserId]?.type !is dev.g000sha256.tdl.dto.UserTypeBot
+                else -> true
+            }
+        }
+        if (query.isNotBlank()) all = all.filter { it.first.title.contains(query, ignoreCase = true) }
+        val (pinned, rest) = all.partition { it.first.id in pins }
+        pinned.map { it.first to true } + rest
     }
     val state = rememberLazyListState()
     val nearEnd by remember { derivedStateOf { (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= state.layoutInfo.totalItemsCount - 8 } }
     LaunchedEffect(nearEnd, rows.size) { if (nearEnd && rows.isNotEmpty()) acc.load(list) }
     if (rows.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(if (query.isNotBlank()) t("No chats found") else t("Loading chats…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (query.isNotBlank() || filter != null || vault) t("No chats found") else t("Loading chats…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
-    LazyColumn(state = state, modifier = Modifier.fillMaxSize()) {
+    LazyColumn(state = state, modifier = Modifier.fillMaxSize(), flingBehavior = rivFling()) {
         items(rows, key = { it.first.id }) { (c, pinned) ->
             ChatRow(acc, c, pinned, list, onClick = { act.push(Screen.Chat(c.id)) })
             if (style.dividers) HorizontalDivider(
@@ -466,12 +501,22 @@ private fun ChatRow(acc: TgAccount, c: ChatItem, pinned: Boolean, list: ChatList
                 }
             }
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = glassColor(MaterialTheme.colorScheme.surfaceContainer)) {
             DropdownMenuItem(text = { Text(if (pinned) t("Unpin") else t("Pin")) }, onClick = {
                 menu = false
                 acc.scope.launch { acc.client.toggleChatIsPinned(chatList = list, chatId = c.id, isPinned = !pinned) }
             })
             DropdownMenuItem(text = { Text(if (muted) t("Unmute") else t("Mute")) }, onClick = { menu = false; acc.setMuted(c, !muted) })
+            val lp = c.id in Prefs.idSet(Prefs.localPins)
+            DropdownMenuItem(text = { Text(if (lp) t("Unpin (on this phone)") else t("Pin on this phone")) }, onClick = {
+                menu = false
+                Prefs.localPins = Prefs.toggleId(Prefs.localPins, c.id)
+            })
+            val hid = c.id in Prefs.idSet(Prefs.vaultChats)
+            DropdownMenuItem(text = { Text(if (hid) t("Unhide") else t("Hide in vault")) }, onClick = {
+                menu = false
+                Prefs.vaultChats = Prefs.toggleId(Prefs.vaultChats, c.id)
+            })
             if (c.unread > 0 && m != null) DropdownMenuItem(text = { Text(t("Mark as read")) }, onClick = {
                 menu = false
                 acc.markAllRead(c.id, longArrayOf(m.id))
@@ -510,7 +555,7 @@ private fun DrawerContent(acc: TgAccount, act: MainActivity, close: () -> Unit) 
     val accounts by Tg.accounts.collectAsState()
     val active by Tg.activeIndex.collectAsState()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)).statusBarsPadding().padding(20.dp)) {
+        DrawerHeaderBg(acc) {
             val u = me
             Avatar(acc, u?.id ?: 0L, acc.userName(u?.id ?: 0L).ifBlank { "R" }, u?.profilePhoto?.small, u?.profilePhoto?.minithumbnail?.data, 64.dp)
             Spacer(Modifier.height(12.dp))
@@ -519,11 +564,15 @@ private fun DrawerContent(acc: TgAccount, act: MainActivity, close: () -> Unit) 
         }
         Spacer(Modifier.height(8.dp))
         Text(t("Accounts"), color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-        for (i in Prefs.accountList()) {
-            val a = accounts[i]
-            if (a != null) AccountRow(a, i == active) { Tg.switchTo(i); close() }
+        if (Prefs.drawerLock && !DrawerUnlock.open) {
+            DrawerItem(Ic.Lock, t("Unlock accounts")) { requireAuth(act) { DrawerUnlock.open = true } }
+        } else {
+            for (i in Prefs.accountList()) {
+                val a = accounts[i]
+                if (a != null) AccountRow(a, i == active) { Tg.switchTo(i); close() }
+            }
+            DrawerItem(Ic.Add, t("Add account")) { close(); Tg.addAccount() }
         }
-        DrawerItem(Ic.Add, t("Add account")) { close(); Tg.addAccount() }
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         DrawerItem(Ic.Group, t("New Group")) { close(); act.push(Screen.NewGroup) }
         DrawerItem(Ic.Bookmark, t("Saved Messages")) {
@@ -531,7 +580,7 @@ private fun DrawerContent(acc: TgAccount, act: MainActivity, close: () -> Unit) 
             acc.scope.launch { acc.privateChat(acc.myId)?.let { id -> act.runOnUiThread { act.push(Screen.Chat(id)) } } }
         }
         DrawerItem(Ic.Palette, t("Customize")) { close(); act.push(Screen.Customize) }
-        DrawerItem(Ic.Settings, t("Settings")) { close(); act.push(Screen.Settings) }
+        DrawerItem(Ic.Settings, t("Settings")) { close(); act.push(Screen.Hub) }
         Spacer(Modifier.height(16.dp))
         Text("Riv Post " + BuildConfig.VERSION_NAME, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp))
         Spacer(Modifier.height(24.dp))
@@ -564,5 +613,101 @@ private fun AccountRow(a: TgAccount, isActive: Boolean, onClick: () -> Unit) {
             Text(a.userName(am?.id ?: 0L), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (isActive) Icon(Ic.Check, null, tint = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+object DrawerUnlock {
+    var open by mutableStateOf(false)
+}
+
+@Composable
+private fun DrawerHeaderBg(acc: TgAccount, content: @Composable () -> Unit) {
+    val me by acc.me.collectAsState()
+    val style = LocalStyle.current
+    Box(Modifier.fillMaxWidth()) {
+        when (Prefs.drawerBg) {
+            "gradient" -> Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(style.accent, Color(0xFF2A0D4D), style.bg))))
+            "image" -> if (Prefs.drawerImage.isNotEmpty()) coil3.compose.AsyncImage(
+                model = java.io.File(Prefs.drawerImage), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(),
+            )
+            "avatar" -> {
+                val f = me?.profilePhoto?.big?.let { rememberFile(acc, it, autoDownload = true) }
+                if (f != null && f.local.isDownloadingCompleted) coil3.compose.AsyncImage(
+                    model = java.io.File(f.local.path), contentDescription = null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize().blurCompat(),
+                )
+            }
+            else -> Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)))
+        }
+        if (Prefs.drawerBg == "image" || Prefs.drawerBg == "avatar") Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.35f)))
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(20.dp)) { content() }
+    }
+}
+
+private fun Modifier.blurCompat(): Modifier = this.then(Modifier.blur(24.dp))
+
+private fun Modifier.graphicsLayerAlpha(a: Float): Modifier = this.then(Modifier.graphicsLayer { alpha = a })
+
+/** Swipe across the bottom bar to switch accounts. */
+@Composable
+fun Modifier.accountSwipe(act: MainActivity): Modifier {
+    if (!Prefs.swipeAccounts) return this
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    return this.pointerInput(Unit) {
+        var drag = 0f
+        detectHorizontalDragGestures(onDragEnd = {
+            val ready = Tg.readyAccounts()
+            if (ready.size > 1 && kotlin.math.abs(drag) > 160f) {
+                val i = ready.indexOfFirst { it.index == Tg.activeIndex.value }
+                val n = ready[((i + if (drag < 0) 1 else -1) + ready.size) % ready.size]
+                if (Prefs.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                Tg.switchTo(n.index)
+            }
+            drag = 0f
+        }) { _, d -> drag += d }
+    }
+}
+
+/** Hidden chats, opened with a long-press on the title (PIN or fingerprint). */
+@Composable
+fun VaultScreen(acc: TgAccount, act: MainActivity, onBack: () -> Unit) {
+    val ver by acc.chatsVersion.collectAsState()
+    Column(Modifier.fillMaxSize().background(LocalStyle.current.bg).statusBarsPadding()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Ic.Back, null) }
+            Text(t("Hidden chats"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Text(
+            t("Long-press a chat → Hide in vault. Open this vault by long-pressing the app title."),
+            fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        ChatListPage(acc, act, ChatListMain(), "", ver, null, vault = true)
+    }
+}
+
+/** Scroll feel: smooth (long glide), normal, or snappy (stops quickly). */
+@Composable
+fun rivFling(): androidx.compose.foundation.gestures.FlingBehavior {
+    val def = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+    return when (Prefs.scrollFeel) {
+        "smooth" -> remember { DecayFling(androidx.compose.animation.core.exponentialDecay(0.6f)) }
+        "snappy" -> remember { DecayFling(androidx.compose.animation.core.exponentialDecay(2.6f)) }
+        else -> def
+    }
+}
+
+class DecayFling(private val decay: androidx.compose.animation.core.DecayAnimationSpec<Float>) : androidx.compose.foundation.gestures.FlingBehavior {
+    override suspend fun androidx.compose.foundation.gestures.ScrollScope.performFling(initialVelocity: Float): Float {
+        if (kotlin.math.abs(initialVelocity) < 1f) return initialVelocity
+        var left = initialVelocity
+        var last = 0f
+        androidx.compose.animation.core.AnimationState(0f, initialVelocity).animateDecay(decay) {
+            val delta = value - last
+            val used = scrollBy(delta)
+            last = value
+            left = velocity
+            if (kotlin.math.abs(delta - used) > 0.5f) cancelAnimation()
+        }
+        return left
     }
 }

@@ -23,6 +23,7 @@ object Tg {
     fun init(c: Context) {
         app = c.applicationContext
         if (Prefs.hasKeys) startAll()
+        Proxies.startWatcher()
     }
 
     fun startAll() {
@@ -96,6 +97,10 @@ object Tg {
         for (a in accounts.value.values) a.close()
         accounts.value = emptyMap()
         startAll()
+    }
+
+    fun setOnlineAll(on: Boolean) {
+        for (a in accounts.value.values) a.setOnline(on)
     }
 
     fun applyProxyAll() {

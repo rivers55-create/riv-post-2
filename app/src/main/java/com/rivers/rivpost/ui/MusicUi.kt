@@ -311,6 +311,13 @@ private fun PageChips() {
 private fun CoverPage(s: Track) {
     var drag by remember { mutableFloatStateOf(0f) }
     val scale by animateFloatAsState(if (Music.isPlaying) 1f else 0.9f, label = "art")
+    val glow = coverColor(s)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (Prefs.playerGlow && glow != null) Box(
+            Modifier.fillMaxWidth(0.95f).aspectRatio(1f).scale(scale * 1.05f)
+                .background(Brush.radialGradient(listOf(glow.copy(alpha = if (Music.isPlaying) 0.55f else 0.3f), Color.Transparent))),
+        )
+    }
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         TrackArt(
             s,

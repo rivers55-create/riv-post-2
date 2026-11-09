@@ -87,7 +87,7 @@ import kotlinx.coroutines.withContext
 
 private data class GalleryItem(val uri: Uri, val video: Boolean)
 
-private fun photoContent(path: String): InputMessageContent {
+fun photoContent(path: String): InputMessageContent {
     val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(path, o)
     return InputMessagePhoto(
@@ -143,7 +143,7 @@ private fun lastLocation(c: Context): Location? {
 
 /** The 📎 sheet: gallery grid with camera, and File / Location / Contact / Music / GIF tabs. */
 @Composable
-fun AttachSheet(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit) {
+fun AttachSheet(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit, onCamera: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val scope = rememberCoroutineScope()
@@ -256,6 +256,7 @@ fun AttachSheet(onDismiss: () -> Unit, onSend: (InputMessageContent) -> Unit) {
                         item {
                             Box(
                                 Modifier.aspectRatio(1f).padding(1.dp).background(Color.Black).clickable {
+                                    if (onCamera != null && com.rivers.rivpost.data.Prefs.builtInCamera) { onDismiss(); onCamera(); return@clickable }
                                     try {
                                         val f = java.io.File(ctx.cacheDir, "camera").apply { mkdirs() }.let { java.io.File(it, "cam_${System.currentTimeMillis()}.jpg") }
                                         cameraFile = f

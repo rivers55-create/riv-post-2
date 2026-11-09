@@ -92,6 +92,63 @@ class TgAccount(private val ctx: Context, val index: Int) {
     @Volatile private var paramsSent = false
 
     val dir = java.io.File(ctx.filesDir, "tdlib/acc_$index")
+    val uploads = ConcurrentHashMap<Int, File>()
+
+    // ---------- anti-revoke / edit history (opt-in, local only) ----------
+    private val seen = object : LinkedHashMap<String, Message>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Message>?): Boolean = size > 5000
+    }
+    private val lastText = HashMap<String, String>()
+    private val revokePrefs by lazy { ctx.getSharedPreferences("riv_revoke_$index", Context.MODE_PRIVATE) }
+
+    fun remember(m: Message) {
+        if (!Prefs.antiRevoke) return
+        synchronized(seen) {
+            val k = "${m.chatId}:${m.id}"
+            seen[k] = m
+            if (!lastText.containsKey(k)) lastText[k] = Fmt.preview(this, m)
+        }
+    }
+
+    fun rememberedMessage(chatId: Long, id: Long): Message? = synchronized(seen) { seen["$chatId:$id"] }
+
+    /** Deleted messages saved for one chat: lines of "id|date|sender|text". */
+    fun revokedLog(chatId: Long): List<List<String>> =
+        (revokePrefs.getString("d$chatId", "") ?: "").split("\n").filter { it.isNotBlank() }.map { it.split("|", limit = 4) }
+
+    fun editHistory(chatId: Long, id: Long): List<String> =
+        (revokePrefs.getString("e$chatId:$id", "") ?: "").split("\n").filter { it.isNotBlank() }.map { it.replace("\\n", "\n") }
+
+    fun hasHistory(chatId: Long, id: Long): Boolean = revokePrefs.contains("e$chatId:$id")
+
+    private fun logDeleted(chatId: Long, ids: LongArray) {
+        val lines = StringBuilder(revokePrefs.getString("d$chatId", "") ?: "")
+        synchronized(seen) {
+            for (id in ids) {
+                val m = seen["$chatId:$id"] ?: continue
+                val text = Fmt.preview(this, m).replace("\n", " ").replace("|", "/")
+                lines.append("$id|${m.date}|${senderName(m.senderId).replace("|", "/")}|$text\n")
+            }
+        }
+        revokePrefs.edit().putString("d$chatId", lines.toString().takeLast(60_000)).apply()
+    }
+
+    private fun logEdit(chatId: Long, id: Long, newContent: MessageContent) {
+        val k = "$chatId:$id"
+        val old = synchronized(seen) { lastText[k] } ?: return
+        val prev = revokePrefs.getString("e$k", "") ?: ""
+        revokePrefs.edit().putString("e$k", (prev + old.replace("\n", "\\n") + "\n").takeLast(8_000)).apply()
+        synchronized(seen) {
+            seen[k]?.let { m -> lastText[k] = Fmt.previewContent(this, newContent, m) }
+        }
+    }
+    val uploadsVersion = MutableStateFlow(0L)
+
+    /** Tells Telegram whether we're online (off in ghost mode). */
+    fun setOnline(on: Boolean) {
+        if (!isReady) return
+        scope.launch { client.setOption(name = "online", value = OptionValueBoolean(value = on && !Prefs.ghost)) }
+    }
     val isReady: Boolean get() = auth.value is AuthorizationStateReady
 
     fun start() {
@@ -200,17 +257,28 @@ class TgAccount(private val ctx: Context, val index: Int) {
                 if (me.value?.id == u.user.id) me.value = u.user
             }
             is UpdateFile -> {
+                if (u.file.remote.isUploadingActive || uploads.containsKey(u.file.id)) {
+                    uploads[u.file.id] = u.file
+                    uploadsVersion.value = uploadsVersion.value + 1
+                }
                 val f = files[u.file.id]
                 if (f != null) f.value = u.file else files[u.file.id] = MutableStateFlow(u.file)
             }
             is UpdateNewMessage -> {
+                remember(u.message)
                 events.tryEmit(MsgEvent.New(u.message))
                 Notifier.onNewMessage(ctx, this, u.message)
             }
             is UpdateMessageSendSucceeded -> events.tryEmit(MsgEvent.Replaced(u.oldMessageId, u.message))
             is UpdateMessageSendFailed -> events.tryEmit(MsgEvent.Replaced(u.oldMessageId, u.message))
-            is UpdateDeleteMessages -> if (u.isPermanent) events.tryEmit(MsgEvent.Deleted(u.chatId, u.messageIds))
-            is UpdateMessageContent -> events.tryEmit(MsgEvent.Content(u.chatId, u.messageId, u.newContent))
+            is UpdateDeleteMessages -> if (u.isPermanent) {
+                if (Prefs.antiRevoke) logDeleted(u.chatId, u.messageIds)
+                events.tryEmit(MsgEvent.Deleted(u.chatId, u.messageIds))
+            }
+            is UpdateMessageContent -> {
+                if (Prefs.antiRevoke) logEdit(u.chatId, u.messageId, u.newContent)
+                events.tryEmit(MsgEvent.Content(u.chatId, u.messageId, u.newContent))
+            }
             is UpdateMessageEdited -> events.tryEmit(MsgEvent.Edited(u.chatId, u.messageId, u.editDate))
             else -> {}
         }
