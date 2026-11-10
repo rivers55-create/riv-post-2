@@ -1,0 +1,73 @@
+name: Build Telegram call engine (video)
+on:
+  push:
+    branches: [ video-engine ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [ arm64-v8a, armeabi-v7a ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Telegram's source (pinned)
+        run: |
+          git init -q tg && cd tg
+          git remote add origin https://github.com/DrKLO/Telegram
+          git fetch -q --depth 1 origin 7be672ead283d022812d75c729d3a04dd4c2a2c6
+          git checkout -q FETCH_HEAD
+          for m in tgcalls td third_party/libvpx third_party/xiph/opus third_party/libyuv third_party/openh264 third_party/boringssl third_party/absl third_party/wamr; do
+            git submodule update -q --init --depth 1 TMessagesProj/jni/$m || git submodule update -q --init TMessagesProj/jni/$m
+          done
+          cp ../video-engine/CMakeLists.txt TMessagesProj/jni/CMakeLists.txt
+          cp ../video-engine/rivjni.c TMessagesProj/jni/rivjni.c
+      - name: NDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
+          sudo apt-get install -y -qq ninja-build nasm > /dev/null
+      - name: Build
+        run: |
+          NDK=$ANDROID_HOME/ndk/27.2.12479018
+          CMAKE=$ANDROID_HOME/cmake/3.22.1/bin/cmake
+          $CMAKE -G Ninja -S tg/TMessagesProj/jni -B build \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+            -DCMAKE_MAKE_PROGRAM=$(which ninja) \
+            -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static \
+            -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -30
+          ninja -C build -k 50 rivcalls 2>&1 | grep -E "error|FAILED|undefined|Linking" | head -150 | tee build-errors.txt
+          ls -la build/librivcalls.so
+          $NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-unneeded build/librivcalls.so
+          ls -la build/librivcalls.so
+      - name: Keep errors
+        if: failure()
+        run: |
+          mkdir -p out && cp build-errors.txt out/errors-${{ matrix.abi }}.txt || true
+      - name: Keep library
+        if: success()
+        run: |
+          mkdir -p out/${{ matrix.abi }} && cp build/librivcalls.so out/${{ matrix.abi }}/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-${{ matrix.abi }}
+          path: out
+  publish:
+    needs: engine
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: Publish
+        run: |
+          cd out && find . -type f | head -20
+          git init -q && git checkout -q -b video-engine-out
+          git add -A
+          git -c user.name="Build Bot" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "engine build"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" video-engine-out
