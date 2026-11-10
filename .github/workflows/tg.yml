@@ -30,7 +30,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: ~/.ccache
           key: tg-ccache-${{ github.run_id }}
@@ -44,13 +44,18 @@ jobs:
         run: |
           cd tgsrc
           chmod +x gradlew
-          set -o pipefail
-          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon 2>&1 | tee ../gradle.log | grep -E "error:|FAILED|BUILD|What went wrong|e: " | head -200
+          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon > ../gradle.log 2>&1 || { grep -E "^e: |error:|What went wrong|FAILED" -A5 ../gradle.log | grep -v "warning:" | tail -120; exit 1; }
+          tail -5 ../gradle.log
           ls -la $(find TMessagesProj_App/build/outputs/apk -name "*.apk")
       - name: Keep log on failure
         if: failure()
         run: |
-          mkdir -p out && grep -E "error:|FAILED|What went wrong|e: |Exception" -A3 gradle.log | head -400 > out/errors.txt || true
+          mkdir -p out && (grep -E "^e: |error:|What went wrong|FAILED" -A5 gradle.log | grep -v "warning:" | tail -300 > out/errors.txt; tail -80 gradle.log > out/tail.txt) || true
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ~/.ccache
+          key: tg-ccache-${{ github.run_id }}
       - name: Keep APK
         if: success()
         run: |
