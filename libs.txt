@@ -1,0 +1,16 @@
+ 11088164  1981-01-01 01:01   classes.dex
+   505700  1981-01-01 01:01   classes2.dex
+ 13456144  1981-01-01 01:01   classes3.dex
+  1342192  1981-01-01 01:01   classes4.dex
+     7112  1981-01-01 01:01   lib/arm64-v8a/libdatastore_shared_counter.so
+  1019552  1981-01-01 01:01   lib/arm64-v8a/liblanguage_id_l2c_jni.so
+ 27053464  1981-01-01 01:01   lib/arm64-v8a/libtmessages.49.so
+     4416  1981-01-01 01:01   lib/armeabi-v7a/libdatastore_shared_counter.so
+   609628  1981-01-01 01:01   lib/armeabi-v7a/liblanguage_id_l2c_jni.so
+ 22927024  1981-01-01 01:01   lib/armeabi-v7a/libtmessages.49.so
+     5148  1981-01-01 01:01   lib/x86/libdatastore_shared_counter.so
+  1359344  1981-01-01 01:01   lib/x86/liblanguage_id_l2c_jni.so
+ 30153584  1981-01-01 01:01   lib/x86/libtmessages.49.so
+     6224  1981-01-01 01:01   lib/x86_64/libdatastore_shared_counter.so
+  1324480  1981-01-01 01:01   lib/x86_64/liblanguage_id_l2c_jni.so
+ 29184864  1981-01-01 01:01   lib/x86_64/libtmessages.49.so

@@ -1,0 +1,30 @@
+HTTP/2 302 
+server: nginx/1.30.1
+date: Tue, 10 Nov 2026 01:05:46 GMT
+content-type: text/html; charset=UTF-8
+content-length: 0
+location: https://cdn4.telesco.pe/file/Telegram.apk?token=pg9qkpwua8pazYdVwZQAFtTY5IwPlLtOYkTzvIU4Co8NFJzXpo1qWhS2PFh-jQz1gZarstXJZnO7PvaDwIbMBKEi2tXVqsaLVxYXFgLT3qJAOmLWhD4OjWePtMxpLjx3fHgOpPfA9xhW_cfY8oN2LUIGTLKgaML2Ej8RNMgsz5A1qF1r97Y2Mq_RQWNC3FcAHOohke1KVgK-fggjmowL2NKIqlJ8V2g7P2naabolvSaIGNghcjBoX664GPhvtbxNeQ05D1X3X8sPWnYTH28y5WNFsYAAGkr-z7Bb-Vf8zCyjCMeIvJcN7jpyu4BmzRIeNlvj8740LkEmnxdGRpFQCm_r10kGXwULGUSfIfeFH412OnX_iFKSc9R9vrEER_AJZq_quCtP4BnZvmrzOq2FCKCpo_qzJ5d9wgKrmwRVb81vQ6Lx4Pcc80WkX-nMGtn9yhhmFibOOdD3u6t9UYlya4f32nWSd49enoorllVgkaEWkk2cw2-X-0wzTDxDTwljX8ibqN6O5Rl3Vjj1P0sbJHJ6okb04yH978a4jsZdoU_a7AnAcqDMxTczlfLfCLZ98bEQGSSmBAdsxYPOho43iKfEECJBfFpMidj6gE4smJzV_L5pNvgjEEYyPVQuKRMZHdWkwjQC1vRzgGs-nRTmulnMd6TMBfNF7Sm-7NIfqg5dTYzS_8cK47pwvV7t7HGPaFCtJP5o3msuXoA7V1NGR_8996sxm7a6EDQ3P0wakusQSmnRoZRWqe8JSTtcwcLfZhV2WM1D3ROMRozHM2Qxfix6YRxKb6_WlHY8eNneR2jgk3Y0Zm6a_n8a2bRiUC2VDqhNPhS0K2PiyHExZVXUE2BNX6UiK85LsSgaAQMxvmFZTGZqPmhZujiPsZ0nDL--d9BnFnVj9sq9eXxj-7Ipkz5ndlxVAR8l4__PO8qBqZfG4ucfzNqczEZmFhS5ulrHI_bbFMlwh6lrV2_D0-l0eHss_u7rXACIb1OYx9Jccg2kJ1CAOYvlzoVHmBXnaVVReYEf1vwsa_51jiZpuJ1YCN9OgPPWJgFNnYZSaIMSpUqzrmjeLykxjA1dicq59AD2pTiH6oMwWsxm7GQ4UaF0ovoxaALNB7ImRNn8WHYozomMosaFtt_PtOoxH4e3Tgh8Y7SqFt_N1uHIXq3CmwRsdN-cKPTNZV00MOo_0po5pieph1Pk_5074HjDmcldjCW0oVkvBWlk6nfNf4-QjVOSBwAyOq-De52PGe__ywB2QVK6rouMShAWnpO-5FA9H3QX6MS5ap09dw5lKOzoltAZuBtabe_XtdYLHdDMX0fIAa67zBMypjeFecRWeeaBKk3ALK4RPmx54F_6kehtREdqy1g3Qp46Rr8PQj5oTOyg8B5iJiMNZ8hBL7vOZCWGcmjVDrdrjk7q5kR21XdN1QvZ6Q69R-lTVdPq_Q2fBBD8kYLcdzQl1udKnegTA86UlqdRtLWgMZb8Dar-BU5CLrNfq8uHEdlSJuEvAGaNDa1LAqjV63xsd3W36PxzDy6P5vZMRvxcuwnJ1JM0iKMpAljtrOX2n2p2hObgUG0oPIRqxvCfPJoWbgmh9zMR0C7rz2QQI8CcoDWoaAgQcc-YHLzXin7TagGJXSrKlDXzDcfmjFVpDBghmGV4y1CBtfAQuAWOEMOr8I4uyC_wVbrRvUCxe0L8xVcC2zTMEV4_j26yVUI
+set-cookie: stel_ssid=b3ea9147d3ae33ba9f_5786427032638874178; expires=Tue, 10 Nov 2026 12:12:26 GMT; path=/; samesite=None; secure; HttpOnly
+pragma: no-cache
+cache-control: no-store
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+
+HTTP/1.1 200 OK
+Server: nginx/1.30.1
+Date: Tue, 10 Nov 2026 01:05:46 GMT
+Content-Type: application/octet-stream
+Content-Length: 79564232
+Connection: keep-alive
+Access-Control-Allow-Origin: *
+X-Content-Type-Options: nosniff
+Content-Security-Policy: default-src 'none'; sandbox
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Access-Control-Expose-Headers: Accept-Ranges, Content-Range, Content-Length
+Content-Disposition: attachment; filename="Telegram.apk"
+Cache-Control: max-age=10800, must-revalidate
+Expires: Tue, 10 Nov 2026 04:05:46 GMT
+ETag: "c2ed8686c820d8e7cd45d830b00513b338cec802"
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Accept-Ranges: bytes
+
