@@ -26,8 +26,15 @@ jobs:
           done
           cp ../video-engine/CMakeLists.txt TMessagesProj/jni/CMakeLists.txt
           cp ../video-engine/rivjni.c TMessagesProj/jni/rivjni.c
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ matrix.abi }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.abi }}-
       - name: NDK
         run: |
+          sudo apt-get install -y -qq ccache > /dev/null
+          ccache -M 4G
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
           sudo apt-get install -y -qq ninja-build nasm > /dev/null
       - name: Build
@@ -38,6 +45,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
             -DCMAKE_MAKE_PROGRAM=$(which ninja) \
             -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -30
           ninja -C build -k 50 rivcalls 2>&1 | grep -E "error:|FAILED:|undefined" | head -150 | tee build-errors.txt
           ls -la build/librivcalls.so
