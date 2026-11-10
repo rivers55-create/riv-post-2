@@ -15,6 +15,13 @@ object Prefs {
 
     fun init(c: Context) {
         sp = c.getSharedPreferences("riv_settings", Context.MODE_PRIVATE)
+        // Create every setting's state now, outside any screen, so Compose never sees one being born mid-draw.
+        for (f in javaClass.declaredFields) {
+            try {
+                f.isAccessible = true
+                (f.get(this) as? Warm)?.warm()
+            } catch (_: Throwable) { }
+        }
     }
 
     // Telegram API keys (entered by the user, kept only on this phone)
@@ -358,7 +365,10 @@ object Prefs {
     }
 }
 
-class BoolPref(private val key: String, private val def: Boolean) : ReadWriteProperty<Any?, Boolean> {
+interface Warm { fun warm() }
+
+class BoolPref(private val key: String, private val def: Boolean) : ReadWriteProperty<Any?, Boolean>, Warm {
+    override fun warm() { s() }
     private var state: MutableState<Boolean>? = null
     private fun s(): MutableState<Boolean> =
         state ?: mutableStateOf(Prefs.sp.getBoolean(key, def)).also { state = it }
@@ -370,7 +380,8 @@ class BoolPref(private val key: String, private val def: Boolean) : ReadWritePro
     }
 }
 
-class IntPref(private val key: String, private val def: Int) : ReadWriteProperty<Any?, Int> {
+class IntPref(private val key: String, private val def: Int) : ReadWriteProperty<Any?, Int>, Warm {
+    override fun warm() { s() }
     private var state: MutableState<Int>? = null
     private fun s(): MutableState<Int> =
         state ?: mutableStateOf(Prefs.sp.getInt(key, def)).also { state = it }
@@ -382,7 +393,8 @@ class IntPref(private val key: String, private val def: Int) : ReadWriteProperty
     }
 }
 
-class StrPref(private val key: String, private val def: String) : ReadWriteProperty<Any?, String> {
+class StrPref(private val key: String, private val def: String) : ReadWriteProperty<Any?, String>, Warm {
+    override fun warm() { s() }
     private var state: MutableState<String>? = null
     private fun s(): MutableState<String> =
         state ?: mutableStateOf(Prefs.sp.getString(key, def) ?: def).also { state = it }
@@ -394,7 +406,8 @@ class StrPref(private val key: String, private val def: String) : ReadWritePrope
     }
 }
 
-class FloatPref(private val key: String, private val def: Float) : ReadWriteProperty<Any?, Float> {
+class FloatPref(private val key: String, private val def: Float) : ReadWriteProperty<Any?, Float>, Warm {
+    override fun warm() { s() }
     private var state: MutableState<Float>? = null
     private fun s(): MutableState<Float> =
         state ?: mutableStateOf(Prefs.sp.getFloat(key, def)).also { state = it }

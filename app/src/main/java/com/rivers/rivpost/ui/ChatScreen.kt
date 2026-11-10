@@ -317,6 +317,15 @@ class ChatData(val acc: TgAccount, val chatId: Long, val thread: Long = 0, val t
 
 @Composable
 fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit, jump: Long = 0, thread: Long = 0, topic: Int = 0) {
+    ChatScreenImpl(acc, act, chatId, onBack, jump, thread, topic)
+}
+
+/** Runs [content] as its own function, which keeps ChatScreen small enough for Android's verifier. */
+@Composable
+private fun ChatHost(content: @Composable () -> Unit) = content()
+
+@Composable
+private fun ChatScreenImpl(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Unit, jump: Long, thread: Long, topic: Int) {
     val ctx = LocalContext.current
     val style = LocalStyle.current
     val cs = MaterialTheme.colorScheme
@@ -361,6 +370,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var showBotKb by remember(chatId) { mutableStateOf(true) }
     var cmdMenu by remember { mutableStateOf(false) }
     var botCmds by remember(chatId) { mutableStateOf<Pair<List<dev.g000sha256.tdl.dto.BotCommand>, dev.g000sha256.tdl.dto.BotMenuButton?>?>(null) }
+    ChatHost {
     BackHandler(enabled = data.selected.isNotEmpty()) { data.selected.clear() }
 
     DisposableEffect(acc, chatId) {
@@ -372,6 +382,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             acc.scope.launch { acc.client.closeChat(chatId = chatId) }
             recorder.cancel()
         }
+    }
     }
     val latestText by rememberUpdatedState(text)
     LaunchedEffect(text.isNotBlank(), text.length / 40) {
@@ -419,6 +430,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             last >= listState.layoutInfo.totalItemsCount - 10
         }
     }
+    ChatHost {
     LaunchedEffect(nearTop, data.messages.size) { if (nearTop && data.messages.isNotEmpty()) data.loadMore() }
     LaunchedEffect(recording) {
         while (recording) {
@@ -440,6 +452,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         if (HashtagNav.tag.isNotBlank()) { searching = true; searchQuery = HashtagNav.tag; HashtagNav.tag = "" }
     }
 
+    }
     fun jumpTo(id: Long) {
         scope.launch {
             val i = data.loadAround(id)
@@ -953,6 +966,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
         }
     }
 
+    ChatHost {
     if (sendAs) SendAsDialog(acc, chatId) { sendAs = false }
     val ro = replyTo
     if (replyOptions && ro != null) ReplyOptionsDialog(
@@ -1074,6 +1088,7 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             }
             onBack()
         }
+    }
     }
 }
 
