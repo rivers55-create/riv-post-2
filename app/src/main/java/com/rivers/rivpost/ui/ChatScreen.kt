@@ -627,6 +627,7 @@ private fun ChatScreenImpl(acc: TgAccount, act: MainActivity, chatId: Long, onBa
     }
     LaunchedEffect(botChat) { if (botChat) botCmds = botCommands(acc, peerUserId) }
 
+    ChatHost {
     Box(Modifier.fillMaxSize().background(style.chatBg)) {
         // wallpaper
         if (Prefs.wallpaper.isNotEmpty() && java.io.File(Prefs.wallpaper).exists()) {
@@ -964,6 +965,7 @@ private fun ChatScreenImpl(acc: TgAccount, act: MainActivity, chatId: Long, onBa
                 StickerPanel(acc, onEmoji = { e -> text += e }, onSend = { c -> send(c) })
             }
         }
+    }
     }
 
     ChatHost {
@@ -1507,6 +1509,7 @@ private fun MessageItem(
     val video = remember(m.id) { VideoItem.from(acc.index, m) }
     val track = remember(m.id) { Track.from(acc.index, m) }
 
+    ChatHost {
     Row(
         Modifier.fillMaxWidth()
             .background(if (m.id in data.selected) style.accent.copy(alpha = 0.18f) else Color.Transparent)
@@ -1806,6 +1809,7 @@ private fun MessageItem(
                 contentAlignment = Alignment.Center,
             ) { Icon(Ic.Forward, null, tint = style.navBarFg, modifier = Modifier.size(22.dp)) }
         }
+    }
     }
 }
 

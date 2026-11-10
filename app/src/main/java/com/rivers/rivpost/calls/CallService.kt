@@ -26,34 +26,64 @@ class CallService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         CallNotif.channels(this)
         val u = Calls.ui.value
-        if (u == null || u.ended) { stopSelf(); return START_NOT_STICKY }
-        val n = CallNotif.ongoing(this, u)
+        // Android requires startForeground() right away, even if the call already ended.
+        val n = if (u != null) CallNotif.ongoing(this, u) else CallNotif.placeholder(this)
         var ok = false
         if (Build.VERSION.SDK_INT >= 30) {
             for (type in listOf(
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                0,
             )) {
-                try { ServiceCompat.startForeground(this, CallNotif.ONGOING_ID, n, type); ok = true; break } catch (_: Throwable) { }
+                try {
+                    if (type == 0) startForeground(CallNotif.ONGOING_ID, n) else ServiceCompat.startForeground(this, CallNotif.ONGOING_ID, n, type)
+                    ok = true; break
+                } catch (_: Throwable) { }
             }
         } else {
             try { startForeground(CallNotif.ONGOING_ID, n); ok = true } catch (_: Throwable) { }
         }
-        if (!ok) stopSelf()
+        running = true
+        starting = false
+        if (pendingStop || u == null || u.ended || !ok) {
+            pendingStop = false
+            running = false
+            try { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) } catch (_: Throwable) { }
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 
+    override fun onDestroy() {
+        running = false
+        super.onDestroy()
+    }
+
     companion object {
+        @Volatile private var running = false
+        @Volatile private var starting = false
+        @Volatile private var pendingStop = false
+
         fun start(c: Context) {
+            if (running || starting) { pendingStop = false; return }
             try {
+                starting = true
+                pendingStop = false
                 val i = Intent(c, CallService::class.java)
                 if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i) else c.startService(i)
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+            } finally {
+                // onStartCommand will run soon; it clears this.
+                android.os.Handler(c.mainLooper).postDelayed({ starting = false }, 3000)
+            }
         }
 
+        /** Never stops the service before it has called startForeground, which would crash the app. */
         fun stop(c: Context) {
+            if (!running) { pendingStop = true; return }
             try { c.stopService(Intent(c, CallService::class.java)) } catch (_: Throwable) { }
+            running = false
         }
     }
 }
@@ -117,6 +147,12 @@ object CallNotif {
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(p, hangupIntent(c), openIntent(c, "call_accept", 34)))
         try { c.getSystemService(NotificationManager::class.java).notify(INCOMING_ID, b.build()) } catch (_: Throwable) { }
     }
+
+    fun placeholder(c: Context) = NotificationCompat.Builder(c, CH_ONGOING)
+        .setSmallIcon(R.drawable.ic_notif)
+        .setContentTitle(t("Voice call"))
+        .setOngoing(true)
+        .build()
 
     fun cancelIncoming(c: Context) {
         try { c.getSystemService(NotificationManager::class.java).cancel(INCOMING_ID) } catch (_: Throwable) { }

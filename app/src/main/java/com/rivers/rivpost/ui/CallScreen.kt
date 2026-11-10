@@ -65,6 +65,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun CallOverlay(act: MainActivity) {
     val u by Calls.ui.collectAsState()
+    val active = u != null && u?.ended == false
+    androidx.compose.runtime.DisposableEffect(active) {
+        if (android.os.Build.VERSION.SDK_INT >= 27) { act.setShowWhenLocked(active); act.setTurnScreenOn(active) }
+        onDispose { }
+    }
     val call = u ?: return
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(call.connectedAt) {

@@ -40,6 +40,7 @@ import dev.g000sha256.tdl.dto.CallDiscardReasonMissed
 import dev.g000sha256.tdl.dto.OptionValueInteger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 import org.webrtc.audio.CallAudioHooks
@@ -145,7 +146,7 @@ object Calls {
 
     fun start(act: Activity, acc: TgAccount, userId: Long) {
         if (!Prefs.voiceCalls) return
-        if (ui.value?.ended == false) { ui.value = ui.value?.copy(minimized = false); return }
+        if (ui.value?.ended == false) { mod { it.copy(minimized = false) }; return }
         if (!available()) { com.rivers.rivpost.ui.toast(act, t("Calls can't run on this phone") + "\n" + loadError); return }
         if (!askMic(act)) return
         if (Prefs.callWifiOnly && networkType(act) !in setOf(6, 7)) { com.rivers.rivpost.ui.toast(act, t("Wi-Fi only calls is on")); return }
@@ -156,7 +157,7 @@ object Calls {
         ui.value = CallUi(acc.index, 0, userId, outgoing = true, status = t("Requesting…"), redial = redial)
         acc.scope.launch {
             when (val r = acc.client.createCall(userId = userId, protocol = protocol(), isVideo = false)) {
-                is TdlResult.Success -> ui.value = ui.value?.copy(id = r.result.id)
+                is TdlResult.Success -> mod { it.copy(id = r.result.id) }
                 is TdlResult.Failure -> {
                     ui.value = ui.value?.copy(status = r.message.ifBlank { t("Call failed") }, ended = true)
                     CallService.stop(ctx)
@@ -187,6 +188,11 @@ object Calls {
             c.startActivity(Intent(c, com.rivers.rivpost.MainActivity::class.java).putExtra("call_accept", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
         }
+        // Bring the app up too: Android only gives the microphone to calls answered while the app is visible.
+        try {
+            c.startActivity(Intent(c, com.rivers.rivpost.MainActivity::class.java).putExtra("call_open", true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        } catch (_: Throwable) { }
         acceptInternal(c)
     }
 
@@ -194,7 +200,7 @@ object Calls {
         val u = ui.value ?: return
         stopRinging()
         CallNotif.cancelIncoming(c)
-        ui.value = u.copy(incomingRinging = false, status = t("Connecting…"), minimized = false)
+        mod { it.copy(incomingRinging = false, status = t("Connecting…"), minimized = false) }
         CallService.start(c)
         val acc = Tg.get(u.acc)
         acc.scope.launch { acc.client.acceptCall(callId = u.id, protocol = protocol()) }
@@ -203,7 +209,7 @@ object Calls {
     /** Stop the ringtone but keep the call ringing on screen. */
     fun silence() {
         stopRinging()
-        ui.value = ui.value?.copy(silent = true)
+        mod { it.copy(silent = true) }
     }
 
     fun declineWithMessage(text: String) {
@@ -251,7 +257,7 @@ object Calls {
 
     fun setVoice(v: Int) { CallAudioHooks.voice = v }
 
-    fun setNotes(n: String) { ui.value = ui.value?.copy(notes = n) }
+    fun setNotes(n: String) { mod { it.copy(notes = n) } }
 
     fun setHold(on: Boolean) {
         val u = ui.value ?: return
@@ -261,9 +267,17 @@ object Calls {
             CallInject.play(Tg.app, Prefs.callHoldMusic.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }, loop = true)
         } else {
             CallInject.stop()
-            try { controller?.setMicDisabled(u.muted) } catch (_: Throwable) { }
+            CallAudioHooks.injectMix = true
+            try { controller?.setMicDisabled(u.muted || u.deafen) } catch (_: Throwable) { }
         }
-        ui.value = u.copy(hold = on, playing = on)
+        mod { it.copy(hold = on, playing = on) }
+    }
+
+    private fun restoreMic() {
+        val u = ui.value ?: return
+        if (u.hold) return
+        CallAudioHooks.injectMix = true
+        try { controller?.setMicDisabled(u.muted || u.deafen) } catch (_: Throwable) { }
     }
 
     fun toggleDeafen() {
@@ -271,27 +285,28 @@ object Calls {
         val d = !u.deafen
         CallAudioHooks.deafen = d
         try { controller?.setMicDisabled(d || u.muted) } catch (_: Throwable) { }
-        ui.value = u.copy(deafen = d)
+        mod { it.copy(deafen = d) }
     }
 
     fun playIntoCall(uri: Uri?) {
         val u = ui.value ?: return
-        if (uri == null) { CallInject.stop(); ui.value = u.copy(playing = false); return }
-        if (u.muted) try { controller?.setMicDisabled(false) } catch (_: Throwable) { }
-        CallAudioHooks.injectMix = true
+        if (uri == null) { CallInject.stop(); restoreMic(); mod { it.copy(playing = false) }; return }
+        if (u.muted || u.deafen) try { controller?.setMicDisabled(false) } catch (_: Throwable) { }
+        // While muted, send only the clip, never your real mic.
+        CallAudioHooks.injectMix = !(u.muted || u.deafen)
         CallInject.play(Tg.app, uri, loop = false)
-        ui.value = u.copy(playing = true)
+        mod { it.copy(playing = true) }
     }
 
     fun toggleRecord(c: Context) {
         val u = ui.value ?: return
-        if (u.recording) { saveRecording(c); ui.value = ui.value?.copy(recording = false); return }
+        if (u.recording) { saveRecording(c); mod { it.copy(recording = false) }; return }
         try {
             val dir = File(c.getExternalFilesDir(null), "calls").apply { mkdirs() }
             val name = Tg.get(u.acc).userName(u.userId).replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(30)
             val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH-mm", java.util.Locale.US).format(java.util.Date())
             CallAudioHooks.startRecording(File(dir, "$name $stamp.wav"))
-            ui.value = u.copy(recording = true)
+            mod { it.copy(recording = true) }
         } catch (e: Throwable) { com.rivers.rivpost.ui.toast(c, e.message ?: "") }
     }
 
@@ -316,10 +331,10 @@ object Calls {
 
     fun toggleCaptions(c: Context) {
         val u = ui.value ?: return
-        if (u.captions) { CallCaptions.stop(); ui.value = u.copy(captions = false); return }
+        if (u.captions) { CallCaptions.stop(); mod { it.copy(captions = false) }; return }
         if (!CallCaptions.supported(c)) { com.rivers.rivpost.ui.toast(c, t("Captions need Android 13 or newer with speech recognition")); return }
         CallCaptions.start(c)
-        ui.value = u.copy(captions = true)
+        mod { it.copy(captions = true) }
     }
 
     /** Ends the current call and answers the one that's waiting. */
@@ -338,7 +353,7 @@ object Calls {
         val acc = Tg.get(u.waitingAcc)
         val id = u.waitingId
         acc.scope.launch { acc.client.discardCall(callId = id, isDisconnected = false, inviteLink = "", duration = 0, isVideo = false, connectionId = 0) }
-        ui.value = u.copy(waitingId = 0, waitingUser = 0)
+        mod { it.copy(waitingId = 0, waitingUser = 0) }
     }
 
     fun decline() = hangUp()
@@ -346,7 +361,7 @@ object Calls {
     fun hangUp() {
         val u = ui.value ?: return
         stopRinging()
-        if (u.redial > 0 && u.connectedAt == 0L) ui.value = u.copy(redial = 0)
+        if (u.redial > 0 && u.connectedAt == 0L) mod { it.copy(redial = 0) }
         val acc = Tg.get(u.acc)
         val duration = if (u.connectedAt > 0) ((SystemClock.elapsedRealtime() - u.connectedAt) / 1000).toInt() else 0
         val conn = try { controller?.connectionId ?: 0L } catch (_: Throwable) { 0L }
@@ -360,18 +375,21 @@ object Calls {
         val u = ui.value ?: return
         val m = !u.muted
         try { if (!u.hold) controller?.setMicDisabled(m || u.deafen) } catch (_: Throwable) { }
-        ui.value = u.copy(muted = m, talkingMuted = false)
+        mod { it.copy(muted = m, talkingMuted = false) }
     }
 
     fun toggleSpeaker() {
         val u = ui.value ?: return
         val s = !u.speaker
         setSpeaker(Tg.app, s)
-        ui.value = u.copy(speaker = s)
+        mod { it.copy(speaker = s) }
         proximity(Tg.app, !s)
     }
 
-    fun minimize(v: Boolean) { ui.value = ui.value?.copy(minimized = v) }
+    /** Changes the live call. Never brings an ended call back, even if another thread was slower. */
+    private fun mod(f: (CallUi) -> CallUi) { ui.update { c -> if (c == null || c.ended) c else f(c) } }
+
+    fun minimize(v: Boolean) { mod { it.copy(minimized = v) } }
 
     // ------------------------------------------------------------------ TDLib updates
 
@@ -395,14 +413,14 @@ object Calls {
         val ctx = Tg.app
         val cur = ui.value
         if (cur != null && cur.waitingId == call.id) {
-            if (call.state is CallStateDiscarded || call.state is CallStateError) ui.value = cur.copy(waitingId = 0, waitingUser = 0)
+            if (call.state is CallStateDiscarded || call.state is CallStateError) mod { it.copy(waitingId = 0, waitingUser = 0) }
             return
         }
         if (call.isVideo && controller == null && cur == null && !call.isOutgoing) return // video calls aren't supported yet
         if (cur != null && !cur.ended && cur.id != 0 && cur.id != call.id) {
             if (!call.isOutgoing && call.state is CallStatePending) {
                 if (Prefs.callWaiting && cur.waitingId == 0 && !call.isVideo) {
-                    ui.value = cur.copy(waitingId = call.id, waitingUser = call.userId, waitingAcc = acc.index)
+                    mod { it.copy(waitingId = call.id, waitingUser = call.userId, waitingAcc = acc.index) }
                     vibrate(ctx, 300)
                 } else discard(acc, call.id)
             }
@@ -441,14 +459,14 @@ object Calls {
             }
             is CallStateExchangingKeys -> {
                 stopRinging()
-                ui.value = cur?.copy(id = call.id, status = t("Exchanging keys…"))
+                mod { it.copy(id = call.id, status = t("Exchanging keys…")) }
             }
             is CallStateReady -> {
                 stopRinging()
-                ui.value = cur?.copy(id = call.id, status = t("Connecting…"), emojis = s.emojis.toList())
+                mod { it.copy(id = call.id, status = t("Connecting…"), emojis = s.emojis.toList()) }
                 if (controller == null) acc.scope.launch { launchEngine(acc, call, s) }
             }
-            is CallStateHangingUp -> ui.value = cur?.copy(status = t("Hanging up…"))
+            is CallStateHangingUp -> mod { it.copy(status = t("Hanging up…")) }
             is CallStateDiscarded -> {
                 val missed = s.reason is CallDiscardReasonMissed
                 val declined = s.reason is CallDiscardReasonDeclined
@@ -474,7 +492,7 @@ object Calls {
                 delay(1000)
                 val u = ui.value ?: return@launch
                 if (!u.ended || u.userId != userId) return@launch
-                ui.value = u.copy(status = t("Calling again in") + " $sec", redial = left + 1)
+                mod { it.copy(status = t("Calling again in") + " $sec", redial = left + 1) }
             }
             val u = ui.value
             if (u != null && u.ended && u.userId == userId && u.redial > 0) {
@@ -492,6 +510,7 @@ object Calls {
                 delay(1000)
                 val u = ui.value ?: break
                 if (u.id != id || u.ended) break
+                if (u.playing && !u.hold && !CallInject.playing) restoreMic()
                 val talking = Prefs.callMuteReminder && u.muted && !u.hold && CallAudioHooks.micLevel > 0.15f
                 weakFor = if (u.bars <= 1) weakFor + 1 else 0
                 val weak = Prefs.callWeakWarn && weakFor >= 5
@@ -516,7 +535,7 @@ object Calls {
         CallTelecom.active()
         if (CallPeople.has(u.userId, CallPeople.SPEAKER) && !u.speaker) toggleSpeaker()
         if (Prefs.callRecord && CallPeople.has(u.userId, CallPeople.REC)) toggleRecord(Tg.app)
-        if (Prefs.callCaptions && CallCaptions.supported(Tg.app)) { CallCaptions.start(Tg.app); ui.value = ui.value?.copy(captions = true) }
+        if (Prefs.callCaptions && CallCaptions.supported(Tg.app)) { CallCaptions.start(Tg.app); mod { it.copy(captions = true) } }
         monitor(acc, u.id)
     }
 
@@ -536,7 +555,17 @@ object Calls {
     private suspend fun option(acc: TgAccount, name: String, def: Long): Long =
         ((acc.client.getOption(name = name) as? TdlResult.Success)?.result as? OptionValueInteger)?.value ?: def
 
+    @Volatile private var engineStarting = false
+
     private suspend fun launchEngine(acc: TgAccount, call: Call, s: CallStateReady) {
+        if (engineStarting || controller != null) return
+        engineStarting = true
+        try { launchEngineInner(acc, call, s) } finally { engineStarting = false }
+    }
+
+    private fun stillLive(id: Int) = ui.value.let { it != null && it.id == id && !it.ended }
+
+    private suspend fun launchEngineInner(acc: TgAccount, call: Call, s: CallStateReady) {
         if (!available()) { hangUp(); return }
         val ctx = Tg.app
         val dir = File(ctx.filesDir, "voip").apply { mkdirs() }
@@ -562,6 +591,7 @@ object Calls {
             dataSaving(ctx), false, null,
             false, false, true, false,
         )
+        if (!stillLive(call.id)) return
         val options = CallOptions(networkType(ctx), false, 1, ui.value?.muted == true)
         val listener = object : ConnectionStateListener {
             override fun onConnectionStateChanged(newState: Int) {
@@ -569,26 +599,26 @@ object Calls {
                 when (newState) {
                     3 -> { // established
                         val first = u.connectedAt == 0L
-                        ui.value = u.copy(status = "", connectedAt = if (first) SystemClock.elapsedRealtime() else u.connectedAt)
+                        mod { it.copy(status = "", connectedAt = if (first) SystemClock.elapsedRealtime() else u.connectedAt) }
                         if (first) ui.value?.let { onConnected(acc, it) }
                     }
                     4 -> { // failed
-                        ui.value = u.copy(status = t("Connection failed"))
+                        mod { it.copy(status = t("Connection failed")) }
                         val conn = try { controller?.connectionId ?: 0L } catch (_: Throwable) { 0L }
                         acc.scope.launch {
                             acc.client.discardCall(callId = call.id, isDisconnected = true, inviteLink = "", duration = 0, isVideo = false, connectionId = conn)
                         }
                         finish(t("Connection failed"))
                     }
-                    5 -> ui.value = u.copy(status = t("Reconnecting…"))
-                    1, 2 -> if (u.connectedAt == 0L) ui.value = u.copy(status = t("Connecting…"))
+                    5 -> mod { it.copy(status = t("Reconnecting…")) }
+                    1, 2 -> if (u.connectedAt == 0L) mod { it.copy(status = t("Connecting…")) }
                 }
             }
-            override fun onSignalBarCountChanged(newCount: Int) { ui.value = ui.value?.copy(bars = newCount) }
+            override fun onSignalBarCountChanged(newCount: Int) { mod { it.copy(bars = newCount) } }
             override fun onStopped(finalStats: NetworkStats, debugLog: String?) { }
             override fun onRemoteMediaStateChanged(audioState: Int, videoState: Int) {
                 val u = ui.value ?: return
-                if (u.connectedAt > 0) ui.value = u.copy(status = if (audioState == 0) t("Their microphone is off") else "")
+                if (u.connectedAt > 0) mod { it.copy(status = if (audioState == 0) t("Their microphone is off") else "") }
             }
             override fun onSignallingDataEmitted(data: ByteArray) {
                 acc.scope.launch { acc.client.sendCallSignalingData(callId = call.id, data = data) }
@@ -598,7 +628,7 @@ object Calls {
         CallAudioHooks.playGain = Prefs.callPlayGain
         CallAudioHooks.bass = Prefs.callBass
         CallAudioHooks.treble = Prefs.callTreble
-        CallAudioHooks.voice = if (Prefs.callVoiceFx) CallAudioHooks.voice else 0
+        CallAudioHooks.voice = 0
         CallAudioHooks.deafen = false; CallAudioHooks.hold = false
         startAudio(ctx)
         var made: TgCallsController? = null
@@ -607,6 +637,7 @@ object Calls {
             made = try { TgCallsController(config, options, listener, v) } catch (e: Throwable) { Log.e(TAG, "tgcalls $v", e); null }
             if (made != null) break
         }
+        if (made != null && !stillLive(call.id)) { try { made.destroy() } catch (_: Throwable) { }; stopAudio(ctx); return }
         if (made == null) {
             Log.e(TAG, "no matching tgcalls version: ${s.protocol.libraryVersions.joinToString()} vs ${versions.joinToString()}")
             hangUp()
@@ -649,9 +680,9 @@ object Calls {
         stopAudio(Tg.app)
         CallNotif.cancelIncoming(Tg.app)
         CallService.stop(Tg.app)
-        val u = ui.value ?: return
-        if (u.ended) return
-        ui.value = u.copy(status = why, ended = true, incomingRinging = false, minimized = false)
+        var was: CallUi? = null
+        ui.update { c -> if (c == null || c.ended) c else { was = c; c.copy(status = why, ended = true, incomingRinging = false, minimized = false) } }
+        if (was == null) return
         closeLater()
     }
 

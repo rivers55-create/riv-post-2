@@ -204,13 +204,36 @@ object CallCaptions {
         android.os.Handler(c.mainLooper).post { next(c) }
     }
 
+    // Audio for the recognizer goes through this queue, so the call's playback thread never waits.
+    private val queue = java.util.concurrent.ArrayBlockingQueue<ByteArray>(50)
+    private var feeder: Thread? = null
+
     fun stop() {
         running = false
         CallAudioHooks.playTap = null
-        try { out?.close() } catch (_: Throwable) { }
-        out = null
-        try { rec?.destroy() } catch (_: Throwable) { }
-        rec = null
+        queue.clear()
+        android.os.Handler(Tg.app.mainLooper).post {
+            try { out?.close() } catch (_: Throwable) { }
+            out = null
+            try { rec?.destroy() } catch (_: Throwable) { }
+            rec = null
+            feeder?.interrupt(); feeder = null
+        }
+    }
+
+    private fun startFeeder() {
+        if (feeder != null) return
+        val t = Thread {
+            try {
+                while (running) {
+                    val b = queue.poll(300, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
+                    try { out?.write(b) } catch (_: Throwable) { }
+                }
+            } catch (_: InterruptedException) { }
+        }
+        t.isDaemon = true
+        feeder = t
+        t.start()
     }
 
     private fun next(c: Context) {
@@ -221,15 +244,12 @@ object CallCaptions {
         val stream = ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])
         out = stream
         rate = CallAudioHooks.playRate
-        CallAudioHooks.playTap = CallAudioHooks.PlayTap { pcm, len, r, ch ->
-            try {
-                if (ch == 1) stream.write(pcm, 0, len)
-                else {
-                    val m = ByteArray(len / ch)
-                    for (i in 0 until len / (2 * ch)) { m[i * 2] = pcm[i * 2 * ch]; m[i * 2 + 1] = pcm[i * 2 * ch + 1] }
-                    stream.write(m)
-                }
-            } catch (_: Throwable) { }
+        startFeeder()
+        CallAudioHooks.playTap = CallAudioHooks.PlayTap { pcm, len, _, ch ->
+            val m = if (ch == 1) pcm.copyOf(len) else ByteArray(len / ch).also { m ->
+                for (i in 0 until len / (2 * ch)) { m[i * 2] = pcm[i * 2 * ch]; m[i * 2 + 1] = pcm[i * 2 * ch + 1] }
+            }
+            queue.offer(m) // drops audio if the recognizer falls behind
         }
         val r = SpeechRecognizer.createSpeechRecognizer(c)
         rec = r
@@ -256,6 +276,7 @@ object CallCaptions {
             putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, rate)
         }
         try { r.startListening(i) } catch (_: Throwable) { running = false }
+        try { pipe[0].close() } catch (_: Throwable) { }
     }
 
     private fun add(txt: String) {
@@ -270,9 +291,11 @@ object CallCaptions {
     }
 
     private fun push(s: String) {
-        transcript.append(s).append('\n')
-        lines.add(s)
-        while (lines.size > 3) lines.removeAt(0)
+        android.os.Handler(Tg.app.mainLooper).post {
+            transcript.append(s).append('\n')
+            lines.add(s)
+            while (lines.size > 3) lines.removeAt(0)
+        }
     }
 }
 
@@ -283,6 +306,10 @@ object CallGestures : SensorEventListener {
     private var lastShake = 0L
 
     fun start(c: Context) {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { start(c) }
+            return
+        }
         if (sm != null || (!Prefs.callFlip && !Prefs.callShake)) return
         val m = c.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val a = m.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
@@ -290,7 +317,7 @@ object CallGestures : SensorEventListener {
         sm = m
     }
 
-    fun stop() { sm?.unregisterListener(this); sm = null }
+    fun stop() { android.os.Handler(android.os.Looper.getMainLooper()).post { sm?.unregisterListener(this); sm = null } }
 
     override fun onSensorChanged(e: SensorEvent) {
         val u = Calls.ui.value ?: return
@@ -316,6 +343,10 @@ object CallButtons {
     private var downAt = 0L
 
     fun start(c: Context) {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { start(c) }
+            return
+        }
         if (!Prefs.callHeadsetButton || session != null) return
         try {
             val s = MediaSession(c, "riv-call")
@@ -337,7 +368,7 @@ object CallButtons {
                     }
                     return true
                 }
-            })
+            }, android.os.Handler(android.os.Looper.getMainLooper()))
             s.setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_PLAYING, 0, 1f).setActions(PlaybackState.ACTION_PLAY_PAUSE).build())
             s.isActive = true
             session = s
@@ -345,8 +376,10 @@ object CallButtons {
     }
 
     fun stop() {
-        try { session?.release() } catch (_: Throwable) { }
-        session = null
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try { session?.release() } catch (_: Throwable) { }
+            session = null
+        }
     }
 }
 
