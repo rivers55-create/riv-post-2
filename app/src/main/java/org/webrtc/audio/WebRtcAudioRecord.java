@@ -142,6 +142,7 @@ class WebRtcAudioRecord {
             byteBuffer.clear();
             byteBuffer.put(emptyBytes);
           }
+          CallAudioHooks.onRecord(byteBuffer.array(), byteBuffer.arrayOffset(), bytesRead);
           // It's possible we've been shut down during the read, and stopRecording() tried and
           // failed to join this thread. To be a bit safer, try to avoid calling any native methods
           // in case they've been unregistered after stopRecording() returned.
@@ -275,6 +276,7 @@ class WebRtcAudioRecord {
 
   @CalledByNative
   private int initRecording(int sampleRate, int channels) {
+    CallAudioHooks.recordRate = sampleRate; CallAudioHooks.recordChannels = channels;
     Logging.d(TAG, "initRecording(sampleRate=" + sampleRate + ", channels=" + channels + ")");
     if (audioRecord != null) {
       reportWebRtcAudioRecordInitError("InitRecording called twice without StopRecording.");

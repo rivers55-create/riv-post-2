@@ -3,7 +3,9 @@ package com.rivers.rivpost.calls
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.Ringtone
@@ -40,6 +42,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
+import org.webrtc.audio.CallAudioHooks
 import org.thunderdog.challegram.N
 import org.thunderdog.challegram.voip.CallConfiguration
 import org.thunderdog.challegram.voip.CallOptions
@@ -63,6 +66,20 @@ data class CallUi(
     val bars: Int = 4,
     val ended: Boolean = false,
     val minimized: Boolean = false,
+    val hold: Boolean = false,
+    val deafen: Boolean = false,
+    val recording: Boolean = false,
+    val playing: Boolean = false,
+    val captions: Boolean = false,
+    val weak: Boolean = false,
+    val talkingMuted: Boolean = false,
+    val silent: Boolean = false,
+    val lastMsg: String = "",
+    val waitingUser: Long = 0L,
+    val waitingId: Int = 0,
+    val waitingAcc: Int = 0,
+    val redial: Int = 0,
+    val notes: String = "",
 )
 
 /**
@@ -131,17 +148,26 @@ object Calls {
         if (ui.value?.ended == false) { ui.value = ui.value?.copy(minimized = false); return }
         if (!available()) { com.rivers.rivpost.ui.toast(act, t("Calls can't run on this phone") + "\n" + loadError); return }
         if (!askMic(act)) return
-        ui.value = CallUi(acc.index, 0, userId, outgoing = true, status = t("Requesting…"))
+        if (Prefs.callWifiOnly && networkType(act) !in setOf(6, 7)) { com.rivers.rivpost.ui.toast(act, t("Wi-Fi only calls is on")); return }
+        startInternal(act.applicationContext, acc, userId, Prefs.callRedial)
+    }
+
+    private fun startInternal(ctx: Context, acc: TgAccount, userId: Long, redial: Int) {
+        ui.value = CallUi(acc.index, 0, userId, outgoing = true, status = t("Requesting…"), redial = redial)
         acc.scope.launch {
             when (val r = acc.client.createCall(userId = userId, protocol = protocol(), isVideo = false)) {
                 is TdlResult.Success -> ui.value = ui.value?.copy(id = r.result.id)
                 is TdlResult.Failure -> {
                     ui.value = ui.value?.copy(status = r.message.ifBlank { t("Call failed") }, ended = true)
+                    CallService.stop(ctx)
                     closeLater()
                 }
             }
         }
-        CallService.start(act)
+        CallService.start(ctx)
+        CallTelecom.outgoing(ctx, acc.userName(userId))
+        CallButtons.start(ctx)
+        CallGestures.start(ctx)
     }
 
     fun accept(act: Activity) {
@@ -149,11 +175,170 @@ object Calls {
         if (!u.incomingRinging) return
         if (!available()) { com.rivers.rivpost.ui.toast(act, t("Calls can't run on this phone")); decline(); return }
         if (!askMic(act)) return
+        acceptInternal(act)
+    }
+
+    /** From the headset button, the car or auto-answer. Opens the app if the mic still needs permission. */
+    fun acceptFromBackground(c: Context) {
+        val u = ui.value ?: return
+        if (!u.incomingRinging) return
+        if (!available()) return
+        if (!hasMic(c)) {
+            c.startActivity(Intent(c, com.rivers.rivpost.MainActivity::class.java).putExtra("call_accept", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        acceptInternal(c)
+    }
+
+    private fun acceptInternal(c: Context) {
+        val u = ui.value ?: return
         stopRinging()
+        CallNotif.cancelIncoming(c)
         ui.value = u.copy(incomingRinging = false, status = t("Connecting…"), minimized = false)
-        CallService.start(act)
+        CallService.start(c)
         val acc = Tg.get(u.acc)
         acc.scope.launch { acc.client.acceptCall(callId = u.id, protocol = protocol()) }
+    }
+
+    /** Stop the ringtone but keep the call ringing on screen. */
+    fun silence() {
+        stopRinging()
+        ui.value = ui.value?.copy(silent = true)
+    }
+
+    fun declineWithMessage(text: String) {
+        val u = ui.value ?: return
+        val acc = Tg.get(u.acc)
+        hangUp()
+        acc.scope.launch { sendText(acc, u.userId, text) }
+    }
+
+    private suspend fun sendText(acc: TgAccount, userId: Long, text: String) {
+        val chat = acc.privateChat(userId) ?: return
+        acc.client.sendMessage(
+            chatId = chat,
+            inputMessageContent = dev.g000sha256.tdl.dto.InputMessageText(
+                text = dev.g000sha256.tdl.dto.FormattedText(text = text, entities = emptyArray()), linkPreviewOptions = null, clearDraft = false,
+            ),
+        )
+    }
+
+    fun sendChat(text: String) {
+        val u = ui.value ?: return
+        if (text.isBlank()) return
+        val acc = Tg.get(u.acc)
+        acc.scope.launch { sendText(acc, u.userId, text) }
+    }
+
+    /** Text lines for the call details dialog. */
+    fun details(c: Context): List<Pair<String, String>> {
+        val u = ui.value ?: return emptyList()
+        val ctl = controller
+        val st = try { ctl?.stats } catch (_: Throwable) { null }
+        val net = when (networkType(c)) { 6 -> "Wi-Fi"; 7 -> "Ethernet"; 5 -> t("Mobile data"); 0 -> "—"; else -> t("Other") }
+        fun mb(b: Long) = "%.2f MB".format(b / 1048576.0)
+        return listOfNotNull(
+            t("Network") to net,
+            t("Signal") to "${u.bars}/4",
+            t("Engine version") to (ctl?.version ?: "—"),
+            t("Direct connection allowed") to (if (Prefs.callP2p) t("Yes") else t("No")),
+            st?.let { t("Data used") to mb(it.bytesSentWifi + it.bytesRecvdWifi + it.bytesSentMobile + it.bytesRecvdMobile) },
+            st?.let { t("Sent / received") to mb(it.bytesSentWifi + it.bytesSentMobile) + " / " + mb(it.bytesRecvdWifi + it.bytesRecvdMobile) },
+            t("Data saving") to when (dataSaving(c)) { 2 -> t("Battery low"); 1 -> t("Mobile data"); else -> t("Off") },
+            t("Encryption") to t("End to end"),
+        )
+    }
+
+    fun setVoice(v: Int) { CallAudioHooks.voice = v }
+
+    fun setNotes(n: String) { ui.value = ui.value?.copy(notes = n) }
+
+    fun setHold(on: Boolean) {
+        val u = ui.value ?: return
+        CallAudioHooks.hold = on
+        if (on) {
+            try { controller?.setMicDisabled(false) } catch (_: Throwable) { }
+            CallInject.play(Tg.app, Prefs.callHoldMusic.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }, loop = true)
+        } else {
+            CallInject.stop()
+            try { controller?.setMicDisabled(u.muted) } catch (_: Throwable) { }
+        }
+        ui.value = u.copy(hold = on, playing = on)
+    }
+
+    fun toggleDeafen() {
+        val u = ui.value ?: return
+        val d = !u.deafen
+        CallAudioHooks.deafen = d
+        try { controller?.setMicDisabled(d || u.muted) } catch (_: Throwable) { }
+        ui.value = u.copy(deafen = d)
+    }
+
+    fun playIntoCall(uri: Uri?) {
+        val u = ui.value ?: return
+        if (uri == null) { CallInject.stop(); ui.value = u.copy(playing = false); return }
+        if (u.muted) try { controller?.setMicDisabled(false) } catch (_: Throwable) { }
+        CallAudioHooks.injectMix = true
+        CallInject.play(Tg.app, uri, loop = false)
+        ui.value = u.copy(playing = true)
+    }
+
+    fun toggleRecord(c: Context) {
+        val u = ui.value ?: return
+        if (u.recording) { saveRecording(c); ui.value = ui.value?.copy(recording = false); return }
+        try {
+            val dir = File(c.getExternalFilesDir(null), "calls").apply { mkdirs() }
+            val name = Tg.get(u.acc).userName(u.userId).replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(30)
+            val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH-mm", java.util.Locale.US).format(java.util.Date())
+            CallAudioHooks.startRecording(File(dir, "$name $stamp.wav"))
+            ui.value = u.copy(recording = true)
+        } catch (e: Throwable) { com.rivers.rivpost.ui.toast(c, e.message ?: "") }
+    }
+
+    private fun saveRecording(c: Context) {
+        val f = CallAudioHooks.stopRecording() ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                val v = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, f.name)
+                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "audio/wav")
+                    put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Riv Post/Calls")
+                }
+                val uri = c.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)
+                if (uri != null) {
+                    c.contentResolver.openOutputStream(uri)?.use { o -> f.inputStream().use { it.copyTo(o) } }
+                    f.delete()
+                }
+                android.os.Handler(c.mainLooper).post { com.rivers.rivpost.ui.toast(c, t("Recording saved to Downloads › Riv Post › Calls")) }
+            } else android.os.Handler(c.mainLooper).post { com.rivers.rivpost.ui.toast(c, t("Recording saved") + "\n" + f.absolutePath) }
+        } catch (_: Throwable) { }
+    }
+
+    fun toggleCaptions(c: Context) {
+        val u = ui.value ?: return
+        if (u.captions) { CallCaptions.stop(); ui.value = u.copy(captions = false); return }
+        if (!CallCaptions.supported(c)) { com.rivers.rivpost.ui.toast(c, t("Captions need Android 13 or newer with speech recognition")); return }
+        CallCaptions.start(c)
+        ui.value = u.copy(captions = true)
+    }
+
+    /** Ends the current call and answers the one that's waiting. */
+    fun switchToWaiting(act: Activity) {
+        val u = ui.value ?: return
+        if (u.waitingId == 0) return
+        val next = CallUi(u.waitingAcc, u.waitingId, u.waitingUser, outgoing = false, status = t("Incoming call"), incomingRinging = true)
+        hangUp()
+        ui.value = next
+        accept(act)
+    }
+
+    fun declineWaiting() {
+        val u = ui.value ?: return
+        if (u.waitingId == 0) return
+        val acc = Tg.get(u.waitingAcc)
+        val id = u.waitingId
+        acc.scope.launch { acc.client.discardCall(callId = id, isDisconnected = false, inviteLink = "", duration = 0, isVideo = false, connectionId = 0) }
+        ui.value = u.copy(waitingId = 0, waitingUser = 0)
     }
 
     fun decline() = hangUp()
@@ -161,6 +346,7 @@ object Calls {
     fun hangUp() {
         val u = ui.value ?: return
         stopRinging()
+        if (u.redial > 0 && u.connectedAt == 0L) ui.value = u.copy(redial = 0)
         val acc = Tg.get(u.acc)
         val duration = if (u.connectedAt > 0) ((SystemClock.elapsedRealtime() - u.connectedAt) / 1000).toInt() else 0
         val conn = try { controller?.connectionId ?: 0L } catch (_: Throwable) { 0L }
@@ -173,8 +359,8 @@ object Calls {
     fun toggleMute() {
         val u = ui.value ?: return
         val m = !u.muted
-        try { controller?.setMicDisabled(m) } catch (_: Throwable) { }
-        ui.value = u.copy(muted = m)
+        try { if (!u.hold) controller?.setMicDisabled(m || u.deafen) } catch (_: Throwable) { }
+        ui.value = u.copy(muted = m, talkingMuted = false)
     }
 
     fun toggleSpeaker() {
@@ -189,26 +375,64 @@ object Calls {
 
     // ------------------------------------------------------------------ TDLib updates
 
+    private fun inHours(from: Int, to: Int): Boolean {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return if (from <= to) h in from until to else h >= from || h < to
+    }
+
+    private fun headsetConnected(c: Context): Boolean = try {
+        am(c).getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET || it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+        }
+    } catch (_: Throwable) { false }
+
+    private fun discard(acc: TgAccount, id: Int) = acc.scope.launch {
+        acc.client.discardCall(callId = id, isDisconnected = false, inviteLink = "", duration = 0, isVideo = false, connectionId = 0)
+    }
+
     fun onCall(acc: TgAccount, call: Call) {
-        if (call.isVideo && controller == null && ui.value == null && !call.isOutgoing) {
-            // Video calls aren't supported yet: let other devices answer.
+        val ctx = Tg.app
+        val cur = ui.value
+        if (cur != null && cur.waitingId == call.id) {
+            if (call.state is CallStateDiscarded || call.state is CallStateError) ui.value = cur.copy(waitingId = 0, waitingUser = 0)
             return
         }
-        val cur = ui.value
+        if (call.isVideo && controller == null && cur == null && !call.isOutgoing) return // video calls aren't supported yet
         if (cur != null && !cur.ended && cur.id != 0 && cur.id != call.id) {
-            // Busy with another call.
-            if (!call.isOutgoing && call.state is CallStatePending) acc.scope.launch {
-                acc.client.discardCall(callId = call.id, isDisconnected = false, inviteLink = "", duration = 0, isVideo = false, connectionId = 0)
+            if (!call.isOutgoing && call.state is CallStatePending) {
+                if (Prefs.callWaiting && cur.waitingId == 0 && !call.isVideo) {
+                    ui.value = cur.copy(waitingId = call.id, waitingUser = call.userId, waitingAcc = acc.index)
+                    vibrate(ctx, 300)
+                } else discard(acc, call.id)
             }
             return
         }
         when (val s = call.state) {
             is CallStatePending -> {
                 if (!call.isOutgoing) {
-                    if (!Prefs.voiceCalls || cur != null) return
-                    ui.value = CallUi(acc.index, call.id, call.userId, outgoing = false, status = t("Incoming call"), incomingRinging = true)
-                    startRinging(Tg.app)
-                    CallNotif.showIncoming(Tg.app, acc, call.id, call.userId)
+                    if (!Prefs.voiceCalls || (cur != null && !cur.ended)) return
+                    val uid = call.userId
+                    val loud = CallPeople.has(uid, CallPeople.LOUD)
+                    val quiet = Prefs.callQuiet && inHours(Prefs.callQuietFrom, Prefs.callQuietTo) && !loud
+                    if (quiet && Prefs.callQuietMode == "decline") {
+                        discard(acc, call.id)
+                        val msg = Prefs.callQuietMsg
+                        if (msg.isNotBlank()) acc.scope.launch { sendText(acc, uid, msg) }
+                        return
+                    }
+                    val silent = quiet || (Prefs.callUnknownSilent && acc.users[uid]?.isContact != true && !loud)
+                    val last = if (Prefs.callLastMsg) try { com.rivers.rivpost.tg.Fmt.preview(acc, acc.chats[uid]?.lastMessage) } catch (_: Throwable) { "" } else ""
+                    ui.value = CallUi(acc.index, call.id, uid, outgoing = false, status = t("Incoming call"), incomingRinging = true, silent = silent, lastMsg = last)
+                    if (!silent) startRinging(ctx, CallPeople.ringtone(uid))
+                    CallNotif.showIncoming(ctx, acc, call.id, uid)
+                    CallTelecom.incoming(ctx, acc.userName(uid))
+                    CallButtons.start(ctx)
+                    CallGestures.start(ctx)
+                    if (CallPeople.has(uid, CallPeople.AUTO) || (Prefs.callAutoHeadset && headsetConnected(ctx))) acc.scope.launch {
+                        delay(2000)
+                        if (ui.value?.id == call.id && ui.value?.incomingRinging == true) acceptFromBackground(ctx)
+                    }
                 } else {
                     val st = if (s.isReceived) t("Ringing…") else if (s.isCreated) t("Waiting…") else t("Requesting…")
                     ui.value = (cur ?: CallUi(acc.index, call.id, call.userId, true, st)).copy(id = call.id, status = st)
@@ -226,15 +450,78 @@ object Calls {
             }
             is CallStateHangingUp -> ui.value = cur?.copy(status = t("Hanging up…"))
             is CallStateDiscarded -> {
-                val why = when (s.reason) {
-                    is CallDiscardReasonMissed -> if (call.isOutgoing) t("No answer") else t("Missed call")
-                    is CallDiscardReasonDeclined -> if (call.isOutgoing) t("Line busy") else t("Call declined")
+                val missed = s.reason is CallDiscardReasonMissed
+                val declined = s.reason is CallDiscardReasonDeclined
+                val why = when {
+                    missed -> if (call.isOutgoing) t("No answer") else t("Missed call")
+                    declined -> if (call.isOutgoing) t("Line busy") else t("Call declined")
                     else -> t("Call ended")
                 }
-                if (cur?.id == call.id) finish(why)
+                if (cur?.id == call.id) {
+                    val wasRinging = cur.incomingRinging
+                    finish(why)
+                    if (!call.isOutgoing && missed && wasRinging) CallReminders.missed(ctx, acc.index, call.userId)
+                    if (call.isOutgoing && (missed || declined) && cur.redial > 0 && cur.connectedAt == 0L) redialLater(acc, call.userId, cur.redial - 1)
+                }
             }
             is CallStateError -> if (cur?.id == call.id) finish(s.error.message.ifBlank { t("Call failed") })
         }
+    }
+
+    private fun redialLater(acc: TgAccount, userId: Long, left: Int) {
+        acc.scope.launch {
+            for (sec in 5 downTo 1) {
+                delay(1000)
+                val u = ui.value ?: return@launch
+                if (!u.ended || u.userId != userId) return@launch
+                ui.value = u.copy(status = t("Calling again in") + " $sec", redial = left + 1)
+            }
+            val u = ui.value
+            if (u != null && u.ended && u.userId == userId && u.redial > 0) {
+                ui.value = null
+                startInternal(Tg.app, acc, userId, left)
+            }
+        }
+    }
+
+    private fun monitor(acc: TgAccount, id: Int) {
+        acc.scope.launch {
+            var weakFor = 0
+            var lastAlert = 0
+            while (true) {
+                delay(1000)
+                val u = ui.value ?: break
+                if (u.id != id || u.ended) break
+                val talking = Prefs.callMuteReminder && u.muted && !u.hold && CallAudioHooks.micLevel > 0.15f
+                weakFor = if (u.bars <= 1) weakFor + 1 else 0
+                val weak = Prefs.callWeakWarn && weakFor >= 5
+                var next = u
+                if (talking != u.talkingMuted || weak != u.weak || u.playing != CallInject.playing) next = u.copy(talkingMuted = talking, weak = weak, playing = CallInject.playing || u.hold)
+                if (next !== u) ui.value = next
+                val alert = Prefs.callTimeAlert
+                if (alert > 0 && u.connectedAt > 0) {
+                    val mins = ((SystemClock.elapsedRealtime() - u.connectedAt) / 60_000).toInt()
+                    if (mins > 0 && mins % alert == 0 && mins != lastAlert) {
+                        lastAlert = mins
+                        vibrate(Tg.app, 600)
+                        android.os.Handler(Tg.app.mainLooper).post { com.rivers.rivpost.ui.toast(Tg.app, "$mins " + t("min")) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun onConnected(acc: TgAccount, u: CallUi) {
+        if (Prefs.callVibrate) vibrate(Tg.app, 120)
+        CallTelecom.active()
+        if (CallPeople.has(u.userId, CallPeople.SPEAKER) && !u.speaker) toggleSpeaker()
+        if (Prefs.callRecord && CallPeople.has(u.userId, CallPeople.REC)) toggleRecord(Tg.app)
+        if (Prefs.callCaptions && CallCaptions.supported(Tg.app)) { CallCaptions.start(Tg.app); ui.value = ui.value?.copy(captions = true) }
+        monitor(acc, u.id)
+    }
+
+    private fun vibrate(c: Context, ms: Long) {
+        try { (c.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)) } catch (_: Throwable) { }
     }
 
     fun onSignaling(callId: Int, data: ByteArray) {
@@ -272,7 +559,7 @@ object Calls {
             File(dir, "last_call_stats.log").absolutePath,
             option(acc, "call_packet_timeout_ms", 10_000),
             option(acc, "call_connect_timeout_ms", 30_000),
-            0, false, null,
+            dataSaving(ctx), false, null,
             false, false, true, false,
         )
         val options = CallOptions(networkType(ctx), false, 1, ui.value?.muted == true)
@@ -281,7 +568,9 @@ object Calls {
                 val u = ui.value ?: return
                 when (newState) {
                     3 -> { // established
-                        ui.value = u.copy(status = "", connectedAt = if (u.connectedAt == 0L) SystemClock.elapsedRealtime() else u.connectedAt)
+                        val first = u.connectedAt == 0L
+                        ui.value = u.copy(status = "", connectedAt = if (first) SystemClock.elapsedRealtime() else u.connectedAt)
+                        if (first) ui.value?.let { onConnected(acc, it) }
                     }
                     4 -> { // failed
                         ui.value = u.copy(status = t("Connection failed"))
@@ -305,6 +594,12 @@ object Calls {
                 acc.scope.launch { acc.client.sendCallSignalingData(callId = call.id, data = data) }
             }
         }
+        CallAudioHooks.micGain = Prefs.callMicGain
+        CallAudioHooks.playGain = Prefs.callPlayGain
+        CallAudioHooks.bass = Prefs.callBass
+        CallAudioHooks.treble = Prefs.callTreble
+        CallAudioHooks.voice = if (Prefs.callVoiceFx) CallAudioHooks.voice else 0
+        CallAudioHooks.deafen = false; CallAudioHooks.hold = false
         startAudio(ctx)
         var made: TgCallsController? = null
         for (v in s.protocol.libraryVersions) {
@@ -328,6 +623,29 @@ object Calls {
         controller = null
         synchronized(pendingSignaling) { pendingSignaling.clear() }
         try { c?.destroy() } catch (e: Throwable) { Log.e(TAG, "destroy", e) }
+        CallInject.stop()
+        CallAudioHooks.hold = false; CallAudioHooks.deafen = false
+        if (CallAudioHooks.isRecording()) saveRecording(Tg.app)
+        val transcript = CallCaptions.transcript.toString().trim()
+        CallCaptions.stop()
+        CallGestures.stop()
+        CallButtons.stop()
+        CallTelecom.ended()
+        ui.value?.let { u0 ->
+            if (u0.ended) return@let
+            if (u0.connectedAt > 0 && Prefs.callVibrate) vibrate(Tg.app, 120)
+            val notes = u0.notes.trim()
+            if (notes.isNotEmpty() || transcript.isNotEmpty()) {
+                val acc = Tg.get(u0.acc)
+                val me = acc.me.value?.id ?: 0L
+                val txt = buildString {
+                    append("📞 ").append(acc.userName(u0.userId)).append('\n')
+                    if (notes.isNotEmpty()) append('\n').append(t("Notes")).append(":\n").append(notes).append('\n')
+                    if (transcript.isNotEmpty()) append('\n').append(t("What they said")).append(":\n").append(transcript)
+                }
+                if (me != 0L) acc.scope.launch { sendText(acc, me, txt.take(4000)) }
+            }
+        }
         stopAudio(Tg.app)
         CallNotif.cancelIncoming(Tg.app)
         CallService.stop(Tg.app)
@@ -399,11 +717,11 @@ object Calls {
         } catch (_: Throwable) { }
     }
 
-    private fun startRinging(c: Context) {
+    private fun startRinging(c: Context, tone: String = "") {
         try {
             val am = am(c)
             if (am.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-                val r = RingtoneManager.getRingtone(c, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
+                val r = RingtoneManager.getRingtone(c, if (tone.isNotBlank()) Uri.parse(tone) else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE))
                 if (Build.VERSION.SDK_INT >= 28) r?.isLooping = true
                 r?.play()
                 ringtone = r
@@ -430,6 +748,17 @@ object Calls {
         try { tone?.stopTone(); tone?.release() } catch (_: Throwable) { }
         tone = null
         try { (Tg.app.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).cancel() } catch (_: Throwable) { }
+    }
+
+    private fun dataSaving(c: Context): Int {
+        if (!Prefs.callSaver) return 0
+        val bm = c.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+        val level = try { bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) } catch (_: Throwable) { 100 }
+        return when {
+            level in 1..15 && !bm.isCharging -> 2
+            networkType(c) == 5 || networkType(c) == 8 -> 1
+            else -> 0
+        }
     }
 
     private fun networkType(c: Context): Int {

@@ -112,6 +112,17 @@
         <receiver
             android:name=".calls.CallActionReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".calls.CallReminderReceiver"
+            android:exported="false" />
+        <service
+            android:name=".calls.RivConnectionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".push.RivPushService"

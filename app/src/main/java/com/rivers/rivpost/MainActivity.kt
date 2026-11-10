@@ -108,6 +108,12 @@ class MainActivity : FragmentActivity() {
     private fun handleIntent(i: Intent?) {
         if (i == null) return
         if (i.getBooleanExtra("open_player", false)) Music.playerOpen = true
+        val callUser = i.getLongExtra("call_user", 0L)
+        if (callUser != 0L) {
+            i.removeExtra("call_user")
+            val a = Tg.accounts.value[i.getIntExtra("acc", 0)] ?: Tg.active
+            window.decorView.post { com.rivers.rivpost.calls.Calls.start(this, a, callUser) }
+        }
         if (i.getBooleanExtra("call_open", false)) { i.removeExtra("call_open"); com.rivers.rivpost.calls.Calls.minimize(false) }
         if (i.getBooleanExtra("call_accept", false)) { i.removeExtra("call_accept"); com.rivers.rivpost.calls.Calls.minimize(false); window.decorView.post { com.rivers.rivpost.calls.Calls.accept(this) } }
         val data = i.dataString
@@ -154,6 +160,21 @@ class MainActivity : FragmentActivity() {
                 android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).build(),
             )
         } catch (_: Throwable) { }
+    }
+
+    private var lastVolDown = 0L
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val call = com.rivers.rivpost.calls.Calls.ui.value
+        if (call != null && !call.ended && com.rivers.rivpost.data.Prefs.callVolKeys &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN && event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0
+        ) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (call.incomingRinging) { com.rivers.rivpost.calls.Calls.silence(); return true }
+            if (now - lastVolDown < 450) { lastVolDown = 0; com.rivers.rivpost.calls.Calls.toggleMute(); return true }
+            lastVolDown = now
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onUserLeaveHint() {

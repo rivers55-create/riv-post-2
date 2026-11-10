@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -167,7 +168,14 @@ fun CallsPage(acc: TgAccount, act: MainActivity) {
     LaunchedEffect(acc) {
         calls = (acc.client.searchCallMessages(offset = "", limit = 100, onlyMissed = false) as? TdlResult.Success)?.result?.messages?.toList() ?: emptyList()
     }
-    val l = calls
+    var hiddenTick by remember { mutableStateOf(0) }
+    var person by remember { mutableStateOf(0L) }
+    if (person != 0L) CallPersonDialog(acc, person) { person = 0L }
+    val vault = Prefs.idSet(Prefs.vaultChats)
+    val hiddenCalls = remember(hiddenTick) { Prefs.callHidden.split(",").toSet() }
+    val l = calls?.filter { m ->
+        "${m.chatId}_${m.id}" !in hiddenCalls && !(Prefs.callHideVault && m.chatId in vault)
+    }
     if (l == null) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
@@ -176,13 +184,41 @@ fun CallsPage(acc: TgAccount, act: MainActivity) {
                 fontSize = 13.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(16.dp),
             )
         }
+        if (Prefs.callStats && l.isNotEmpty()) item {
+            val now = System.currentTimeMillis() / 1000
+            fun total(days: Int) = l.filter { now - it.date < days * 86400L }.sumOf { (it.content as? MessageCall)?.duration ?: 0 }
+            val top = l.filter { now - it.date < 30 * 86400L }.groupBy { it.chatId }
+                .mapValues { e -> e.value.sumOf { (it.content as? MessageCall)?.duration ?: 0 } }
+                .filter { it.value > 0 }.entries.sortedByDescending { it.value }.take(3)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Text(t("Talk time") + ":  " + t("this week") + " " + Fmt.duration(total(7)) + "  ·  " + t("this month") + " " + Fmt.duration(total(30)), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                if (top.isNotEmpty()) Text(
+                    top.joinToString("  ·  ") { (acc.chats[it.key]?.title ?: "") + " " + Fmt.duration(it.value) },
+                    fontSize = 13.sp, color = cs.onSurfaceVariant, maxLines = 2,
+                )
+            }
+        }
         if (l.isEmpty()) item { Text(t("No calls yet"), color = cs.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
         items(l, key = { "${it.chatId}_${it.id}" }) { m ->
             val c = acc.chats[m.chatId]
             val call = m.content as? MessageCall
             val missed = call?.discardReason is CallDiscardReasonMissed || (call?.discardReason is CallDiscardReasonDeclined && !m.isOutgoing)
+            var menu by remember { mutableStateOf(false) }
+            Box {
+            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                val uid0 = c?.privateUserId ?: 0L
+                if (uid0 != 0L) androidx.compose.material3.DropdownMenuItem(text = { Text(t("Call options for this person")) }, onClick = { menu = false; person = uid0 })
+                androidx.compose.material3.DropdownMenuItem(text = { Text(t("Hide from this list")) }, onClick = {
+                    menu = false; Prefs.callHidden = (Prefs.callHidden.split(",").filter { it.isNotBlank() } + "${m.chatId}_${m.id}").joinToString(","); hiddenTick++
+                })
+                androidx.compose.material3.DropdownMenuItem(text = { Text(t("Delete for me")) }, onClick = {
+                    menu = false
+                    acc.scope.launch { acc.client.deleteMessages(chatId = m.chatId, messageIds = longArrayOf(m.id), revoke = false) }
+                    calls = calls?.filterNot { it.chatId == m.chatId && it.id == m.id }
+                })
+            }
             Row(
-                Modifier.fillMaxWidth().clickable { act.push(Screen.Chat(m.chatId)) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().combinedClickable(onClick = { act.push(Screen.Chat(m.chatId)) }, onLongClick = { menu = true }).padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (c != null) Avatar(acc, c.id, c.title, c.photo, c.mini, 50.dp)
@@ -201,6 +237,7 @@ fun CallsPage(acc: TgAccount, act: MainActivity) {
                 }
                 val uid = c?.privateUserId ?: 0L
                 if (uid != 0L && Prefs.voiceCalls) IconButton(onClick = { com.rivers.rivpost.calls.Calls.start(act, acc, uid) }) { Icon(Ic.Phone, null, tint = LocalStyle.current.accent) }
+            }
             }
         }
         item { Spacer(Modifier.height(90.dp)) }

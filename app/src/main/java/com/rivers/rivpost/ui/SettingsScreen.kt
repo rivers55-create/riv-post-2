@@ -80,7 +80,7 @@ private fun SettingsPage(title: String, onBack: () -> Unit, content: @Composable
 
 /** A row that opens a list of choices. */
 @Composable
-private fun ChoiceRow(title: String, options: List<Pair<String, String>>, current: String, onPick: (String) -> Unit) {
+fun ChoiceRow(title: String, options: List<Pair<String, String>>, current: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     ClickRow(title, options.firstOrNull { it.first == current }?.second ?: "") { open = true }
     if (open) {
@@ -189,8 +189,7 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
         SwitchRow(t("Swipe right to translate"), null, Prefs.swipeTranslate) { Prefs.swipeTranslate = it }
         SwitchRow(t("\"Seen\" under your last message"), null, Prefs.seenRow) { Prefs.seenRow = it }
         SwitchRow(t("Map previews"), null, Prefs.mapPreviews) { Prefs.mapPreviews = it }
-        SwitchRow(t("Voice calls"), t("Call people and answer calls in Riv Post"), Prefs.voiceCalls) { Prefs.voiceCalls = it }
-        if (Prefs.voiceCalls) SwitchRow(t("Direct connection in calls"), t("Better quality. Off sends calls through Telegram's servers so the other person can't see your IP address."), Prefs.callP2p) { Prefs.callP2p = it }
+        ClickRow(t("Calls"), "›") { act.push(com.rivers.rivpost.Screen.Page("callsettings")) }
         SwitchRow(t("Earpiece for voice messages"), t("Hold the phone to your ear while one plays"), Prefs.earpiece) { Prefs.earpiece = it }
         SwitchRow(t("Save edited photos to gallery"), null, Prefs.saveEdited) { Prefs.saveEdited = it }
         SwitchRow(t("Hide keyboard when scrolling"), null, Prefs.hideKbScroll) { Prefs.hideKbScroll = it }
@@ -230,6 +229,28 @@ fun SettingsScreen(act: MainActivity, acc: TgAccount, onBack: () -> Unit, onProx
             supportingText = { Text(t("Adds posters, ratings and descriptions. Get a free key at themoviedb.org → Settings → API.")) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         )
+        if (Prefs.tmdbKey.isNotBlank()) SwitchRow(t("Use TMDb"), null, Prefs.tmdbOn) { Prefs.tmdbOn = it; com.rivers.rivpost.media.Meta.online.clear() }
+        OutlinedTextField(
+            Prefs.tvdbKey, { Prefs.tvdbKey = it.trim(); com.rivers.rivpost.media.Meta.online.clear() },
+            label = { Text(t("TheTVDB API key (optional)")) }, singleLine = true,
+            supportingText = { Text(t("Second source, best for episode names and season posters. Get a key at thetvdb.com → Dashboard → API keys.")) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        )
+        if (Prefs.tvdbKey.isNotBlank()) {
+            OutlinedTextField(
+                Prefs.tvdbPin, { Prefs.tvdbPin = it.trim() },
+                label = { Text(t("TheTVDB subscriber PIN (only if your key needs one)")) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            )
+            SwitchRow(t("Use TheTVDB"), null, Prefs.tvdbOn) { Prefs.tvdbOn = it; com.rivers.rivpost.media.Meta.online.clear() }
+        }
+        if (Prefs.tmdbKey.isNotBlank() && Prefs.tvdbKey.isNotBlank()) ChoiceRow(
+            t("For shows, check first"), listOf("tmdb" to "TMDb", "tvdb" to "TheTVDB"), Prefs.showSource,
+        ) { Prefs.showSource = it }
+        val mctx = androidx.compose.ui.platform.LocalContext.current
+        if (com.rivers.rivpost.media.Meta.hasOnline()) ClickRow(t("Clear saved movie and show info"), null) {
+            com.rivers.rivpost.media.Meta.clearCache(mctx); toast(mctx, t("Cleared"))
+        }
         ClickRow(t("IPTV"), "›") { act.push(com.rivers.rivpost.Screen.Page("iptv")) }
         ClickRow(t("Shared folders (SMB)"), "›") { act.push(com.rivers.rivpost.Screen.Page("smb")) }
 

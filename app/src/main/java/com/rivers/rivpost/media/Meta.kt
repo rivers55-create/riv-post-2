@@ -20,8 +20,15 @@ data class CleanTitle(val title: String, val year: Int, val season: Int, val epi
     }
 }
 
-/** Info from TMDB (optional, with the user's own key). */
-data class OnlineInfo(val title: String, val year: String, val overview: String, val rating: Double, val poster: String, val backdrop: String)
+data class CastMember(val name: String, val role: String, val photo: String)
+
+/** Info from TMDb or TheTVDB (optional, with the user's own keys). */
+data class OnlineInfo(
+    val title: String, val year: String, val overview: String, val rating: Double, val poster: String, val backdrop: String,
+    val genres: List<String> = emptyList(), val runtime: Int = 0, val cast: List<CastMember> = emptyList(),
+    val season: Int = 0, val episode: Int = 0, val epTitle: String = "", val epOverview: String = "", val epStill: String = "",
+    val seasonPoster: String = "", val source: String = "",
+)
 
 /**
  * Cleans up video names and descriptions, only for showing them in Riv Post.
@@ -95,53 +102,186 @@ object Meta {
             .distinct().joinToString("\n").trim()
     }
 
-    // ---------------- online (TMDB, optional) ----------------
+    // ---------------- online (TMDb / TheTVDB, optional) ----------------
 
     val online = mutableStateMapOf<String, OnlineInfo?>()
 
+    fun hasOnline(): Boolean = (Prefs.tmdbOn && Prefs.tmdbKey.isNotBlank()) || (Prefs.tvdbOn && Prefs.tvdbKey.isNotBlank())
+
     suspend fun lookup(ctx: Context, v: VideoItem): OnlineInfo? {
-        if (Prefs.tmdbKey.isBlank()) return null
+        if (!hasOnline()) return null
         val t = titleOf(v)
         if (t.title.length < 2) return null
-        val cacheKey = t.title.lowercase() + "|" + t.year + "|" + (t.season > 0 || t.episode > 0)
+        val cacheKey = t.title.lowercase() + "|" + t.year + "|" + t.season + "|" + t.episode + "|" + Prefs.showSource + "|" + com.rivers.rivpost.data.Lang.arabic
         if (online.containsKey(cacheKey)) return online[cacheKey]
-        val sp = ctx.getSharedPreferences("riv_meta", Context.MODE_PRIVATE)
-        sp.getString(cacheKey, null)?.let { j -> val i = parseCached(j); online[cacheKey] = i; return i }
+        val sp = ctx.getSharedPreferences("riv_meta2", Context.MODE_PRIVATE)
+        sp.getString(cacheKey, null)?.let { j -> val i = fromJson(j); online[cacheKey] = i; return i }
         val info = withContext(Dispatchers.IO) {
-            try {
-                val tv = t.season > 0 || t.episode > 0
-                val type = if (tv) "tv" else "multi"
-                var url = "https://api.themoviedb.org/3/search/$type?api_key=" + URLEncoder.encode(Prefs.tmdbKey, "UTF-8") +
-                    "&query=" + URLEncoder.encode(t.title, "UTF-8") + "&language=" + (if (com.rivers.rivpost.data.Lang.arabic) "ar" else "en-US")
-                if (t.year > 0 && !tv) url += "&year=${t.year}"
-                val c = URL(url).openConnection() as HttpURLConnection
-                c.connectTimeout = 10000; c.readTimeout = 15000
-                val body = try { c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
-                val r = JSONObject(body).optJSONArray("results")?.optJSONObject(0) ?: return@withContext null
-                OnlineInfo(
-                    title = r.optString("title").ifBlank { r.optString("name") },
-                    year = r.optString("release_date").ifBlank { r.optString("first_air_date") }.take(4),
-                    overview = r.optString("overview"),
-                    rating = r.optDouble("vote_average", 0.0),
-                    poster = r.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/w342$it" } ?: "",
-                    backdrop = r.optString("backdrop_path").takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/w780$it" } ?: "",
-                )
-            } catch (_: Throwable) { null }
+            val tv = t.season > 0 || t.episode > 0
+            val order = if (tv && Prefs.showSource == "tvdb") listOf("tvdb", "tmdb") else listOf("tmdb", "tvdb")
+            var r: OnlineInfo? = null
+            for (src in order) {
+                r = try {
+                    when (src) {
+                        "tmdb" -> if (Prefs.tmdbOn && Prefs.tmdbKey.isNotBlank()) tmdb(t) else null
+                        else -> if (Prefs.tvdbOn && Prefs.tvdbKey.isNotBlank()) tvdb(ctx, t) else null
+                    }
+                } catch (_: Throwable) { null }
+                if (r != null) break
+            }
+            r
         }
         online[cacheKey] = info
-        if (info != null) sp.edit().putString(cacheKey, JSONObject().apply {
-            put("t", info.title); put("y", info.year); put("o", info.overview); put("r", info.rating); put("p", info.poster); put("b", info.backdrop)
-        }.toString()).apply()
+        if (info != null) sp.edit().putString(cacheKey, toJson(info)).apply()
         return info
     }
 
-    private fun parseCached(j: String): OnlineInfo? = try {
+    private fun get(url: String, headers: Map<String, String> = emptyMap()): JSONObject {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.connectTimeout = 10000; c.readTimeout = 15000
+        headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
+        try { return JSONObject(c.inputStream.bufferedReader().readText()) } finally { c.disconnect() }
+    }
+
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+    private fun img(path: String?, size: String) = path?.takeIf { it.isNotBlank() && it != "null" }?.let { "https://image.tmdb.org/t/p/$size$it" } ?: ""
+
+    private fun tmdb(t: CleanTitle): OnlineInfo? {
+        val key = enc(Prefs.tmdbKey)
+        val lang = if (com.rivers.rivpost.data.Lang.arabic) "ar" else "en-US"
+        val tv = t.season > 0 || t.episode > 0
+        var url = "https://api.themoviedb.org/3/search/${if (tv) "tv" else "multi"}?api_key=$key&query=${enc(t.title)}&language=$lang"
+        if (t.year > 0 && !tv) url += "&year=${t.year}"
+        val res = get(url).optJSONArray("results") ?: return null
+        var r: JSONObject? = null
+        for (i in 0 until res.length()) {
+            val o = res.optJSONObject(i) ?: continue
+            if (o.optString("media_type") == "person") continue
+            r = o; break
+        }
+        r ?: return null
+        val type = if (tv || r.optString("media_type") == "tv" || r.has("first_air_date")) "tv" else "movie"
+        val id = r.optLong("id")
+        val d = try { get("https://api.themoviedb.org/3/$type/$id?api_key=$key&language=$lang&append_to_response=credits") } catch (_: Throwable) { JSONObject() }
+        val genres = d.optJSONArray("genres")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("name") } } ?: emptyList()
+        val runtime = if (type == "movie") d.optInt("runtime") else d.optJSONArray("episode_run_time")?.optInt(0) ?: 0
+        val cast = d.optJSONObject("credits")?.optJSONArray("cast")?.let { a ->
+            (0 until minOf(12, a.length())).mapNotNull { i -> a.optJSONObject(i)?.let { CastMember(it.optString("name"), it.optString("character"), img(it.optString("profile_path"), "w185")) } }
+        } ?: emptyList()
+        var info = OnlineInfo(
+            title = r.optString("title").ifBlank { r.optString("name") },
+            year = r.optString("release_date").ifBlank { r.optString("first_air_date") }.take(4),
+            overview = d.optString("overview").ifBlank { r.optString("overview") },
+            rating = r.optDouble("vote_average", 0.0),
+            poster = img(r.optString("poster_path"), "w342"),
+            backdrop = img(r.optString("backdrop_path"), "w780"),
+            genres = genres, runtime = runtime, cast = cast, source = "TMDb",
+        )
+        if (type == "tv" && t.season > 0) try {
+            val s = get("https://api.themoviedb.org/3/tv/$id/season/${t.season}?api_key=$key&language=$lang")
+            info = info.copy(season = t.season, seasonPoster = img(s.optString("poster_path"), "w342"))
+            val eps = s.optJSONArray("episodes")
+            if (eps != null && t.episode > 0) for (i in 0 until eps.length()) {
+                val e = eps.optJSONObject(i) ?: continue
+                if (e.optInt("episode_number") == t.episode) {
+                    info = info.copy(episode = t.episode, epTitle = e.optString("name"), epOverview = e.optString("overview"), epStill = img(e.optString("still_path"), "w300"))
+                    break
+                }
+            }
+        } catch (_: Throwable) { }
+        return info
+    }
+
+    // TheTVDB v4. The token lasts a month; it is kept in app storage.
+    private fun tvdbToken(ctx: Context): String? {
+        val sp = ctx.getSharedPreferences("riv_meta_tok", Context.MODE_PRIVATE)
+        val tok = sp.getString("tok", "") ?: ""
+        val age = System.currentTimeMillis() - sp.getLong("at", 0)
+        if (tok.isNotBlank() && age < 25L * 86400_000L && sp.getString("for", "") == Prefs.tvdbKey.hashCode().toString()) return tok
+        val c = URL("https://api4.thetvdb.com/v4/login").openConnection() as HttpURLConnection
+        c.requestMethod = "POST"; c.doOutput = true
+        c.setRequestProperty("Content-Type", "application/json")
+        c.connectTimeout = 10000; c.readTimeout = 15000
+        val body = JSONObject().put("apikey", Prefs.tvdbKey).apply { if (Prefs.tvdbPin.isNotBlank()) put("pin", Prefs.tvdbPin) }.toString()
+        try {
+            c.outputStream.use { it.write(body.toByteArray()) }
+            val j = JSONObject(c.inputStream.bufferedReader().readText())
+            val t = j.optJSONObject("data")?.optString("token") ?: return null
+            sp.edit().putString("tok", t).putLong("at", System.currentTimeMillis()).putString("for", Prefs.tvdbKey.hashCode().toString()).apply()
+            return t
+        } finally { c.disconnect() }
+    }
+
+    private fun tvdb(ctx: Context, t: CleanTitle): OnlineInfo? {
+        val tok = tvdbToken(ctx) ?: return null
+        val h = mapOf("Authorization" to "Bearer $tok", "Accept" to "application/json")
+        val tv = t.season > 0 || t.episode > 0
+        var url = "https://api4.thetvdb.com/v4/search?query=${enc(t.title)}&type=${if (tv) "series" else "movie"}&limit=1"
+        if (t.year > 0 && !tv) url += "&year=${t.year}"
+        val r = get(url, h).optJSONArray("data")?.optJSONObject(0) ?: return null
+        val ar = com.rivers.rivpost.data.Lang.arabic
+        val id = r.optString("tvdb_id").ifBlank { r.optString("id").filter { it.isDigit() } }
+        val over = r.optJSONObject("overviews")?.let { o -> if (ar) o.optString("ara").ifBlank { o.optString("eng") } else o.optString("eng") }?.ifBlank { null } ?: r.optString("overview")
+        val name = r.optJSONObject("translations")?.let { o -> if (ar) o.optString("ara") else o.optString("eng") }?.ifBlank { null } ?: r.optString("name")
+        var info = OnlineInfo(
+            title = name, year = r.optString("year"), overview = over, rating = 0.0,
+            poster = r.optString("image_url").takeIf { it.startsWith("http") } ?: "", backdrop = "", source = "TheTVDB",
+        )
+        val kind = if (tv) "series" else "movies"
+        try {
+            val d = get("https://api4.thetvdb.com/v4/$kind/$id/extended", h).optJSONObject("data")
+            if (d != null) {
+                val genres = d.optJSONArray("genres")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("name") } } ?: emptyList()
+                val chars = d.optJSONArray("characters")
+                val cast = if (chars == null) emptyList() else (0 until chars.length()).mapNotNull { chars.optJSONObject(it) }
+                    .filter { it.optInt("type") == 3 || it.optString("peopleType") == "Actor" }.take(12)
+                    .map { CastMember(it.optString("personName"), it.optString("name"), it.optString("personImgURL").ifBlank { it.optString("image") }) }
+                val arts = d.optJSONArray("artworks")
+                val back = if (arts == null) "" else (0 until arts.length()).mapNotNull { arts.optJSONObject(it) }
+                    .firstOrNull { it.optInt("type") == 3 || it.optInt("type") == 15 }?.optString("image") ?: ""
+                var seasonPoster = ""
+                val seasons = d.optJSONArray("seasons")
+                if (seasons != null && t.season > 0) for (i in 0 until seasons.length()) {
+                    val s = seasons.optJSONObject(i) ?: continue
+                    if (s.optInt("number") == t.season && s.optJSONObject("type")?.optString("type") == "official") { seasonPoster = s.optString("image"); break }
+                }
+                info = info.copy(
+                    genres = genres, cast = cast, backdrop = back, seasonPoster = seasonPoster,
+                    runtime = d.optInt("averageRuntime").takeIf { it > 0 } ?: d.optInt("runtime"),
+                    poster = info.poster.ifBlank { d.optString("image") },
+                )
+            }
+        } catch (_: Throwable) { }
+        if (tv && t.season > 0 && t.episode > 0) try {
+            val e = get("https://api4.thetvdb.com/v4/series/$id/episodes/default?season=${t.season}&episodeNumber=${t.episode}", h)
+                .optJSONObject("data")?.optJSONArray("episodes")?.optJSONObject(0)
+            if (e != null) info = info.copy(season = t.season, episode = t.episode, epTitle = e.optString("name"), epOverview = e.optString("overview"), epStill = e.optString("image"))
+        } catch (_: Throwable) { }
+        return info
+    }
+
+    private fun toJson(i: OnlineInfo): String = JSONObject().apply {
+        put("t", i.title); put("y", i.year); put("o", i.overview); put("r", i.rating); put("p", i.poster); put("b", i.backdrop)
+        put("g", org.json.JSONArray(i.genres)); put("rt", i.runtime)
+        put("c", org.json.JSONArray(i.cast.map { org.json.JSONArray(listOf(it.name, it.role, it.photo)) }))
+        put("s", i.season); put("e", i.episode); put("et", i.epTitle); put("eo", i.epOverview); put("es", i.epStill); put("sp", i.seasonPoster); put("src", i.source)
+    }.toString()
+
+    private fun fromJson(j: String): OnlineInfo? = try {
         val o = JSONObject(j)
-        OnlineInfo(o.optString("t"), o.optString("y"), o.optString("o"), o.optDouble("r", 0.0), o.optString("p"), o.optString("b"))
+        val g = o.optJSONArray("g"); val c = o.optJSONArray("c")
+        OnlineInfo(
+            o.optString("t"), o.optString("y"), o.optString("o"), o.optDouble("r", 0.0), o.optString("p"), o.optString("b"),
+            genres = if (g == null) emptyList() else (0 until g.length()).map { g.optString(it) },
+            runtime = o.optInt("rt"),
+            cast = if (c == null) emptyList() else (0 until c.length()).mapNotNull { c.optJSONArray(it) }.map { CastMember(it.optString(0), it.optString(1), it.optString(2)) },
+            season = o.optInt("s"), episode = o.optInt("e"), epTitle = o.optString("et"), epOverview = o.optString("eo"),
+            epStill = o.optString("es"), seasonPoster = o.optString("sp"), source = o.optString("src"),
+        )
     } catch (_: Throwable) { null }
 
     fun clearCache(ctx: Context) {
         online.clear()
-        ctx.getSharedPreferences("riv_meta", Context.MODE_PRIVATE).edit().clear().apply()
+        ctx.getSharedPreferences("riv_meta2", Context.MODE_PRIVATE).edit().clear().apply()
     }
 }

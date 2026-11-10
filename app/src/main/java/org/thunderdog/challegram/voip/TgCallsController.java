@@ -57,6 +57,12 @@ public class TgCallsController {
     if (nativePtr != 0) processIncomingSignalingData(nativePtr, buffer);
   }
 
+  public synchronized NetworkStats getStats() {
+    NetworkStats out = new NetworkStats();
+    if (nativePtr != 0) fetchNetworkStats(nativePtr, out);
+    return out;
+  }
+
   public synchronized void destroy() {
     if (nativePtr != 0) {
       destroyInstance(nativePtr);

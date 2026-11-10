@@ -13,6 +13,7 @@ import com.rivers.rivpost.R
 import com.rivers.rivpost.data.Prefs
 import com.rivers.rivpost.data.t
 import dev.g000sha256.tdl.dto.Message
+import dev.g000sha256.tdl.dto.UserTypeBot
 import java.util.concurrent.ConcurrentHashMap
 
 object Notifier {
@@ -68,7 +69,16 @@ object Notifier {
         )
         val style = NotificationCompat.InboxStyle()
         synchronized(list) { for (l in list) style.addLine(l) }
-        val n = NotificationCompat.Builder(c, CH_MSG)
+        val b0 = NotificationCompat.Builder(c, CH_MSG)
+        if (Prefs.voiceCalls && Prefs.callNotifButton && chat.privateUserId != 0L && a.users[chat.privateUserId]?.type !is UserTypeBot) {
+            val ci = Intent(c, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("acc", a.index)
+                putExtra("call_user", chat.privateUserId)
+            }
+            b0.addAction(0, t("Call"), PendingIntent.getActivity(c, id(a, m.chatId) + 1, ci, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        }
+        val n = b0
             .setSmallIcon(R.drawable.ic_notif)
             .setContentTitle(chat.title)
             .setContentText(text)

@@ -128,7 +128,7 @@ private suspend fun <T> TdlResult<T>.report(ctx: Context, done: String? = null):
 fun isMorePage(name: String): Boolean = name.substringBefore(':') in setOf(
     "members", "topics", "admin", "links", "requests", "stats", "scheduled", "newchannel", "twostep",
     "stickers", "exceptions", "datausage", "blocked", "story", "firebase", "sendas", "adminlog",
-    "account2", "websites", "addcontact", "notifdefaults", "language", "wallpapers", "emojistatus", "iv", "storage", "qrscan", "mappick",
+    "account2", "websites", "addcontact", "notifdefaults", "language", "wallpapers", "emojistatus", "iv", "storage", "qrscan", "mappick", "callsettings",
 )
 
 @Composable
@@ -136,6 +136,7 @@ fun MorePage(acc: TgAccount, act: MainActivity, name: String, onBack: () -> Unit
     val arg = name.substringAfter(':', "").toLongOrNull() ?: 0L
     when (name.substringBefore(':')) {
         "members" -> MembersScreen(acc, act, arg, onBack)
+        "callsettings" -> CallSettingsScreen(onBack)
         "topics" -> ForumTopicsScreen(acc, act, arg, onBack)
         "admin" -> AdminScreen(acc, act, arg, onBack)
         "links" -> InviteLinksScreen(acc, arg, onBack)

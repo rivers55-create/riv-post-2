@@ -119,6 +119,7 @@ class WebRtcAudioTrack {
           byteBuffer.put(emptyBytes);
           byteBuffer.position(0);
         }
+        CallAudioHooks.onPlayout(byteBuffer.array(), byteBuffer.arrayOffset(), sizeInBytes);
         int bytesWritten = audioTrack.write(byteBuffer, sizeInBytes, AudioTrack.WRITE_BLOCKING);
         if (bytesWritten != sizeInBytes) {
           Logging.e(TAG, "AudioTrack.write played invalid number of bytes: " + bytesWritten);
@@ -179,6 +180,7 @@ class WebRtcAudioTrack {
 
   @CalledByNative
   private int initPlayout(int sampleRate, int channels, double bufferSizeFactor) {
+    CallAudioHooks.playRate = sampleRate; CallAudioHooks.playChannels = channels;
     threadChecker.checkIsOnValidThread();
     Logging.d(TAG,
         "initPlayout(sampleRate=" + sampleRate + ", channels=" + channels

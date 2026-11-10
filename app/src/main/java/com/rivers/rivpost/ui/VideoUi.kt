@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -133,6 +134,7 @@ fun VideoLibraryPage(acc: TgAccount, onPlay: (PlayRequest) -> Unit, onPickSource
         return
     }
 
+    VideoDetailsNav.open?.let { dv -> VideoDetailsDialog(acc, dv, onPlay) { VideoDetailsNav.open = null } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 100.dp)) {
         if (hero != null) item {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f)) {
@@ -148,7 +150,9 @@ fun VideoLibraryPage(acc: TgAccount, onPlay: (PlayRequest) -> Unit, onPickSource
                     Text(
                         listOfNotNull(
                             info?.year?.takeIf { it.isNotBlank() }, info?.rating?.takeIf { it > 0 }?.let { "★ %.1f".format(it) },
-                            acc.chats[hero.chatId]?.title,
+                            info?.genres?.take(2)?.joinToString(", ")?.takeIf { it.isNotBlank() },
+                            info?.runtime?.takeIf { it > 0 }?.let { "$it " + t("min") },
+                            if (info == null) acc.chats[hero.chatId]?.title else null,
                         ).joinToString("  ·  "),
                         color = cs.onSurfaceVariant, fontSize = 14.sp, maxLines = 1,
                     )
@@ -166,6 +170,10 @@ fun VideoLibraryPage(acc: TgAccount, onPlay: (PlayRequest) -> Unit, onPickSource
                             onClick = { VideoLib.toggleMyList(hero) },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f), contentColor = Color.White),
                         ) { Icon(if (inList) Ic.Check else Ic.Add, null); Spacer(Modifier.width(6.dp)); Text(t("My List")) }
+                        Spacer(Modifier.width(10.dp))
+                        IconButton(onClick = { VideoDetailsNav.open = hero }, modifier = Modifier.background(Color.White.copy(alpha = 0.2f), CircleShape)) {
+                            Icon(Ic.Info, null, tint = Color.White)
+                        }
                     }
                 }
                 Row(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)) {
@@ -215,8 +223,11 @@ private fun VideoRow(acc: TgAccount, title: String, list: List<VideoItem>, onPla
                             }
                         }
                         Text(com.rivers.rivpost.media.Meta.title(v), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                        val oi = rememberOnline(v)
+                        if (!oi?.epTitle.isNullOrBlank()) Text(oi!!.epTitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        if (com.rivers.rivpost.media.Meta.hasOnline()) DropdownMenuItem(text = { Text(t("Details")) }, onClick = { menu = false; VideoDetailsNav.open = v })
                         DropdownMenuItem(
                             text = { Text(if (VideoLib.inMyList(v)) t("Remove from My List") else t("Add to My List")) },
                             onClick = { menu = false; VideoLib.toggleMyList(v) },
@@ -458,7 +469,95 @@ fun TgsSticker(path: String, modifier: Modifier) {
 @Composable
 private fun rememberOnline(v: VideoItem): com.rivers.rivpost.media.OnlineInfo? {
     val ctx = LocalContext.current
-    if (Prefs.tmdbKey.isBlank()) return null
-    val info by produceState<com.rivers.rivpost.media.OnlineInfo?>(null, v.key, Prefs.tmdbKey) { value = com.rivers.rivpost.media.Meta.lookup(ctx, v) }
+    if (!com.rivers.rivpost.media.Meta.hasOnline()) return null
+    val info by produceState<com.rivers.rivpost.media.OnlineInfo?>(null, v.key, Prefs.tmdbKey, Prefs.tvdbKey, Prefs.showSource) { value = com.rivers.rivpost.media.Meta.lookup(ctx, v) }
     return info
+}
+
+
+object VideoDetailsNav {
+    var open by androidx.compose.runtime.mutableStateOf<VideoItem?>(null)
+}
+
+/** Full info for one video: description, episode, cast. From TMDb or TheTVDB. */
+@Composable
+fun VideoDetailsDialog(acc: TgAccount, v: VideoItem, onPlay: (PlayRequest) -> Unit, onDismiss: () -> Unit) {
+    val info = rememberOnline(v)
+    val cs = MaterialTheme.colorScheme
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize().background(cs.background)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp)) {
+                item {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                        Poster(acc, v, Modifier.fillMaxSize(), RoundedCornerShape(0.dp))
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, cs.background))))
+                        IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp).background(Color(0x66000000), CircleShape)) {
+                            Icon(Ic.Close, null, tint = Color.White)
+                        }
+                    }
+                }
+                item {
+                    Column(Modifier.padding(horizontal = 18.dp)) {
+                        Text(info?.title?.ifBlank { null } ?: com.rivers.rivpost.media.Meta.title(v), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            listOfNotNull(
+                                info?.year?.takeIf { it.isNotBlank() }, info?.rating?.takeIf { it > 0 }?.let { "★ %.1f".format(it) },
+                                info?.runtime?.takeIf { it > 0 }?.let { "$it " + t("min") },
+                            ).joinToString("  ·  "),
+                            color = cs.onSurfaceVariant, fontSize = 14.sp,
+                        )
+                        if (!info?.genres.isNullOrEmpty()) Text(info!!.genres.joinToString(", "), color = cs.onSurfaceVariant, fontSize = 14.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Row {
+                            Button(onClick = { onDismiss(); onPlay(v.request()) }) { Icon(Ic.Play, null); Spacer(Modifier.width(6.dp)); Text(t("Play")) }
+                            Spacer(Modifier.width(10.dp))
+                            val inList = VideoLib.inMyList(v)
+                            OutlinedButton(onClick = { VideoLib.toggleMyList(v) }) { Icon(if (inList) Ic.Check else Ic.Add, null); Spacer(Modifier.width(6.dp)); Text(t("My List")) }
+                        }
+                        if (info == null) Text(t("No online info found for this title."), color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp))
+                        if (!info?.overview.isNullOrBlank()) Text(info!!.overview, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp))
+                    }
+                }
+                if (info != null && (info.epTitle.isNotBlank() || info.season > 0)) item {
+                    Column(Modifier.padding(18.dp)) {
+                        Text(t("This episode"), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row {
+                            val pic = info.epStill.ifBlank { info.seasonPoster }
+                            if (pic.isNotBlank()) AsyncImage(
+                                model = pic, contentDescription = null, contentScale = ContentScale.Crop,
+                                modifier = Modifier.width(140.dp).aspectRatio(if (info.epStill.isNotBlank()) 16f / 9f else 2f / 3f).clip(RoundedCornerShape(10.dp)),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(t("Season") + " ${info.season}" + (if (info.episode > 0) " · " + t("Episode") + " ${info.episode}" else ""), color = cs.onSurfaceVariant, fontSize = 13.sp)
+                                if (info.epTitle.isNotBlank()) Text(info.epTitle, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                                if (info.epOverview.isNotBlank()) Text(info.epOverview, fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                if (!info?.cast.isNullOrEmpty()) item {
+                    Column(Modifier.padding(top = 6.dp)) {
+                        Text(t("Cast"), fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
+                        LazyRow(contentPadding = PaddingValues(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(info!!.cast) { p ->
+                                Column(Modifier.width(86.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(76.dp).clip(CircleShape).background(cs.surfaceVariant), contentAlignment = Alignment.Center) {
+                                        if (p.photo.isNotBlank()) AsyncImage(model = p.photo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                        else Text(p.name.take(1), fontSize = 24.sp)
+                                    }
+                                    Text(p.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    if (p.role.isNotBlank()) Text(p.role, fontSize = 11.sp, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (info != null) item {
+                    Text(t("Info from") + " " + info.source, fontSize = 12.sp, color = cs.onSurfaceVariant, modifier = Modifier.padding(18.dp))
+                }
+            }
+        }
+    }
 }
