@@ -188,8 +188,8 @@ object Calls {
             c.startActivity(Intent(c, com.rivers.rivpost.MainActivity::class.java).putExtra("call_accept", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
         }
-        // Bring the app up too: Android only gives the microphone to calls answered while the app is visible.
-        try {
+        // Without the phone-system link, Android only gives the mic to calls answered while the app is visible.
+        if (CallTelecom.connection == null) try {
             c.startActivity(Intent(c, com.rivers.rivpost.MainActivity::class.java).putExtra("call_open", true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         } catch (_: Throwable) { }
@@ -202,6 +202,7 @@ object Calls {
         CallNotif.cancelIncoming(c)
         mod { it.copy(incomingRinging = false, status = t("Connecting…"), minimized = false) }
         CallService.start(c)
+        CallTelecom.active()
         val acc = Tg.get(u.acc)
         acc.scope.launch { acc.client.acceptCall(callId = u.id, protocol = protocol()) }
     }
@@ -700,7 +701,8 @@ object Calls {
 
     private fun startAudio(c: Context) {
         val am = am(c)
-        try {
+        // With the phone-system link, Android sets the call audio mode itself.
+        if (CallTelecom.connection == null) try {
             savedMode = am.mode
             am.mode = AudioManager.MODE_IN_COMMUNICATION
         } catch (_: Throwable) { }
@@ -719,6 +721,7 @@ object Calls {
     }
 
     private fun setSpeaker(c: Context, on: Boolean) {
+        if (CallTelecom.speaker(on)) return
         val am = am(c)
         try {
             if (Build.VERSION.SDK_INT >= 31) {

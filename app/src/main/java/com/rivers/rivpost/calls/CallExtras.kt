@@ -511,6 +511,26 @@ object CallTelecom {
 
     fun active() { try { connection?.setActive() } catch (_: Throwable) { } }
 
+    /** Routes the call to the speaker or earpiece through the phone system. Returns false if not linked. */
+    @Suppress("DEPRECATION")
+    fun speaker(on: Boolean): Boolean {
+        val cn = connection ?: return false
+        return try {
+            val headset = cn.callAudioState?.supportedRouteMask?.let { m ->
+                when {
+                    m and android.telecom.CallAudioState.ROUTE_BLUETOOTH != 0 -> android.telecom.CallAudioState.ROUTE_BLUETOOTH
+                    m and android.telecom.CallAudioState.ROUTE_WIRED_HEADSET != 0 -> android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
+                    else -> 0
+                }
+            } ?: 0
+            cn.setAudioRoute(
+                if (on) android.telecom.CallAudioState.ROUTE_SPEAKER
+                else if (headset != 0) headset else android.telecom.CallAudioState.ROUTE_EARPIECE,
+            )
+            true
+        } catch (_: Throwable) { false }
+    }
+
     fun ended() {
         val cn = connection ?: return
         connection = null
@@ -526,6 +546,8 @@ class RivConnection(private val name: String) : Connection() {
         audioModeIsVoip = true
     }
     override fun onAnswer() { Calls.acceptFromBackground(com.rivers.rivpost.tg.Tg.app) }
+    override fun onAnswer(videoState: Int) { onAnswer() }
+    override fun onSilence() { Calls.silence() }
     override fun onReject() { Calls.hangUp() }
     override fun onDisconnect() { Calls.hangUp() }
     override fun onAbort() { Calls.hangUp() }
@@ -548,4 +570,8 @@ class RivConnectionService : ConnectionService() {
         CallTelecom.connection = cn
         return cn
     }
+
+    // The phone system refused (for example during a normal phone call). Riv Post keeps handling the call itself.
+    override fun onCreateIncomingConnectionFailed(h: PhoneAccountHandle?, r: ConnectionRequest?) { CallTelecom.connection = null }
+    override fun onCreateOutgoingConnectionFailed(h: PhoneAccountHandle?, r: ConnectionRequest?) { CallTelecom.connection = null }
 }

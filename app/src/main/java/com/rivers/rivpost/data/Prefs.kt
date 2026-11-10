@@ -257,7 +257,7 @@ object Prefs {
     var callChat by BoolPref("call_chat", true)
     var callWeakWarn by BoolPref("call_weak_warn", true)
     var callStyle by StrPref("call_style", "violet")
-    var callTelecom by BoolPref("call_telecom", false)
+    var callTelecom by BoolPref("call_telecom2", true)
     var callHeadsetButton by BoolPref("call_headset_button", true)
     var callStats by BoolPref("call_stats", true)
     var callPeople by StrPref("call_people", "{}")

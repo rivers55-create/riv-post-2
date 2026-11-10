@@ -1243,7 +1243,7 @@ object Lang {
         "Direct connection in calls" to "اتصال مباشر في المكالمات",
         "Better quality. Off sends calls through Telegram's servers so the other person can't see your IP address." to "جودة أفضل. عند الإيقاف تمر المكالمات عبر خوادم تيليجرام فلا يرى الطرف الآخر عنوان IP الخاص بك.",
         "Your call history. Tap the phone to call back." to "سجل مكالماتك. اضغط على الهاتف لمعاودة الاتصال.",
-        "Answer from the car or Bluetooth, and normal calls put Riv Post calls on hold. Experimental." to "أجب من السيارة أو البلوتوث، والمكالمات العادية تضع مكالمات Riv Post في الانتظار. تجريبي.",
+        "Lets you answer with the app closed, from the car or Bluetooth. Normal calls put Riv Post calls on hold. Turn off only if calls misbehave." to "يتيح لك الرد والتطبيق مغلق، من السيارة أو البلوتوث. المكالمات العادية تضع مكالمات Riv Post في الانتظار. أوقفه فقط إذا واجهت مشاكل في المكالمات.",
         "Auto-answer" to "رد تلقائي",
         "Auto-answer with headphones" to "رد تلقائي مع السماعات",
         "Auto-record" to "تسجيل تلقائي",

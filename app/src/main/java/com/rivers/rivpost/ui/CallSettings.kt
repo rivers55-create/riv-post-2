@@ -126,7 +126,7 @@ fun CallSettingsScreen(onBack: () -> Unit) {
         SectionTitle(t("Phone and car"))
         SwitchRow(
             t("Work like a normal phone call"),
-            t("Answer from the car or Bluetooth, and normal calls put Riv Post calls on hold. Experimental."),
+            t("Lets you answer with the app closed, from the car or Bluetooth. Normal calls put Riv Post calls on hold. Turn off only if calls misbehave."),
             Prefs.callTelecom,
         ) { Prefs.callTelecom = it; tick++ }
         HorizontalDivider(Modifier.padding(top = 8.dp))
