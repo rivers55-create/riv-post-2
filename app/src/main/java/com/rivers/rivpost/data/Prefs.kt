@@ -263,6 +263,7 @@ object Prefs {
     var callPeople by StrPref("call_people", "{}")
     var callHoldMusic by StrPref("call_hold_music", "")
     var callMissedNotif by BoolPref("call_missed_notif", true)
+    var callRateAsk by BoolPref("call_rate_ask", true)
     var nightFrom by IntPref("night_from", 20)
     var nightTo by IntPref("night_to", 7)
     var saveEdited by BoolPref("save_edited", false)

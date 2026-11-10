@@ -1404,6 +1404,18 @@ object Lang {
         "Reply in another chat" to "الرد في محادثة أخرى",
         "Apply changes" to "تطبيق التغييرات",
         "Do not reply" to "عدم الرد",
+        "Rate this call" to "قيّم هذه المكالمة",
+        "I heard my own voice" to "سمعت صدى صوتي",
+        "Background noise" to "ضجيج في الخلفية",
+        "The other side kept cutting out" to "صوت الطرف الآخر كان يتقطع",
+        "Speech was distorted" to "الكلام كان مشوّهًا",
+        "I couldn't hear the other side" to "لم أستطع سماع الطرف الآخر",
+        "The other side couldn't hear me" to "الطرف الآخر لم يسمعني",
+        "The call ended unexpectedly" to "انتهت المكالمة فجأة",
+        "Comment (optional)" to "تعليق (اختياري)",
+        "Skip" to "تخطٍّ",
+        "Ask to rate calls" to "طلب تقييم المكالمات",
+        "When Telegram asks for it, like the official app" to "عندما يطلبه تيليجرام، مثل التطبيق الرسمي",
     )
 }
 

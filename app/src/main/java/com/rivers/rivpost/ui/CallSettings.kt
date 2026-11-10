@@ -86,6 +86,7 @@ fun CallSettingsScreen(onBack: () -> Unit) {
         SwitchRow(t("Silent ring for unknown callers"), t("People not in your contacts"), Prefs.callUnknownSilent) { Prefs.callUnknownSilent = it; tick++ }
         SwitchRow(t("Show their last message while ringing"), null, Prefs.callLastMsg) { Prefs.callLastMsg = it; tick++ }
         SwitchRow(t("Call waiting"), t("See a second call instead of them getting busy"), Prefs.callWaiting) { Prefs.callWaiting = it; tick++ }
+        SwitchRow(t("Ask to rate calls"), t("When Telegram asks for it, like the official app"), Prefs.callRateAsk) { Prefs.callRateAsk = it; tick++ }
         SwitchRow(t("Missed call notification"), t("With call back and remind me buttons"), Prefs.callMissedNotif) { Prefs.callMissedNotif = it; tick++ }
         var editReplies by remember { mutableStateOf(false) }
         ClickRow(t("Quick decline messages"), "›") { editReplies = true }

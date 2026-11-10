@@ -91,6 +91,19 @@ object Calls {
     private const val TAG = "RivCalls"
     val ui = MutableStateFlow<CallUi?>(null)
 
+    /** A finished call Telegram would like rated: account index to call id. */
+    val rate = MutableStateFlow<Pair<Int, Int>?>(null)
+    @Volatile private var lastDebug = ""
+
+    fun sendRating(stars: Int, comment: String, problems: List<dev.g000sha256.tdl.dto.CallProblem>) {
+        val (a, id) = rate.value ?: return
+        rate.value = null
+        val acc = Tg.get(a)
+        acc.scope.launch {
+            acc.client.sendCallRating(callId = dev.g000sha256.tdl.dto.InputCallDiscarded(id), rating = stars, comment = comment, problems = problems.toTypedArray())
+        }
+    }
+
     private var loaded: Boolean? = null
     var loadError: String = ""
         private set
@@ -476,6 +489,17 @@ object Calls {
                     declined -> if (call.isOutgoing) t("Line busy") else t("Call declined")
                     else -> t("Call ended")
                 }
+                // What Telegram asks for after a call, like the official apps send.
+                if (s.needDebugInformation) acc.scope.launch {
+                    delay(1500)
+                    if (lastDebug.isNotBlank()) acc.client.sendCallDebugInformation(callId = dev.g000sha256.tdl.dto.InputCallDiscarded(call.id), debugInformation = lastDebug)
+                }
+                if (s.needLog) acc.scope.launch {
+                    delay(1500)
+                    val f = File(File(ctx.filesDir, "voip"), "last_call.log")
+                    if (f.exists()) acc.client.sendCallLog(callId = dev.g000sha256.tdl.dto.InputCallDiscarded(call.id), logFile = dev.g000sha256.tdl.dto.InputFileLocal(f.absolutePath))
+                }
+                if (s.needRating && Prefs.callRateAsk && cur?.connectedAt?.let { it > 0 } == true) rate.value = acc.index to call.id
                 if (cur?.id == call.id) {
                     val wasRinging = cur.incomingRinging
                     finish(why)
@@ -616,7 +640,7 @@ object Calls {
                 }
             }
             override fun onSignalBarCountChanged(newCount: Int) { mod { it.copy(bars = newCount) } }
-            override fun onStopped(finalStats: NetworkStats, debugLog: String?) { }
+            override fun onStopped(finalStats: NetworkStats, debugLog: String?) { lastDebug = debugLog ?: "" }
             override fun onRemoteMediaStateChanged(audioState: Int, videoState: Int) {
                 val u = ui.value ?: return
                 if (u.connectedAt > 0) mod { it.copy(status = if (audioState == 0) t("Their microphone is off") else "") }

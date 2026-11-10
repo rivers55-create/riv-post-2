@@ -32,6 +32,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -70,6 +71,8 @@ fun CallOverlay(act: MainActivity) {
         if (android.os.Build.VERSION.SDK_INT >= 27) { act.setShowWhenLocked(active); act.setTurnScreenOn(active) }
         onDispose { }
     }
+    val rateReq by Calls.rate.collectAsState()
+    if (rateReq != null && (u == null || u?.ended == true)) RateCallDialog()
     val call = u ?: return
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(call.connectedAt) {
@@ -294,6 +297,50 @@ private fun SmallButton(icon: ImageVector, label: String, on: Boolean = false, o
         Spacer(Modifier.height(4.dp))
         Text(label, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
+}
+
+@Composable
+private fun RateCallDialog() {
+    var stars by remember { mutableStateOf(0) }
+    var comment by remember { mutableStateOf("") }
+    val all = listOf(
+        dev.g000sha256.tdl.dto.CallProblemEcho() to t("I heard my own voice"),
+        dev.g000sha256.tdl.dto.CallProblemNoise() to t("Background noise"),
+        dev.g000sha256.tdl.dto.CallProblemInterruptions() to t("The other side kept cutting out"),
+        dev.g000sha256.tdl.dto.CallProblemDistortedSpeech() to t("Speech was distorted"),
+        dev.g000sha256.tdl.dto.CallProblemSilentLocal() to t("I couldn't hear the other side"),
+        dev.g000sha256.tdl.dto.CallProblemSilentRemote() to t("The other side couldn't hear me"),
+        dev.g000sha256.tdl.dto.CallProblemDropped() to t("The call ended unexpectedly"),
+    )
+    val picked = remember { androidx.compose.runtime.mutableStateListOf<Int>() }
+    AlertDialog(
+        onDismissRequest = { Calls.rate.value = null },
+        title = { Text(t("Rate this call")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    for (i in 1..5) Text(
+                        if (i <= stars) "★" else "☆", fontSize = 34.sp, color = Color(0xFFFFB300),
+                        modifier = Modifier.clickable { stars = i }.padding(4.dp),
+                    )
+                }
+                if (stars in 1..4) {
+                    for ((idx, p) in all.withIndex()) Row(
+                        Modifier.fillMaxWidth().clickable { if (idx in picked) picked.remove(idx) else picked.add(idx) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.Checkbox(checked = idx in picked, onCheckedChange = { if (it) picked.add(idx) else picked.remove(idx) })
+                        Text(p.second, fontSize = 14.sp)
+                    }
+                    OutlinedTextField(comment, { comment = it }, label = { Text(t("Comment (optional)")) }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = stars > 0, onClick = { Calls.sendRating(stars, comment, picked.map { all[it].first }) }) { Text(t("Send")) }
+        },
+        dismissButton = { TextButton(onClick = { Calls.rate.value = null }) { Text(t("Skip")) } },
+    )
 }
 
 @Composable
