@@ -347,7 +347,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     var recording by remember { mutableStateOf(false) }
     var recSecs by remember { mutableStateOf(0) }
     var attach by remember { mutableStateOf(false) }
-    var replyTo by remember { mutableStateOf<Message?>(null) }
+    var replyTo by remember { mutableStateOf<Message?>(ReplyElsewhere.take(chatId)) }
+    var replyOptions by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Message?>(null) }
     var menu by remember { mutableStateOf(false) }
     var muteDialog by remember { mutableStateOf(false) }
@@ -462,10 +463,9 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 chatId = chatId,
                 topicId = data.topicId,
                 replyTo = r?.let {
-                    InputMessageReplyToMessage(
-                        messageId = it.id, checklistTaskId = 0, pollOptionId = "",
-                        quote = replyQuote?.let { q -> dev.g000sha256.tdl.dto.InputTextQuote(text = FormattedText(text = q.first, entities = emptyArray<TextEntity>()), richTexts = emptyArray(), position = q.second) },
-                    )
+                    val quote = replyQuote?.let { q -> dev.g000sha256.tdl.dto.InputTextQuote(text = FormattedText(text = q.first, entities = emptyArray<TextEntity>()), richTexts = emptyArray(), position = q.second) }
+                    if (it.chatId != chatId) dev.g000sha256.tdl.dto.InputMessageReplyToExternalMessage(chatId = it.chatId, messageId = it.id, quote = quote, checklistTaskId = 0, pollOptionId = "")
+                    else InputMessageReplyToMessage(messageId = it.id, checklistTaskId = 0, pollOptionId = "", quote = quote)
                 }.also { replyQuote = null },
                 options = opts,
                 inputMessageContent = content,
@@ -856,7 +856,8 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
             val banner = editing ?: replyTo
             if (banner != null) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 10.dp).clip(RoundedCornerShape(16.dp)).background(style.navBar).padding(8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 10.dp).clip(RoundedCornerShape(16.dp)).background(style.navBar)
+                        .clickable(enabled = editing == null) { replyOptions = true }.padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(if (editing != null) Ic.Edit else Ic.Reply, null, tint = style.accent)
@@ -864,8 +865,11 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                     Box(Modifier.width(3.dp).height(34.dp).background(style.accent))
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(if (editing != null) t("Edit message") else acc.senderName(banner.senderId), color = style.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        Text(Fmt.preview(acc, banner), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = style.navBarFg)
+                        Text(
+                            if (editing != null) t("Edit message")
+                            else (if (banner.chatId != chatId) t("Reply in") + " " + (acc.chats[banner.chatId]?.title ?: "") + " · " else t("Reply to") + " ") + acc.senderName(banner.senderId),
+                            color = style.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(replyQuote?.first?.takeIf { editing == null }?.let { "“$it”" } ?: Fmt.preview(acc, banner), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = style.navBarFg)
                     }
                     IconButton(onClick = { if (editing != null) text = ""; editing = null; replyTo = null }) { Icon(Ic.Close, null, tint = style.navBarFg) }
                 }
@@ -950,6 +954,18 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
     }
 
     if (sendAs) SendAsDialog(acc, chatId) { sendAs = false }
+    val ro = replyTo
+    if (replyOptions && ro != null) ReplyOptionsDialog(
+        acc, ro, replyQuote != null,
+        onQuote = { replyOptions = false; QuoteNav.msg = ro },
+        onElsewhere = { target ->
+            replyOptions = false; replyTo = null; replyQuote = null
+            ReplyElsewhere.set(ro, target)
+            act.push(Screen.Chat(target))
+        },
+        onCancel = { replyOptions = false; replyTo = null; replyQuote = null },
+        onDismiss = { replyOptions = false },
+    )
     QuoteNav.msg?.let { qm ->
         QuoteDialog(textOf(qm.content), onDismiss = { QuoteNav.msg = null }) { part, pos ->
             replyTo = qm; replyQuote = part to pos; editing = null; QuoteNav.msg = null
@@ -986,7 +1002,10 @@ fun ChatScreen(acc: TgAccount, act: MainActivity, chatId: Long, onBack: () -> Un
                 val res = acc.client.sendMessageAlbum(
                     chatId = chatId,
                     topicId = data.topicId,
-                    replyTo = r?.let { InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "") },
+                    replyTo = r?.let {
+                        if (it.chatId != chatId) dev.g000sha256.tdl.dto.InputMessageReplyToExternalMessage(chatId = it.chatId, messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "")
+                        else InputMessageReplyToMessage(messageId = it.id, quote = null, checklistTaskId = 0, pollOptionId = "")
+                    },
                     inputMessageContents = list.toTypedArray(),
                 )
                 if (res is TdlResult.Failure) withContext(Dispatchers.Main) { toast(ctx, t("Couldn't send") + ": " + res.message) }
@@ -2422,3 +2441,76 @@ object MediaSaver {
 
 /** "Reply with quote" request from a message menu. */
 object QuoteNav { var msg by mutableStateOf<Message?>(null) }
+
+
+/** A reply that will be sent in a different chat. */
+object ReplyElsewhere {
+    private var msg: Message? = null
+    private var target = 0L
+    fun set(m: Message, chat: Long) { msg = m; target = chat }
+    fun take(chat: Long): Message? = if (chat == target && msg != null) msg.also { msg = null; target = 0L } else null
+}
+
+/** Tap the reply bar: quote part of it, reply in another chat, or don't reply. */
+@Composable
+fun ReplyOptionsDialog(
+    acc: TgAccount, m: Message, quoted: Boolean,
+    onQuote: () -> Unit, onElsewhere: (Long) -> Unit, onCancel: () -> Unit, onDismiss: () -> Unit,
+) {
+    var picking by remember { mutableStateOf(false) }
+    if (picking) {
+        var q by remember { mutableStateOf("") }
+        val ver by acc.chatsVersion.collectAsState()
+        val chats = remember(ver, q) { acc.chatList(dev.g000sha256.tdl.dto.ChatListMain()).map { it.first }.filter { it.id != m.chatId && (q.isBlank() || it.title.contains(q, true)) } }
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text(t("Reply in another chat")) },
+            text = {
+                Column {
+                    OutlinedTextField(q, { q = it }, placeholder = { Text(t("Search")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    LazyColumn(Modifier.height(360.dp)) {
+                        items(chats, key = { it.id }) { c ->
+                            Row(Modifier.fillMaxWidth().clickable { onElsewhere(c.id) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(acc, c.id, c.title, c.photo, c.mini, 40.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text(c.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { picking = false }) { Text(t("Cancel")) } },
+        )
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(t("Reply to message"))
+                Text(t("You can quote a specific part"), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        text = {
+            Column {
+                Text(acc.senderName(m.senderId), fontWeight = FontWeight.SemiBold, color = LocalStyle.current.accent)
+                Text(Fmt.preview(acc, m), maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 10.dp))
+                val hasText = textOf(m.content).isNotBlank()
+                if (hasText) ReplyOption(Ic.SelectRange, if (quoted) t("Change quote") else t("Select specific quote"), onClick = onQuote)
+                ReplyOption(Ic.Forward, t("Reply in another chat")) { picking = true }
+                ReplyOption(Ic.Check, t("Apply changes"), onClick = onDismiss)
+                ReplyOption(Ic.Delete, t("Do not reply"), Color(0xFFE53935), onCancel)
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+@Composable
+private fun ReplyOption(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, color: Color = Color.Unspecified, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = if (color == Color.Unspecified) MaterialTheme.colorScheme.onSurface else color)
+        Spacer(Modifier.width(16.dp))
+        Text(label, fontSize = 16.sp, color = if (color == Color.Unspecified) MaterialTheme.colorScheme.onSurface else color)
+    }
+}

@@ -1395,6 +1395,15 @@ object Lang {
         "min" to "د",
         "this month" to "هذا الشهر",
         "this week" to "هذا الأسبوع",
+        "Reply in" to "الرد في",
+        "Reply to" to "الرد على",
+        "Reply to message" to "الرد على الرسالة",
+        "You can quote a specific part" to "يمكنك اقتباس جزء محدد",
+        "Change quote" to "تغيير الاقتباس",
+        "Select specific quote" to "تحديد اقتباس معين",
+        "Reply in another chat" to "الرد في محادثة أخرى",
+        "Apply changes" to "تطبيق التغييرات",
+        "Do not reply" to "عدم الرد",
     )
 }
 
