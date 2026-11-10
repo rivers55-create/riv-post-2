@@ -21,7 +21,7 @@ jobs:
           git remote add origin https://github.com/DrKLO/Telegram
           git fetch -q --depth 1 origin 7be672ead283d022812d75c729d3a04dd4c2a2c6
           git checkout -q FETCH_HEAD
-          for m in tgcalls td third_party/libvpx third_party/xiph/opus third_party/libyuv third_party/openh264 third_party/boringssl third_party/absl third_party/wamr; do
+          for m in tgcalls td third_party/libvpx third_party/xiph/opus third_party/libyuv third_party/openh264 third_party/boringssl third_party/absl third_party/wamr third_party/ffmpeg; do
             git submodule update -q --init --depth 1 TMessagesProj/jni/$m || git submodule update -q --init TMessagesProj/jni/$m
           done
           cp ../video-engine/CMakeLists.txt TMessagesProj/jni/CMakeLists.txt
@@ -39,7 +39,7 @@ jobs:
             -DCMAKE_MAKE_PROGRAM=$(which ninja) \
             -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-23 -DANDROID_STL=c++_static \
             -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -30
-          ninja -C build -k 50 rivcalls 2>&1 | grep -E "error|FAILED|undefined|Linking" | head -150 | tee build-errors.txt
+          ninja -C build -k 50 rivcalls 2>&1 | grep -E "error:|FAILED:|undefined" | head -150 | tee build-errors.txt
           ls -la build/librivcalls.so
           $NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip --strip-unneeded build/librivcalls.so
           ls -la build/librivcalls.so

@@ -64,6 +64,15 @@ add_library(libvpx STATIC IMPORTED)
 set_target_properties(libvpx PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libvpx.a)
 add_library(libopus STATIC IMPORTED)
 set_target_properties(libopus PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libopus.a)
+foreach(lib avutil avformat avcodec swresample swscale dav1d)
+    if (lib STREQUAL "dav1d")
+        add_library(libdav1d STATIC IMPORTED)
+        set_target_properties(libdav1d PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libdav1d.a)
+    else()
+        add_library(${lib} STATIC IMPORTED)
+        set_target_properties(${lib} PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/lib${lib}.a)
+    endif()
+endforeach()
 add_library(tde2e STATIC IMPORTED)
 set_target_properties(tde2e PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libtde2e.a)
 add_library(tdutils STATIC IMPORTED)
@@ -91,9 +100,15 @@ target_link_libraries(rivcalls
         tgnet
         tde2e
         tdutils
+        swscale
+        avformat
+        avcodec
+        swresample
         libvpx
+        libdav1d
         libopus
         yuv
+        avutil
         ssl
         crypto
         log
