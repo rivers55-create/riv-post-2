@@ -1,0 +1,34 @@
+name: Probe official Telegram libs
+on:
+  push:
+    branches: [ probe-tg ]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download official Telegram APK
+        run: |
+          mkdir out
+          curl -sSL -D out/headers.txt -o tg.apk https://telegram.org/dl/android/apk || true
+          ls -la tg.apk >> out/info.txt
+          unzip -l tg.apk | grep -E "lib/|classes" > out/libs.txt || true
+          unzip -o -q tg.apk 'lib/arm64-v8a/*' -d apk || true
+          for f in apk/lib/arm64-v8a/*.so; do
+            echo "== $f" >> out/symbols.txt
+            nm -D --defined-only "$f" | grep -E " T (Java_|JNI_)" >> out/symbols.txt || true
+            readelf -d "$f" | grep NEEDED >> out/symbols.txt || true
+          done
+          for f in apk/lib/arm64-v8a/*.so; do
+            echo "== $f" >> out/classes.txt
+            strings "$f" | grep -E "^L?(org|com|tgvoip|tgcalls)/[a-zA-Z0-9_/$]+;?$" | sort -u >> out/classes.txt || true
+            strings "$f" | grep -E "^\([^ ]*\)[^ ]*$" | sort -u | head -600 >> out/sigs.txt || true
+          done
+      - name: Publish
+        run: |
+          cd out
+          git init -q && git checkout -q -b probe-tg-out
+          git add -A
+          git -c user.name="Build Bot" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "probe"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" probe-tg-out
