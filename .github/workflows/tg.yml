@@ -1,0 +1,66 @@
+name: Build Riv Post (Telegram base)
+on:
+  push:
+    branches: [ tg ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules || true
+      - name: Get Telegram's source (pinned)
+        run: |
+          git init -q tgsrc && cd tgsrc
+          git remote add origin https://github.com/DrKLO/Telegram
+          git fetch -q --depth 1 origin 7be672ead283d022812d75c729d3a04dd4c2a2c6
+          git checkout -q FETCH_HEAD
+          git submodule update -q --init --depth 1 --jobs 8 || git submodule update -q --init --jobs 8
+          du -sh .
+      - name: Apply Riv Post changes
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: bash tg/apply.sh tgsrc
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: tg-ccache-${{ github.run_id }}
+          restore-keys: tg-ccache-
+      - name: NDK and tools
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
+          sudo apt-get install -y -qq ccache ninja-build > /dev/null
+          ccache -M 6G
+      - name: Build
+        run: |
+          cd tgsrc
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon 2>&1 | tee ../gradle.log | grep -E "error:|FAILED|BUILD|What went wrong|e: " | head -200
+          ls -la $(find TMessagesProj_App/build/outputs/apk -name "*.apk")
+      - name: Keep log on failure
+        if: failure()
+        run: |
+          mkdir -p out && grep -E "error:|FAILED|What went wrong|e: |Exception" -A3 gradle.log | head -400 > out/errors.txt || true
+      - name: Keep APK
+        if: success()
+        run: |
+          mkdir -p out && cp $(find tgsrc/TMessagesProj_App/build/outputs/apk -name "*.apk" | head -1) out/RivPost-TG.apk
+          if [ -f no-api-id ]; then echo "built without API ID" > out/NO_API_ID.txt; fi
+      - name: Publish
+        if: always()
+        run: |
+          mkdir -p out && cd out
+          git init -q && git checkout -q -b apk-tg
+          git add -A
+          git -c user.name="Build Bot" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "build ${{ github.run_number }}" --allow-empty
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" apk-tg
