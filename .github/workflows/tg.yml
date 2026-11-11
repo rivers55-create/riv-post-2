@@ -49,7 +49,7 @@ jobs:
           cd tgsrc
           chmod +x gradlew
           export CMAKE_BUILD_PARALLEL_LEVEL=3
-          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon --max-workers=2 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" -Pandroid.native.buildOutput=none > ../gradle.log 2>&1 || { grep -E "^e: |error:|What went wrong|FAILED" -A5 ../gradle.log | grep -v "warning:" | tail -120; exit 1; }
+          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon --max-workers=2 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" > ../gradle.log 2>&1 || { grep -E "^e: |error:|What went wrong|FAILED" -A5 ../gradle.log | grep -v "warning:" | tail -120; exit 1; }
           tail -5 ../gradle.log
           ls -la $(find TMessagesProj_App/build/outputs/apk -name "*.apk")
       - name: Keep log on failure
