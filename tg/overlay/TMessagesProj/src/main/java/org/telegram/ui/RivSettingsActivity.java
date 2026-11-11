@@ -54,6 +54,14 @@ public class RivSettingsActivity extends BaseFragment {
 
         layout.addView(space(context, ActionBar.getCurrentActionBarHeight()));
 
+        // ---- Features
+        TextSettingsCell music = new TextSettingsCell(context);
+        music.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        music.setText(LocaleController.getString(R.string.RivMusicOpen), false);
+        music.setOnClickListener(v -> presentFragment(new RivMusicActivity()));
+        layout.addView(music);
+        layout.addView(info(context, LocaleController.getString(R.string.RivMusicSourcesInfo)));
+
         // ---- Privacy
         layout.addView(header(context, LocaleController.getString(R.string.RivPrivacyHeader)));
         layout.addView(check(context, LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.GHOST, true));

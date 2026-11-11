@@ -11,4 +11,12 @@
     <string name="RivHelpHeader">Help</string>
     <string name="RivSendLog">Send debug log</string>
     <string name="RivComingFooter">More extras arrive here in the next updates: music, videos, calls, Vault and Customise.</string>
+    <string name="RivMusic">Music</string>
+    <string name="RivMusicOpen">Music library</string>
+    <string name="RivMusicSources">Music sources</string>
+    <string name="RivMusicAddSource">Add a chat or channel</string>
+    <string name="RivMusicRemoveSource">Remove this chat from your music sources? The songs stay in the chat.</string>
+    <string name="RivMusicSourcesInfo">Songs from these chats make up your library. Tap a chat to remove it.</string>
+    <string name="RivMusicLoading">Loading songs…</string>
+    <string name="RivMusicEmpty">No songs found in the chosen chats yet.</string>
 </resources>
