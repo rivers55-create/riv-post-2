@@ -11,8 +11,12 @@ jobs:
     timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
-      - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules || true
+      - name: Free disk space and add backup memory
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/lib/node_modules || true
+          sudo swapoff -a || true
+          sudo fallocate -l 12G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2
+          free -h
       - name: Get Telegram's source (pinned)
         run: |
           git init -q tgsrc && cd tgsrc
@@ -44,7 +48,8 @@ jobs:
         run: |
           cd tgsrc
           chmod +x gradlew
-          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon > ../gradle.log 2>&1 || { grep -E "^e: |error:|What went wrong|FAILED" -A5 ../gradle.log | grep -v "warning:" | tail -120; exit 1; }
+          export CMAKE_BUILD_PARALLEL_LEVEL=3
+          ./gradlew :TMessagesProj_App:assembleAfatRelease --no-daemon --max-workers=2 -Dorg.gradle.parallel=false -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" -Pandroid.native.buildOutput=none > ../gradle.log 2>&1 || { grep -E "^e: |error:|What went wrong|FAILED" -A5 ../gradle.log | grep -v "warning:" | tail -120; exit 1; }
           tail -5 ../gradle.log
           ls -la $(find TMessagesProj_App/build/outputs/apk -name "*.apk")
       - name: Keep log on failure
