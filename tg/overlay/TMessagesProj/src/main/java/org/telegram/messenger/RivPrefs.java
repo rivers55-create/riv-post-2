@@ -9,6 +9,7 @@ public class RivPrefs {
     // Privacy
     public static final String GHOST = "ghost";                 // don't send read receipts
     public static final String HIDE_TYPING = "hideTyping";      // don't send "typing…"
+    public static final String HIDE_ONLINE = "hideOnline";      // never tell the server you are online
 
     private static SharedPreferences prefs;
 

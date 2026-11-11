@@ -77,6 +77,12 @@ edit(MC,
             return false;
         }
 """)
+# Hide online status: never send "I'm online"
+edit(MC,
+"""                    if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
+""",
+"""                    if (!RivPrefs.b(RivPrefs.HIDE_ONLINE) && statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
+""")
 # Ghost mode: never tell the server a chat was read
 edit(MC,
 """    private void completeReadTask(ReadTask task) {

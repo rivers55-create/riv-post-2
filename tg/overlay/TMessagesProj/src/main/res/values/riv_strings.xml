@@ -28,4 +28,6 @@
     <string name="RivVideosLoading">Loading videos…</string>
     <string name="RivVideosEmpty">No videos found in the chosen chats yet.</string>
     <string name="RivLibrariesInfo">Pick chats and channels inside each library; their songs and videos appear there.</string>
+    <string name="RivHideOnline">Hide online status</string>
+    <string name="RivHideOnlineInfo">Never show you as online. You may appear "last seen recently".</string>
 </resources>

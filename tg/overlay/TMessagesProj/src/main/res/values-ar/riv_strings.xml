@@ -28,4 +28,6 @@
     <string name="RivVideosLoading">جارٍ تحميل الفيديوهات…</string>
     <string name="RivVideosEmpty">لا توجد فيديوهات في المحادثات المختارة بعد.</string>
     <string name="RivLibrariesInfo">اختر المحادثات والقنوات داخل كل مكتبة؛ ستظهر أغانيها وفيديوهاتها هناك.</string>
+    <string name="RivHideOnline">إخفاء حالة الاتصال</string>
+    <string name="RivHideOnlineInfo">لن تظهر متصلًا أبدًا. قد تظهر بحالة "شوهد مؤخرًا".</string>
 </resources>
