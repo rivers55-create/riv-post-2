@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="RivSettings">Riv Post</string>
+    <string name="RivSettingsInfo">ميزات إضافية، لكل منها مفتاح خاص</string>
+    <string name="RivPrivacyHeader">الخصوصية</string>
+    <string name="RivGhostMode">وضع الشبح</string>
+    <string name="RivGhostModeInfo">اقرأ المحادثات دون أن يرى المرسل العلامتين</string>
+    <string name="RivGhostModeFooter">مع تفعيل وضع الشبح تبقى الرسائل غير مقروءة لدى الطرف الآخر حتى بعد قراءتها. قد يلاحظ أنك ترد دون أن تتحول العلامات إلى الأزرق.</string>
+    <string name="RivHideTyping">إخفاء الكتابة</string>
+    <string name="RivHideTypingInfo">لن يرى الآخرون "يكتب الآن…" منك أبدًا</string>
+    <string name="RivHelpHeader">المساعدة</string>
+    <string name="RivSendLog">إرسال سجل التصحيح</string>
+    <string name="RivComingFooter">ميزات إضافية قادمة هنا في التحديثات التالية: الموسيقى والفيديو والمكالمات والخزنة والتخصيص.</string>
+</resources>

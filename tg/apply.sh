@@ -32,4 +32,61 @@ PY
 # 5. Only real phones (arm64 and armv7), and a compile cache for the engine
 sed -i 's/abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"/abiFilters "armeabi-v7a", "arm64-v8a"/' "$T/TMessagesProj_App/build.gradle"
 sed -i "s|arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23'|arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23', '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache'|" "$T/TMessagesProj/build.gradle"
+
+# 6. Hooks: small anchored edits in Telegram's own files. Each fails the build loudly if its anchor moved.
+python3 - "$T" <<'PY'
+import sys
+T = sys.argv[1]
+
+def edit(path, old, new, count=1):
+    p = T + '/' + path
+    s = open(p).read()
+    assert s.count(old) >= count, ('ANCHOR NOT FOUND', path, old[:90])
+    s = s.replace(old, new, count)
+    open(p, 'w').write(s)
+
+SA = 'TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java'
+# Riv Post row in Settings, after Language
+edit(SA,
+"""        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
+""",
+"""        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
+        items.add(UItem.asShadow(null));
+        items.add(SettingCell.Factory.of(100, 0xFF7C4DFF, 0xFF5E35B1, R.drawable.settings_features, getString(R.string.RivSettings), getString(R.string.RivSettingsInfo)));
+""")
+edit(SA,
+"""            case 10:
+                presentSettingFragment(new LanguageSelectActivity());
+                break;
+""",
+"""            case 10:
+                presentSettingFragment(new LanguageSelectActivity());
+                break;
+            case 100:
+                presentSettingFragment(new RivSettingsActivity());
+                break;
+""")
+
+MC = 'TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java'
+# Hide typing
+edit(MC,
+"""    public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+""",
+"""    public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
+        if (RivPrefs.b(RivPrefs.HIDE_TYPING)) {
+            return false;
+        }
+""")
+# Ghost mode: never tell the server a chat was read
+edit(MC,
+"""    private void completeReadTask(ReadTask task) {
+""",
+"""    private void completeReadTask(ReadTask task) {
+        if (RivPrefs.b(RivPrefs.GHOST)) {
+            return;
+        }
+""")
+print("Riv hooks applied")
+PY
+
 echo "Riv Post changes applied"

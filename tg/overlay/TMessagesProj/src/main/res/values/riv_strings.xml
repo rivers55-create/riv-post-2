@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="RivSettings">Riv Post</string>
+    <string name="RivSettingsInfo">Extra features, each with its own switch</string>
+    <string name="RivPrivacyHeader">Privacy</string>
+    <string name="RivGhostMode">Ghost mode</string>
+    <string name="RivGhostModeInfo">Read chats without the sender seeing two ticks</string>
+    <string name="RivGhostModeFooter">With ghost mode on, messages still look unread to the other person, even after you read them. They may notice you reply without the ticks turning blue.</string>
+    <string name="RivHideTyping">Hide typing</string>
+    <string name="RivHideTypingInfo">Others never see “typing…” from you</string>
+    <string name="RivHelpHeader">Help</string>
+    <string name="RivSendLog">Send debug log</string>
+    <string name="RivComingFooter">More extras arrive here in the next updates: music, videos, calls, Vault and Customise.</string>
+</resources>
