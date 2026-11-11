@@ -57,10 +57,15 @@ public class RivSettingsActivity extends BaseFragment {
         // ---- Features
         TextSettingsCell music = new TextSettingsCell(context);
         music.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-        music.setText(LocaleController.getString(R.string.RivMusicOpen), false);
+        music.setText(LocaleController.getString(R.string.RivMusicOpen), true);
         music.setOnClickListener(v -> presentFragment(new RivMusicActivity()));
         layout.addView(music);
-        layout.addView(info(context, LocaleController.getString(R.string.RivMusicSourcesInfo)));
+        TextSettingsCell videos = new TextSettingsCell(context);
+        videos.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        videos.setText(LocaleController.getString(R.string.RivVideosOpen), false);
+        videos.setOnClickListener(v -> presentFragment(new RivVideosActivity()));
+        layout.addView(videos);
+        layout.addView(info(context, LocaleController.getString(R.string.RivLibrariesInfo)));
 
         // ---- Privacy
         layout.addView(header(context, LocaleController.getString(R.string.RivPrivacyHeader)));

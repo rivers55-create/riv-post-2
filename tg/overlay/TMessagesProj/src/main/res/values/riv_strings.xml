@@ -19,4 +19,13 @@
     <string name="RivMusicSourcesInfo">Songs from these chats make up your library. Tap a chat to remove it.</string>
     <string name="RivMusicLoading">Loading songs…</string>
     <string name="RivMusicEmpty">No songs found in the chosen chats yet.</string>
+    <string name="RivVideos">Videos</string>
+    <string name="RivVideosOpen">Video library</string>
+    <string name="RivVideosSources">Video sources</string>
+    <string name="RivVideosAddSource">Add a chat or channel</string>
+    <string name="RivVideosRemoveSource">Remove this chat from your video sources? The videos stay in the chat.</string>
+    <string name="RivVideosSourcesInfo">Videos from these chats make up your library. Tap a chat to remove it.</string>
+    <string name="RivVideosLoading">Loading videos…</string>
+    <string name="RivVideosEmpty">No videos found in the chosen chats yet.</string>
+    <string name="RivLibrariesInfo">Pick chats and channels inside each library; their songs and videos appear there.</string>
 </resources>

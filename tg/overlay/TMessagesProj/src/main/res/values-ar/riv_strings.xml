@@ -19,4 +19,13 @@
     <string name="RivMusicSourcesInfo">الأغاني من هذه المحادثات تكوّن مكتبتك. اضغط على محادثة لإزالتها.</string>
     <string name="RivMusicLoading">جارٍ تحميل الأغاني…</string>
     <string name="RivMusicEmpty">لا توجد أغانٍ في المحادثات المختارة بعد.</string>
+    <string name="RivVideos">الفيديو</string>
+    <string name="RivVideosOpen">مكتبة الفيديو</string>
+    <string name="RivVideosSources">مصادر الفيديو</string>
+    <string name="RivVideosAddSource">إضافة محادثة أو قناة</string>
+    <string name="RivVideosRemoveSource">هل تريد إزالة هذه المحادثة من مصادر الفيديو؟ تبقى الفيديوهات في المحادثة.</string>
+    <string name="RivVideosSourcesInfo">الفيديوهات من هذه المحادثات تكوّن مكتبتك. اضغط على محادثة لإزالتها.</string>
+    <string name="RivVideosLoading">جارٍ تحميل الفيديوهات…</string>
+    <string name="RivVideosEmpty">لا توجد فيديوهات في المحادثات المختارة بعد.</string>
+    <string name="RivLibrariesInfo">اختر المحادثات والقنوات داخل كل مكتبة؛ ستظهر أغانيها وفيديوهاتها هناك.</string>
 </resources>
