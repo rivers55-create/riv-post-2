@@ -71,7 +71,8 @@ public class RivSettingsActivity extends BaseFragment {
         layout.addView(header(context, LocaleController.getString(R.string.RivPrivacyHeader)));
         layout.addView(check(context, LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.GHOST, true));
         layout.addView(check(context, LocaleController.getString(R.string.RivHideTyping), LocaleController.getString(R.string.RivHideTypingInfo), RivPrefs.HIDE_TYPING, true));
-        layout.addView(check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, false));
+        layout.addView(check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, true));
+        layout.addView(check(context, LocaleController.getString(R.string.RivKeepDeleted), LocaleController.getString(R.string.RivKeepDeletedInfo), RivPrefs.KEEP_DELETED, false));
         layout.addView(info(context, LocaleController.getString(R.string.RivGhostModeFooter)));
 
         // ---- Help

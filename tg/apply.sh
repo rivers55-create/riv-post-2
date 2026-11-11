@@ -92,6 +92,41 @@ edit(MC,
             return;
         }
 """)
+# Keep deleted messages: ignore deletions coming from others
+edit(MC,
+"""                ArrayList<Integer> arrayList = deletedMessages.get(0);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(0, arrayList);
+                }
+                arrayList.addAll(update.messages);
+""",
+"""                ArrayList<Integer> arrayList = deletedMessages.get(0);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(0, arrayList);
+                }
+                if (!RivPrefs.b(RivPrefs.KEEP_DELETED)) {
+                    arrayList.addAll(update.messages);
+                }
+""")
+edit(MC,
+"""                ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(dialogId, arrayList);
+                }
+                arrayList.addAll(update.messages);
+""",
+"""                ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(dialogId, arrayList);
+                }
+                if (!RivPrefs.b(RivPrefs.KEEP_DELETED)) {
+                    arrayList.addAll(update.messages);
+                }
+""")
 print("Riv hooks applied")
 PY
 

@@ -30,4 +30,6 @@
     <string name="RivLibrariesInfo">اختر المحادثات والقنوات داخل كل مكتبة؛ ستظهر أغانيها وفيديوهاتها هناك.</string>
     <string name="RivHideOnline">إخفاء حالة الاتصال</string>
     <string name="RivHideOnlineInfo">لن تظهر متصلًا أبدًا. قد تظهر بحالة "شوهد مؤخرًا".</string>
+    <string name="RivKeepDeleted">الاحتفاظ بالرسائل المحذوفة</string>
+    <string name="RivKeepDeletedInfo">الرسائل التي يحذفها الآخرون تبقى في محادثاتك على هذا الهاتف</string>
 </resources>

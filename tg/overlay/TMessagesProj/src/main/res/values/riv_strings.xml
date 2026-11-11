@@ -30,4 +30,6 @@
     <string name="RivLibrariesInfo">Pick chats and channels inside each library; their songs and videos appear there.</string>
     <string name="RivHideOnline">Hide online status</string>
     <string name="RivHideOnlineInfo">Never show you as online. You may appear "last seen recently".</string>
+    <string name="RivKeepDeleted">Keep deleted messages</string>
+    <string name="RivKeepDeletedInfo">Messages others delete stay in your chats on this phone</string>
 </resources>

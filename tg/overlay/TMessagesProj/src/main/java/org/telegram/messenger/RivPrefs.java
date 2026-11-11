@@ -10,6 +10,7 @@ public class RivPrefs {
     public static final String GHOST = "ghost";                 // don't send read receipts
     public static final String HIDE_TYPING = "hideTyping";      // don't send "typing…"
     public static final String HIDE_ONLINE = "hideOnline";      // never tell the server you are online
+    public static final String KEEP_DELETED = "keepDeleted";    // keep messages others delete
 
     private static SharedPreferences prefs;
 
