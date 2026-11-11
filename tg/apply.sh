@@ -9,6 +9,10 @@ cp -r "$R/overlay/." "$T/"
 
 # 2. Name, package, version
 sed -i 's/^APP_PACKAGE=.*/APP_PACKAGE=com.rivers.rivpost.app/' "$T/gradle.properties"
+# Version: keep Telegram's number, add our build number so APKs are tellable apart and updates install
+if [ -n "$GITHUB_RUN_NUMBER" ]; then
+  sed -i "s/^APP_VERSION_NAME=\(.*\)/APP_VERSION_NAME=\1 Riv $GITHUB_RUN_NUMBER/" "$T/gradle.properties"
+fi
 sed -i 's|<string name="AppName">Telegram</string>|<string name="AppName">Riv Post</string>|; s|<string name="AppNameBeta">Telegram Beta</string>|<string name="AppNameBeta">Riv Post Beta</string>|' "$T/TMessagesProj/src/main/res/values/strings.xml"
 
 # 3. Your own API ID (GitHub secrets). Telegram requires apps built from its code to use their own.
