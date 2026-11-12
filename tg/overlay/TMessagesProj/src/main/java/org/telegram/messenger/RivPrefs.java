@@ -12,6 +12,12 @@ public class RivPrefs {
     public static final String HIDE_ONLINE = "hideOnline";      // never tell the server you are online
     public static final String KEEP_DELETED = "keepDeleted";    // keep messages others delete
 
+    // Notifications and look
+    public static final String KEEP_ALIVE = "keepAlive";         // background connection for notifications (default on)
+    public static final String HIDE_SPONSORED = "hideSponsored"; // no sponsored messages in channels
+    public static final String HIDE_STORIES = "hideStories";     // no stories row above chats
+    public static final String STICKER_SIZE = "stickerSize";     // percent, 100 = official
+
     private static SharedPreferences prefs;
 
     private static SharedPreferences prefs() {
@@ -53,5 +59,25 @@ public class RivPrefs {
             prefs().edit().putString(key, value).apply();
         } catch (Throwable ignored) {
         }
+    }
+
+    public static int i(String key, int def) {
+        try {
+            return prefs().getInt(key, def);
+        } catch (Throwable t) {
+            return def;
+        }
+    }
+
+    public static void set(String key, int value) {
+        try {
+            prefs().edit().putInt(key, value).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Sticker size factor; 1.0 is official. */
+    public static float stickerScale() {
+        return i(STICKER_SIZE, 100) / 100f;
     }
 }

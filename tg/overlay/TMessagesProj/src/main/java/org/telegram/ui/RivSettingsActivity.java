@@ -65,7 +65,35 @@ public class RivSettingsActivity extends BaseFragment {
         videos.setText(LocaleController.getString(R.string.RivVideosOpen), false);
         videos.setOnClickListener(v -> presentFragment(new RivVideosActivity()));
         layout.addView(videos);
+        TextSettingsCell reminders = new TextSettingsCell(context);
+        reminders.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        reminders.setText(LocaleController.getString(R.string.RivReminders), false);
+        reminders.setOnClickListener(v -> presentFragment(new RivRemindersActivity()));
+        layout.addView(reminders);
         layout.addView(info(context, LocaleController.getString(R.string.RivLibrariesInfo)));
+
+        // ---- Look
+        layout.addView(header(context, LocaleController.getString(R.string.RivLookHeader)));
+        layout.addView(themeCheck(context, LocaleController.getString(R.string.RivAmoled), LocaleController.getString(R.string.RivAmoledInfo), org.telegram.messenger.RivTheme.AMOLED, true));
+        layout.addView(themeCheck(context, LocaleController.getString(R.string.RivGreen), LocaleController.getString(R.string.RivGreenInfo), org.telegram.messenger.RivTheme.GREEN, true));
+        stickerCell = new TextSettingsCell(context);
+        stickerCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        updateStickerCell();
+        stickerCell.setOnClickListener(v -> {
+            int cur = RivPrefs.i(RivPrefs.STICKER_SIZE, 100);
+            int next = cur >= 140 ? 60 : cur + 20;
+            RivPrefs.set(RivPrefs.STICKER_SIZE, next);
+            updateStickerCell();
+        });
+        layout.addView(stickerCell);
+        layout.addView(check(context, LocaleController.getString(R.string.RivHideStories), LocaleController.getString(R.string.RivHideStoriesInfo), RivPrefs.HIDE_STORIES, true));
+        layout.addView(check(context, LocaleController.getString(R.string.RivHideSponsored), LocaleController.getString(R.string.RivHideSponsoredInfo), RivPrefs.HIDE_SPONSORED, false));
+        layout.addView(info(context, LocaleController.getString(R.string.RivLookFooter)));
+
+        // ---- Notifications
+        layout.addView(header(context, LocaleController.getString(R.string.RivNotifHeader)));
+        layout.addView(keepAliveCheck(context));
+        layout.addView(info(context, LocaleController.getString(R.string.RivKeepAliveFooter)));
 
         // ---- Privacy
         layout.addView(header(context, LocaleController.getString(R.string.RivPrivacyHeader)));
@@ -116,6 +144,42 @@ public class RivSettingsActivity extends BaseFragment {
             boolean now = !RivPrefs.b(prefKey);
             RivPrefs.set(prefKey, now);
             cell.setChecked(now);
+        });
+        return cell;
+    }
+
+    private TextSettingsCell stickerCell;
+
+    private void updateStickerCell() {
+        if (stickerCell != null) {
+            stickerCell.setTextAndValue(LocaleController.getString(R.string.RivStickerSize), RivPrefs.i(RivPrefs.STICKER_SIZE, 100) + "%", false, true);
+        }
+    }
+
+    private TextCheckCell themeCheck(Context context, String title, String subtitle, String prefKey, boolean divider) {
+        TextCheckCell cell = new TextCheckCell(context);
+        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        cell.setTextAndValueAndCheck(title, subtitle, RivPrefs.b(prefKey), true, divider);
+        cell.setOnClickListener(v -> {
+            boolean now = !RivPrefs.b(prefKey);
+            RivPrefs.set(prefKey, now);
+            cell.setChecked(now);
+            Theme.refreshThemeColors();
+        });
+        return cell;
+    }
+
+    private TextCheckCell keepAliveCheck(Context context) {
+        TextCheckCell cell = new TextCheckCell(context);
+        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        cell.setTextAndValueAndCheck(LocaleController.getString(R.string.RivKeepAlive), LocaleController.getString(R.string.RivKeepAliveInfo), RivPrefs.b(RivPrefs.KEEP_ALIVE, true), true, false);
+        cell.setOnClickListener(v -> {
+            boolean now = !RivPrefs.b(RivPrefs.KEEP_ALIVE, true);
+            RivPrefs.set(RivPrefs.KEEP_ALIVE, now);
+            cell.setChecked(now);
+            org.telegram.messenger.MessagesController.getGlobalNotificationsSettings().edit().putBoolean("pushConnection", now).putBoolean("pushService", now).apply();
+            org.telegram.tgnet.ConnectionsManager.getInstance(currentAccount).setPushConnectionEnabled(now);
+            org.telegram.messenger.ApplicationLoader.startPushService();
         });
         return cell;
     }

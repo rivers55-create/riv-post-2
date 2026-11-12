@@ -131,6 +131,78 @@ edit(MC,
                     arrayList.addAll(update.messages);
                 }
 """)
+# Palette overrides (AMOLED / Green classic) each time the theme table is rebuilt
+TH = 'TMessagesProj/src/main/java/org/telegram/ui/ActionBar/Theme.java'
+edit(TH,
+"""        shouldDrawGradientIcons = gradientIcons;
+""",
+"""        org.telegram.messenger.RivTheme.apply(colors, currentTheme.isDark());
+        shouldDrawGradientIcons = gradientIcons;
+""")
+
+# Keep-alive notifications on by default
+CM = 'TMessagesProj/src/main/java/org/telegram/tgnet/ConnectionsManager.java'
+edit(CM,
+"""            return MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("backgroundConnection", false);
+""",
+"""            return MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("backgroundConnection", org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.KEEP_ALIVE, true));
+""")
+AL = 'TMessagesProj/src/main/java/org/telegram/messenger/ApplicationLoader.java'
+edit(AL,
+"""            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
+""",
+"""            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", RivPrefs.b(RivPrefs.KEEP_ALIVE, true));
+""")
+
+# Hide sponsored messages
+edit(MC,
+"""    public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+""",
+"""    public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+        if (RivPrefs.b(RivPrefs.HIDE_SPONSORED)) {
+            return null;
+        }
+""")
+
+# Hide the stories row
+DA = 'TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java'
+edit(DA,
+"""        dialogStoriesCellVisible = onlySelfStories || newVisibility;
+""",
+"""        dialogStoriesCellVisible = !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.HIDE_STORIES) && (onlySelfStories || newVisibility);
+""")
+
+# Sticker size
+CC = 'TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java'
+edit(CC,
+"""                    } else {
+                        maxHeight = maxWidth = (int) (Math.min(getParentWidth(), AndroidUtilities.displaySize.y) * 0.5f);
+                    }
+                    String filter;
+""",
+"""                    } else {
+                        maxHeight = maxWidth = (int) (Math.min(getParentWidth(), AndroidUtilities.displaySize.y) * 0.5f);
+                    }
+                    float rivStickerScale = org.telegram.messenger.RivPrefs.stickerScale();
+                    if (rivStickerScale != 1f) {
+                        maxWidth = (int) (maxWidth * rivStickerScale);
+                        maxHeight = maxHeight * rivStickerScale;
+                    }
+                    String filter;
+""")
+
+# Reminder alarm receiver in the manifest
+MF = 'TMessagesProj/src/main/AndroidManifest.xml'
+edit(MF,
+"""    </application>
+""",
+"""        <receiver android:name="org.telegram.messenger.RivReminders$RivReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+""")
 print("Riv hooks applied")
 PY
 
