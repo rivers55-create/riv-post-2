@@ -219,6 +219,32 @@ edit(DA,
             return frozenDialogsList;
         }
 """)
+# Riv strings live in normal Android resources; teach the resolver to fall back to them
+LC = 'TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java'
+edit(LC,
+"""        checkLocalizationInternal();
+        value = localizationInternal.getByResNameOrResId(context, key, stringRes);
+        if (value != null) {
+            return value;
+        }
+
+        return localizationInternal.getByResName(fallback);
+""",
+"""        checkLocalizationInternal();
+        value = localizationInternal.getByResNameOrResId(context, key, stringRes);
+        if (value != null) {
+            return value;
+        }
+
+        value = localizationInternal.getByResName(fallback);
+        if (value == null && stringRes != 0 && context != null) {
+            try {
+                value = context.getString(stringRes);
+            } catch (Exception ignored) {
+            }
+        }
+        return value;
+""")
 print("Riv hooks applied")
 PY
 
