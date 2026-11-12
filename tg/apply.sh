@@ -203,6 +203,22 @@ edit(MF,
         </receiver>
     </application>
 """)
+# Vault: hidden chats disappear from every chat list
+edit(DA,
+"""    public ArrayList<TLRPC.Dialog> getDialogsArray(int currentAccount, int dialogsType, int folderId, boolean frozen) {
+        if (frozen && frozenDialogsList != null) {
+            return frozenDialogsList;
+        }
+""",
+"""    public ArrayList<TLRPC.Dialog> getDialogsArray(int currentAccount, int dialogsType, int folderId, boolean frozen) {
+        return org.telegram.messenger.RivVault.filterDialogs(getDialogsArrayInternal(currentAccount, dialogsType, folderId, frozen));
+    }
+
+    private ArrayList<TLRPC.Dialog> getDialogsArrayInternal(int currentAccount, int dialogsType, int folderId, boolean frozen) {
+        if (frozen && frozenDialogsList != null) {
+            return frozenDialogsList;
+        }
+""")
 print("Riv hooks applied")
 PY
 

@@ -57,4 +57,15 @@
     <string name="RivKeepAlive">البقاء متصلًا للإشعارات</string>
     <string name="RivKeepAliveInfo">يُبقي اتصالًا صغيرًا مفتوحًا لتصل الرسائل والتطبيق مغلق</string>
     <string name="RivKeepAliveFooter">لا يستطيع Riv Post استخدام خدمة إشعارات التطبيق الرسمي، فهذا الاتصال يقوم بالمهمة. إذا تأخرت الإشعارات، أوقف تحسين البطارية لـ Riv Post في إعدادات أندرويد.</string>
+    <string name="RivVault">الخزنة (محادثات مخفية)</string>
+    <string name="RivVaultSetPin">تعيين رمز PIN للخزنة</string>
+    <string name="RivVaultChangePin">تغيير رمز PIN للخزنة</string>
+    <string name="RivVaultEnterPin">أدخل رمز PIN للخزنة</string>
+    <string name="RivVaultPinHint">رمز PIN (4 أرقام على الأقل)</string>
+    <string name="RivVaultNeedPin">عيّن رمز PIN أولًا.</string>
+    <string name="RivVaultShow">إظهار المحادثات المخفية</string>
+    <string name="RivVaultAdd">إخفاء محادثة</string>
+    <string name="RivVaultHidden">المحادثات المخفية</string>
+    <string name="RivVaultUnhide">هل تريد إظهار هذه المحادثة من جديد؟ سيُلغى كتمها أيضًا.</string>
+    <string name="RivVaultInfo">المحادثات المخفية تختفي من قائمة المحادثات وتُكتم فلا يظهر شيء في الإشعارات. تبقى مخفية حتى تُظهرها هنا، وتُخفى من جديد عند إعادة تشغيل التطبيق. يبقى من الممكن إيجادها بالبحث.</string>
 </resources>

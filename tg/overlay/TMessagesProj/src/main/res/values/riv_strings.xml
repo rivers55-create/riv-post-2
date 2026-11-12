@@ -57,4 +57,15 @@
     <string name="RivKeepAlive">Stay connected for notifications</string>
     <string name="RivKeepAliveInfo">Keeps a small connection open so messages arrive when the app is closed</string>
     <string name="RivKeepAliveFooter">Riv Post can\'t use the official app\'s push service, so this connection does that job. If notifications still arrive late, turn off battery optimisation for Riv Post in Android settings.</string>
+    <string name="RivVault">Vault (hidden chats)</string>
+    <string name="RivVaultSetPin">Set a Vault PIN</string>
+    <string name="RivVaultChangePin">Change the Vault PIN</string>
+    <string name="RivVaultEnterPin">Enter your Vault PIN</string>
+    <string name="RivVaultPinHint">PIN (at least 4 digits)</string>
+    <string name="RivVaultNeedPin">Set a PIN first.</string>
+    <string name="RivVaultShow">Show hidden chats</string>
+    <string name="RivVaultAdd">Hide a chat</string>
+    <string name="RivVaultHidden">Hidden chats</string>
+    <string name="RivVaultUnhide">Show this chat again? It will also be unmuted.</string>
+    <string name="RivVaultInfo">Hidden chats leave the chat list and are muted, so nothing shows in notifications. They stay hidden until you show them here, and hide again when the app restarts. They can still be found with search.</string>
 </resources>

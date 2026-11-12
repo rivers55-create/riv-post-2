@@ -97,6 +97,11 @@ public class RivSettingsActivity extends BaseFragment {
 
         // ---- Privacy
         layout.addView(header(context, LocaleController.getString(R.string.RivPrivacyHeader)));
+        TextSettingsCell vault = new TextSettingsCell(context);
+        vault.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        vault.setText(LocaleController.getString(R.string.RivVault), true);
+        vault.setOnClickListener(v -> presentFragment(new RivVaultActivity()));
+        layout.addView(vault);
         layout.addView(check(context, LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.GHOST, true));
         layout.addView(check(context, LocaleController.getString(R.string.RivHideTyping), LocaleController.getString(R.string.RivHideTypingInfo), RivPrefs.HIDE_TYPING, true));
         layout.addView(check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, true));
