@@ -156,4 +156,35 @@ public class RivMiniPlayerView extends FrameLayout {
         boolean playing = !MediaController.getInstance().isMessagePaused();
         playPauseIcon.setImageResource(playing ? R.drawable.ic_action_pause : R.drawable.ic_action_play);
     }
+
+    // ---- Floating overlay shown over a chat (not docked above RivBottomBar) ----
+    // Riv Post: tapping Telegram's own in-chat music bar normally opens Telegram's
+    // AudioPlayerAlert; when RivPrefs.TAP_OPENS_RTP_MINI_PLAYER is on, FragmentContextView's
+    // click handler calls showFloating() instead, which adds one of these bars just above the
+    // bottom of the fragment's root view, over everything else, dismissible by tapping it again
+    // or by tapping its own "open full player" row.
+    private static RivMiniPlayerView floating;
+
+    public static void showFloating(android.app.Activity activity, org.telegram.ui.ActionBar.BaseFragment fragment) {
+        if (activity == null) return;
+        android.view.ViewGroup decor = (android.view.ViewGroup) activity.getWindow().getDecorView();
+        hideFloating();
+        RivMiniPlayerView v = new RivMiniPlayerView(activity);
+        v.setOnOpenPlayer(() -> {
+            hideFloating();
+            if (fragment != null) fragment.presentFragment(new RivMusicPlayerActivity());
+        });
+        android.widget.FrameLayout.LayoutParams lp = LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, AndroidUtilities.dp(64), Gravity.BOTTOM,
+                0, 0, 0, AndroidUtilities.navigationBarHeight);
+        decor.addView(v, lp);
+        v.refresh();
+        floating = v;
+    }
+
+    public static void hideFloating() {
+        if (floating != null) {
+            AndroidUtilities.removeFromParent(floating);
+            floating = null;
+        }
+    }
 }

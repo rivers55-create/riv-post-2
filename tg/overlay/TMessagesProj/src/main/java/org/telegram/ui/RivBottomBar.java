@@ -176,7 +176,7 @@ public class RivBottomBar extends LinearLayout {
                 args.putBoolean("needPhonebook", true);
                 fragment.presentFragment(new ContactsActivity(args));
             } else if (tab == TAB_CALLS) {
-                fragment.presentFragment(new CallLogActivity());
+                fragment.presentFragment(new RivCallsActivity());
             } else if (tab == TAB_MUSIC) {
                 fragment.presentFragment(new RivMusicActivity());
             } else if (tab == TAB_VIDEOS) {

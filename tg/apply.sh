@@ -219,21 +219,57 @@ edit(DA,
             return frozenDialogsList;
         }
 """)
-# Bottom tab bar (Chats/Contacts/Calls/Music/Videos/Profile) on the root Chats screen only.
-# Lives entirely inside DialogsActivity's own view, via the same RivBottomBar.attach() helper
-# RivMusicActivity and RivVideosActivity use, so the bar looks and behaves identically on all
-# three screens. Does not touch Telegram's own real tab bar (MainTabsActivity/GlassTabView),
-# which stays exactly as it was.
+# Bottom tab bar (Chats/Contacts/Calls/Music/Videos/Profile) replaces Telegram's own floating
+# tab pill (MainTabsActivity/GlassTabView) everywhere, by request. Two parts:
+#  (a) checkUi_mainTabsVisible() is the single function that tells MainTabsActivity whether to
+#      show its own pill; force it to always report "hidden" so the pill never draws, whatever
+#      hasMainTabs/account settings say.
+#  (b) RivBottomBar.attach() on DialogsActivity's own view, now always using the no-pill bottom
+#      margin (navigationBarHeight) since there is no pill to leave room for any more.
+edit(DA,
+"""    private void checkUi_mainTabsVisible() {
+        final boolean mainTabsVisible = !searching && (blurredView == null || blurredView.getBackground() == null || blurredView.getAlpha() < 0.01f || blurredView.getVisibility() == View.GONE);
+        if (mainTabsActivityController != null) {
+            mainTabsActivityController.setTabsVisible(mainTabsVisible);
+        }
+    }""",
+"""    private void checkUi_mainTabsVisible() {
+        // Riv Post: RivBottomBar replaces Telegram's own floating tab pill everywhere, so that
+        // pill is always told to hide, regardless of the real mainTabsVisible computation below.
+        if (mainTabsActivityController != null) {
+            mainTabsActivityController.setTabsVisible(false);
+        }
+    }""")
 edit(DA,
 """        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         return fragmentView;""",
 """        if (!onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT && !isArchive()) {
-            int rivBarBottomMargin = hasMainTabs ? dp(MAIN_TABS_HEIGHT_WITH_MARGINS) : AndroidUtilities.navigationBarHeight;
-            org.telegram.ui.RivBottomBar.attach(this, contentView, org.telegram.ui.RivBottomBar.TAB_CHATS, rivBarBottomMargin);
+            org.telegram.ui.RivBottomBar.attach(this, contentView, org.telegram.ui.RivBottomBar.TAB_CHATS, AndroidUtilities.navigationBarHeight);
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         return fragmentView;""")
+
+# Tapping Telegram's own in-chat music bar: when RivPrefs.TAP_OPENS_RTP_MINI_PLAYER is on
+# (default on), show RivMiniPlayerView's floating overlay instead of Telegram's own
+# AudioPlayerAlert popup. Off switches back to the original stock behaviour untouched.
+FCV = 'TMessagesProj/src/main/java/org/telegram/ui/Components/FragmentContextView.java'
+edit(FCV,
+"""                    if (messageObject.isMusic()) {
+                        final Activity activity = AndroidUtilities.findActivity(getContext());
+                        if (activity instanceof LaunchActivity) {
+                            new AudioPlayerAlert(activity, resourcesProvider).show();
+                        } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
+                            new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();""",
+"""                    if (messageObject.isMusic()) {
+                        final Activity activity = AndroidUtilities.findActivity(getContext());
+                        if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.TAP_OPENS_RTP_MINI_PLAYER, true) && activity != null) {
+                            org.telegram.ui.RivMiniPlayerView.showFloating(activity, fragment);
+                        } else if (activity instanceof LaunchActivity) {
+                            new AudioPlayerAlert(activity, resourcesProvider).show();
+                        } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
+                            new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();""")
+
 # Riv strings live in normal Android resources; teach the resolver to fall back to them
 LC = 'TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java'
 edit(LC,

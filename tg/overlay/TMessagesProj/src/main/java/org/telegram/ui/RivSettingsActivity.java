@@ -123,6 +123,13 @@ public class RivSettingsActivity extends BaseFragment {
         layout.addView(check(context, LocaleController.getString(R.string.RivHideSponsored), LocaleController.getString(R.string.RivHideSponsoredInfo), RivPrefs.HIDE_SPONSORED, false));
         layout.addView(info(context, LocaleController.getString(R.string.RivLookFooter)));
 
+        // ---- In-chat music player
+        layout.addView(header(context, LocaleController.getString(R.string.RivChatPlayerHeader)));
+        layout.addView(check(context, LocaleController.getString(R.string.RivChatPlayerRtpStyle), LocaleController.getString(R.string.RivChatPlayerRtpStyleInfo), RivPrefs.IN_CHAT_PLAYER_RTP_STYLE, true));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivChatPlayerOpensRtp), LocaleController.getString(R.string.RivChatPlayerOpensRtpInfo), RivPrefs.TAP_OPENS_RTP_MINI_PLAYER));
+        layout.addView(check(context, LocaleController.getString(R.string.RivHideSourcePreviewButton), LocaleController.getString(R.string.RivHideSourcePreviewButtonInfo), RivPrefs.HIDE_SOURCE_PREVIEW_BUTTON, false));
+        layout.addView(info(context, LocaleController.getString(R.string.RivChatPlayerFooter)));
+
         // ---- Notifications
         layout.addView(header(context, LocaleController.getString(R.string.RivNotifHeader)));
         layout.addView(keepAliveCheck(context));

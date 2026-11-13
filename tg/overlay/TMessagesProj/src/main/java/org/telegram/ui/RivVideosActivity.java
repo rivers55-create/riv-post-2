@@ -85,6 +85,13 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
         return true;
     }
 
+    // Riv Post: without this, the header is created but never wired to this screen's list, so
+    // the hero banner/shelves start drawing under the status bar and title instead of below them.
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
     @Override
     public boolean onFragmentCreate() {
         loadSources();

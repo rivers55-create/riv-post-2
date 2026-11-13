@@ -77,6 +77,15 @@ public class RivChatSourcePicker extends BaseFragment {
         return true;
     }
 
+    // Riv Post: tells the framework which RecyclerListView to inset for simpleActionBar, so the
+    // header is attached and the description/search/list row no longer start under the status
+    // bar and title. Without this override (the default returns null) the header is created but
+    // never wired to this screen's content at all.
+    @Override
+    protected RecyclerListView getListViewForSimpleGlass() {
+        return listView;
+    }
+
     @Override
     public boolean onFragmentCreate() {
         allDialogs.clear();
@@ -152,21 +161,30 @@ public class RivChatSourcePicker extends BaseFragment {
         listView = new RecyclerListView(context);
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setAdapter(adapter = new RowAdapter(context));
+        // Riv Post: reserve room at the bottom of the list so the floating preview button (added
+        // below) never sits on top of the last row; clipToPadding(false) keeps that last row
+        // scrollable all the way into view instead of stopping short.
+        boolean showPreviewBtn = !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.HIDE_SOURCE_PREVIEW_BUTTON);
+        int listBottomPad = showPreviewBtn ? AndroidUtilities.dp(84) : AndroidUtilities.dp(8);
+        listView.setPadding(0, 0, 0, listBottomPad);
+        listView.setClipToPadding(false);
         listWrap.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        FrameLayout previewBtn = new FrameLayout(context);
-        GradientDrawable btnBg = new GradientDrawable();
-        btnBg.setShape(GradientDrawable.OVAL);
-        btnBg.setColor(0xFFE53935);
-        previewBtn.setBackground(btnBg);
-        RivIcon playIcon = new RivIcon(context);
-        playIcon.setKind(RivIcon.PLAY);
-        playIcon.setColor(Color.WHITE);
-        previewBtn.addView(playIcon, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
-        previewBtn.setOnClickListener(v -> {
-            if (delegate != null) delegate.onPreview(new ArrayList<>(sources));
-        });
-        listWrap.addView(previewBtn, LayoutHelper.createFrame(56, 56, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 16, 16));
+        if (showPreviewBtn) {
+            FrameLayout previewBtn = new FrameLayout(context);
+            GradientDrawable btnBg = new GradientDrawable();
+            btnBg.setShape(GradientDrawable.OVAL);
+            btnBg.setColor(0xFFE53935);
+            previewBtn.setBackground(btnBg);
+            RivIcon playIcon = new RivIcon(context);
+            playIcon.setKind(RivIcon.PLAY);
+            playIcon.setColor(Color.WHITE);
+            previewBtn.addView(playIcon, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
+            previewBtn.setOnClickListener(v -> {
+                if (delegate != null) delegate.onPreview(new ArrayList<>(sources));
+            });
+            listWrap.addView(previewBtn, LayoutHelper.createFrame(56, 56, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 16, 16));
+        }
 
         return fragmentView;
     }
