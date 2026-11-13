@@ -29,6 +29,8 @@ public class RivPrefs {
     public static final String MY_LIST_VIDEOS = "myListVideos";  // comma list of "acc_dialogId_msgId" keys
     public static final String FAV_SONGS = "favSongs";           // comma list of "acc_dialogId_msgId" keys
     public static final String HIDDEN_SONGS = "hiddenSongs";     // comma list of "acc_dialogId_msgId" keys
+    public static final String MUSIC_SELECTED_CHATS = "musicSelectedChats"; // comma list of dialog ids, subset of musicSources
+    public static final String VIDEO_SELECTED_CHATS = "videoSelectedChats"; // comma list of dialog ids, subset of videoSources
 
     private static SharedPreferences prefs;
 

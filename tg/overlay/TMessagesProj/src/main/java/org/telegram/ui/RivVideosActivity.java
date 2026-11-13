@@ -5,7 +5,6 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -22,7 +21,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
-import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.R;
 import org.telegram.messenger.RivMeta;
 import org.telegram.messenger.RivPrefs;
@@ -48,7 +46,7 @@ import java.util.Map;
  * Actual playback stays on Telegram's own player (PhotoViewer); this screen is only
  * about browsing and the details screen.
  */
-public class RivVideosActivity extends BaseFragment {
+public class RivVideosActivity extends BaseFragment implements org.telegram.messenger.NotificationCenter.NotificationCenterDelegate {
 
     private static final String SOURCES_KEY = "videoSources";
 
@@ -56,9 +54,14 @@ public class RivVideosActivity extends BaseFragment {
     private RowAdapter adapter;
 
     private final ArrayList<Long> sources = new ArrayList<>();
+    private final ArrayList<Long> selectedChats = new ArrayList<>();
+    private boolean showSelectedOnly = false;
     private final ArrayList<MessageObject> allVideos = new ArrayList<>();
     private final HashSet<String> videoKeys = new HashSet<>();
     private int loading = 0;
+    private FrameLayout root;
+    private RivMiniPlayerView miniPlayer;
+    private LinearLayout sourceFilterRow;
 
     // rows: 0 = hero, then shelves (Continue watching, My List, one per chat)
     private final List<Shelf> shelves = new ArrayList<>();
@@ -85,7 +88,32 @@ public class RivVideosActivity extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         loadSources();
+        loadSelectedChats();
+        getNotificationCenter().addObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingDidStart);
+        getNotificationCenter().addObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingPlayStateChanged);
+        getNotificationCenter().addObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingDidReset);
+        getNotificationCenter().addObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingProgressDidChanged);
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingDidStart);
+        getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingPlayStateChanged);
+        getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingDidReset);
+        getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingProgressDidChanged);
+        super.onFragmentDestroy();
+    }
+
+    @Override
+    public void didReceivedNotification(int id, int account, Object... args) {
+        if (miniPlayer != null) miniPlayer.refresh();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (miniPlayer != null) miniPlayer.refresh();
     }
 
     @Override
@@ -103,15 +131,26 @@ public class RivVideosActivity extends BaseFragment {
             }
         });
 
-        FrameLayout frameLayout = new FrameLayout(context);
-        frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
-        fragmentView = frameLayout;
+        root = new FrameLayout(context);
+        root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+        fragmentView = root;
+
+        LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.navigationBarHeight;
+        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, bottomBarSpace));
+
+        sourceFilterRow = buildSourceFilterRow(context);
+        column.addView(sourceFilterRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         listView = new RecyclerListView(context);
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
         listView.setAdapter(adapter = new RowAdapter(context));
-        frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        column.addView(listView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+
+        RivBottomBar.Docked docked = RivBottomBar.attach(this, root, RivBottomBar.TAB_VIDEOS, AndroidUtilities.navigationBarHeight);
+        miniPlayer = docked.miniPlayer;
 
         rebuildShelves();
         reloadVideos();
@@ -140,23 +179,127 @@ public class RivVideosActivity extends BaseFragment {
         RivPrefs.set(SOURCES_KEY, sb.toString());
     }
 
-    private void pickSource() {
-        Bundle args = new Bundle();
-        args.putBoolean("onlySelect", true);
-        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
-        DialogsActivity fragment = new DialogsActivity(args);
-        fragment.setDelegate((fragment1, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
-            for (MessagesStorage.TopicKey key : dids) {
-                if (!sources.contains(key.dialogId)) {
-                    sources.add(key.dialogId);
+    private void loadSelectedChats() {
+        selectedChats.clear();
+        String s = RivPrefs.s(RivPrefs.VIDEO_SELECTED_CHATS, "");
+        if (s != null && !s.isEmpty()) {
+            for (String part : s.split(",")) {
+                try {
+                    selectedChats.add(Long.parseLong(part));
+                } catch (NumberFormatException ignored) {
                 }
             }
-            saveSources();
-            fragment1.finishFragment();
-            reloadVideos();
-            return true;
+        }
+    }
+
+    private void saveSelectedChats() {
+        StringBuilder sb = new StringBuilder();
+        for (Long id : selectedChats) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id);
+        }
+        RivPrefs.set(RivPrefs.VIDEO_SELECTED_CHATS, sb.toString());
+    }
+
+    /** "Video sources": the full picker, same screen and behaviour as Music's "Music sources". */
+    private void pickSource() {
+        RivChatSourcePicker picker = new RivChatSourcePicker(
+                LocaleController.getString(R.string.RivVideosSources),
+                LocaleController.getString(R.string.RivVideosSourcesDesc),
+                sources);
+        picker.setDelegate(new RivChatSourcePicker.Delegate() {
+            @Override
+            public void onSourcesChanged(ArrayList<Long> newSources) {
+                sources.clear();
+                sources.addAll(newSources);
+                saveSources();
+                reloadVideos();
+            }
+
+            @Override
+            public void onPreview(ArrayList<Long> previewSources) {
+                previewFirstVideo(previewSources);
+            }
         });
-        presentFragment(fragment);
+        presentFragment(picker);
+    }
+
+    /** "Selected chats" filter: picks a subset of the already-added sources to narrow shelves to. */
+    private void pickSelectedChats() {
+        RivChatSourcePicker picker = new RivChatSourcePicker(
+                LocaleController.getString(R.string.RivTabSelectedChats),
+                LocaleController.getString(R.string.RivVideosSourcesDesc),
+                selectedChats);
+        picker.setDelegate(new RivChatSourcePicker.Delegate() {
+            @Override
+            public void onSourcesChanged(ArrayList<Long> newSelected) {
+                selectedChats.clear();
+                selectedChats.addAll(newSelected);
+                saveSelectedChats();
+                rebuildShelves();
+            }
+
+            @Override
+            public void onPreview(ArrayList<Long> previewSources) {
+                previewFirstVideo(previewSources);
+            }
+        });
+        presentFragment(picker);
+    }
+
+    private void previewFirstVideo(List<Long> fromChats) {
+        for (MessageObject m : allVideos) {
+            if (fromChats.isEmpty() || fromChats.contains(m.getDialogId())) {
+                play(m, new ArrayList<>(allVideos));
+                return;
+            }
+        }
+    }
+
+    private LinearLayout buildSourceFilterRow(Context context) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(8), AndroidUtilities.dp(12), AndroidUtilities.dp(4));
+        fillSourceFilterRow(context, row);
+        return row;
+    }
+
+    private void fillSourceFilterRow(Context context, LinearLayout row) {
+        row.removeAllViews();
+
+        TextView allPill = sourceFilterPill(context, LocaleController.getString(R.string.RivTabAll), !showSelectedOnly);
+        allPill.setOnClickListener(v -> {
+            showSelectedOnly = false;
+            fillSourceFilterRow(context, row);
+            rebuildShelves();
+        });
+        row.addView(allPill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36, 0, 0, 0, 8, 0));
+
+        TextView selectedPill = sourceFilterPill(context, LocaleController.getString(R.string.RivTabSelectedChats), showSelectedOnly);
+        selectedPill.setOnClickListener(v -> {
+            if (showSelectedOnly) {
+                pickSelectedChats();
+            } else {
+                showSelectedOnly = true;
+                fillSourceFilterRow(context, row);
+                rebuildShelves();
+            }
+        });
+        row.addView(selectedPill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36));
+    }
+
+    private TextView sourceFilterPill(Context context, String text, boolean selected) {
+        TextView pill = new TextView(context);
+        pill.setText(text);
+        pill.setTextSize(14);
+        pill.setGravity(Gravity.CENTER);
+        pill.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(selected ? Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4) : Theme.getColor(Theme.key_windowBackgroundWhite));
+        bg.setCornerRadius(AndroidUtilities.dp(18));
+        pill.setBackground(bg);
+        pill.setTextColor(selected ? Theme.getColor(Theme.key_windowBackgroundWhite) : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        return pill;
     }
 
     private void askRemoveSource(long dialogId) {
@@ -196,12 +339,21 @@ public class RivVideosActivity extends BaseFragment {
             req.q = "";
             req.filter = new TLRPC.TL_inputMessagesFilterVideo();
             req.limit = 100;
+            if (req.peer == null) {
+                android.util.Log.d("RivVideos", "no input peer for dialog " + dialogId + ", skipping");
+                loading--;
+                rebuildShelves();
+                continue;
+            }
             getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 loading--;
-                if (response instanceof TLRPC.messages_Messages) {
+                if (error != null) {
+                    android.util.Log.d("RivVideos", "search failed for " + dialogId + ": " + error.text);
+                } else if (response instanceof TLRPC.messages_Messages) {
                     TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
                     getMessagesController().putUsers(res.users, false);
                     getMessagesController().putChats(res.chats, false);
+                    int matched = 0;
                     for (TLRPC.Message msg : res.messages) {
                         String key = MessageObject.getDialogId(msg) + "_" + msg.id;
                         if (videoKeys.contains(key)) continue;
@@ -209,9 +361,13 @@ public class RivVideosActivity extends BaseFragment {
                         if (obj.isVideo()) {
                             videoKeys.add(key);
                             allVideos.add(obj);
+                            matched++;
                         }
                     }
+                    android.util.Log.d("RivVideos", "dialog " + dialogId + " returned " + res.messages.size() + " messages, " + matched + " matched isVideo()");
                     Collections.sort(allVideos, (a, b) -> Integer.compare(b.messageOwner.date, a.messageOwner.date));
+                } else {
+                    android.util.Log.d("RivVideos", "unexpected response type for " + dialogId + ": " + (response == null ? "null" : response.getClass().getSimpleName()));
                 }
                 rebuildShelves();
             }));
@@ -221,8 +377,14 @@ public class RivVideosActivity extends BaseFragment {
     private void rebuildShelves() {
         shelves.clear();
 
-        List<MessageObject> continueWatching = new ArrayList<>();
+        boolean filtering = showSelectedOnly && !selectedChats.isEmpty();
+        List<MessageObject> base = new ArrayList<>();
         for (MessageObject m : allVideos) {
+            if (!filtering || selectedChats.contains(m.getDialogId())) base.add(m);
+        }
+
+        List<MessageObject> continueWatching = new ArrayList<>();
+        for (MessageObject m : base) {
             if (RivMeta.position(ApplicationLoaderContext(), keyOf(m)) > 5000) continueWatching.add(m);
         }
         if (!continueWatching.isEmpty()) {
@@ -230,7 +392,7 @@ public class RivVideosActivity extends BaseFragment {
         }
 
         List<MessageObject> myList = new ArrayList<>();
-        for (MessageObject m : allVideos) {
+        for (MessageObject m : base) {
             if (RivMeta.inMyList(keyOf(m))) myList.add(m);
         }
         if (!myList.isEmpty()) {
@@ -238,8 +400,10 @@ public class RivVideosActivity extends BaseFragment {
         }
 
         Map<Long, List<MessageObject>> byChat = new LinkedHashMap<>();
-        for (Long id : sources) byChat.put(id, new ArrayList<>());
-        for (MessageObject m : allVideos) {
+        for (Long id : sources) {
+            if (!filtering || selectedChats.contains(id)) byChat.put(id, new ArrayList<>());
+        }
+        for (MessageObject m : base) {
             long d = m.getDialogId();
             List<MessageObject> l = byChat.get(d);
             if (l != null) l.add(m);

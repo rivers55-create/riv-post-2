@@ -24,7 +24,6 @@ import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
-import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.RivMeta;
@@ -55,9 +54,10 @@ import java.util.Locale;
 public class RivMusicActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private static final String SOURCES_KEY = "musicSources";
-    private static final String[] TAB_KEYS = {"all", "playlists", "albums", "artists", "favorites"};
+    private static final String[] TAB_KEYS = {"all", "playlists", "albums", "artists", "favorites", "selected"};
 
     private final ArrayList<Long> sources = new ArrayList<>();
+    private final ArrayList<Long> selectedChats = new ArrayList<>();
     private final ArrayList<MessageObject> allSongs = new ArrayList<>();
     private final HashSet<String> songKeys = new HashSet<>();
     private int loading = 0;
@@ -82,6 +82,7 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
     @Override
     public boolean onFragmentCreate() {
         loadSources();
+        loadSelectedChats();
         getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingDidStart);
         getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingDidReset);
@@ -121,7 +122,8 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
 
         LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        root.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.navigationBarHeight;
+        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, bottomBarSpace));
 
         // search bar
         LinearLayout searchBar = new LinearLayout(context);
@@ -169,10 +171,8 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
         listContainer = new FrameLayout(context);
         column.addView(listContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
 
-        miniPlayer = new RivMiniPlayerView(context);
-        miniPlayer.setVisibility(View.GONE);
-        miniPlayer.setOnOpenPlayer(() -> presentFragment(new RivMusicPlayerActivity()));
-        root.addView(miniPlayer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM));
+        RivBottomBar.Docked docked = RivBottomBar.attach(this, root, RivBottomBar.TAB_MUSIC, AndroidUtilities.navigationBarHeight);
+        miniPlayer = docked.miniPlayer;
 
         refreshList();
         reloadSongs();
@@ -220,6 +220,8 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
                 return LocaleController.getString(R.string.RivTabArtists);
             case "favorites":
                 return LocaleController.getString(R.string.RivTabFavorites);
+            case "selected":
+                return LocaleController.getString(R.string.RivTabSelectedChats);
             default:
                 return LocaleController.getString(R.string.RivTabAll);
         }
@@ -249,21 +251,81 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
         RivPrefs.set(SOURCES_KEY, sb.toString());
     }
 
-    private void pickSource() {
-        Bundle args = new Bundle();
-        args.putBoolean("onlySelect", true);
-        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
-        DialogsActivity fragment = new DialogsActivity(args);
-        fragment.setDelegate((fragment1, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
-            for (MessagesStorage.TopicKey key : dids) {
-                if (!sources.contains(key.dialogId)) sources.add(key.dialogId);
+    private void loadSelectedChats() {
+        selectedChats.clear();
+        String s = RivPrefs.s(RivPrefs.MUSIC_SELECTED_CHATS, "");
+        if (s != null && !s.isEmpty()) {
+            for (String part : s.split(",")) {
+                try {
+                    selectedChats.add(Long.parseLong(part));
+                } catch (NumberFormatException ignored) {
+                }
             }
-            saveSources();
-            fragment1.finishFragment();
-            reloadSongs();
-            return true;
+        }
+    }
+
+    private void saveSelectedChats() {
+        StringBuilder sb = new StringBuilder();
+        for (Long id : selectedChats) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id);
+        }
+        RivPrefs.set(RivPrefs.MUSIC_SELECTED_CHATS, sb.toString());
+    }
+
+    /** "Music sources": the full picker, checking a chat adds it to sources (and to selected chats). */
+    private void pickSource() {
+        RivChatSourcePicker picker = new RivChatSourcePicker(
+                LocaleController.getString(R.string.RivMusicSources),
+                LocaleController.getString(R.string.RivMusicSourcesDesc),
+                sources);
+        picker.setDelegate(new RivChatSourcePicker.Delegate() {
+            @Override
+            public void onSourcesChanged(ArrayList<Long> newSources) {
+                sources.clear();
+                sources.addAll(newSources);
+                saveSources();
+                reloadSongs();
+            }
+
+            @Override
+            public void onPreview(ArrayList<Long> previewSources) {
+                previewFirstSong(previewSources);
+            }
         });
-        presentFragment(fragment);
+        presentFragment(picker);
+    }
+
+    /** "Selected chats" tab: pick a subset of the already-added sources to narrow the library to. */
+    private void pickSelectedChats() {
+        RivChatSourcePicker picker = new RivChatSourcePicker(
+                LocaleController.getString(R.string.RivTabSelectedChats),
+                LocaleController.getString(R.string.RivMusicSourcesDesc),
+                selectedChats);
+        picker.setDelegate(new RivChatSourcePicker.Delegate() {
+            @Override
+            public void onSourcesChanged(ArrayList<Long> newSelected) {
+                selectedChats.clear();
+                selectedChats.addAll(newSelected);
+                saveSelectedChats();
+                refreshList();
+            }
+
+            @Override
+            public void onPreview(ArrayList<Long> previewSources) {
+                previewFirstSong(previewSources);
+            }
+        });
+        presentFragment(picker);
+    }
+
+    private void previewFirstSong(List<Long> fromChats) {
+        for (MessageObject m : allSongs) {
+            if (fromChats.isEmpty() || fromChats.contains(m.getDialogId())) {
+                playFrom(new ArrayList<>(allSongs), m);
+                return;
+            }
+        }
     }
 
     private String titleOf(long dialogId) {
@@ -357,6 +419,10 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
                 listContainer.addView(songListView(context, favs, null), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
                 break;
             }
+            case "selected": {
+                listContainer.addView(selectedChatsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                break;
+            }
             default:
                 listContainer.addView(songListView(context, visibleSongs(allSongs), null), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
                 break;
@@ -415,6 +481,25 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
         button.setOnClickListener(v -> pickSource());
         box.addView(button);
         return box;
+    }
+
+    private View selectedChatsView(Context context) {
+        LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+
+        org.telegram.ui.Cells.TextSettingsCell editCell = new org.telegram.ui.Cells.TextSettingsCell(context);
+        editCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        editCell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        editCell.setText(LocaleController.getString(R.string.RivTabSelectedChats), true);
+        editCell.setOnClickListener(v -> pickSelectedChats());
+        column.addView(editCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        List<MessageObject> filtered = new ArrayList<>();
+        for (MessageObject m : visibleSongs(allSongs)) {
+            if (selectedChats.contains(m.getDialogId())) filtered.add(m);
+        }
+        column.addView(songListView(context, filtered, null), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        return column;
     }
 
     private View playlistsView(Context context) {

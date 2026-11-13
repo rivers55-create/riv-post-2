@@ -34,6 +34,13 @@ public class RivIcon extends View {
     public static final int INFO = 15;
     public static final int PLAY = 16;
     public static final int PAUSE = 17;
+    public static final int TAB_CHATS = 18;
+    public static final int TAB_CONTACTS = 19;
+    public static final int TAB_CALLS = 20;
+    public static final int TAB_MUSIC = 21;
+    public static final int TAB_VIDEOS = 22;
+    public static final int TAB_PROFILE = 23;
+    public static final int CHECK = 24;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int kind;
@@ -230,6 +237,99 @@ public class RivIcon extends View {
                 paint.setStyle(Paint.Style.FILL);
                 canvas.drawCircle(cx, cy - s * 0.32f, AndroidUtilities.dp(1.3f), paint);
                 canvas.drawRect(cx - AndroidUtilities.dp(1.2f), cy - s * 0.05f, cx + AndroidUtilities.dp(1.2f), cy + s * 0.45f, paint);
+                break;
+            }
+            case TAB_CHATS: {
+                paint.setStyle(Paint.Style.FILL);
+                Path p = new Path();
+                float r = s * 0.22f;
+                android.graphics.RectF rect = new android.graphics.RectF(cx - s * 0.85f, cy - s * 0.65f, cx + s * 0.85f, cy + s * 0.35f);
+                p.addRoundRect(rect, r, r, Path.Direction.CW);
+                p.moveTo(cx - s * 0.45f, cy + s * 0.35f);
+                p.lineTo(cx - s * 0.15f, cy + s * 0.35f);
+                p.lineTo(cx - s * 0.35f, cy + s * 0.78f);
+                p.close();
+                canvas.drawPath(p, paint);
+                break;
+            }
+            case TAB_CONTACTS: {
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx, cy - s * 0.45f, s * 0.38f, paint);
+                Path p = new Path();
+                p.moveTo(cx - s * 0.75f, cy + s * 0.75f);
+                p.cubicTo(cx - s * 0.75f, cy + s * 0.1f, cx - s * 0.5f, cy + s * 0.05f, cx, cy + s * 0.05f);
+                p.cubicTo(cx + s * 0.5f, cy + s * 0.05f, cx + s * 0.75f, cy + s * 0.1f, cx + s * 0.75f, cy + s * 0.75f);
+                p.close();
+                canvas.drawPath(p, paint);
+                break;
+            }
+            case TAB_CALLS: {
+                paint.setStyle(Paint.Style.FILL);
+                Path p = new Path();
+                p.moveTo(cx - s * 0.65f, cy - s * 0.8f);
+                p.cubicTo(cx - s * 0.95f, cy - s * 0.5f, cx - s * 0.95f, cy - s * 0.1f, cx - s * 0.55f, cy + s * 0.3f);
+                p.cubicTo(cx - s * 0.15f, cy + s * 0.7f, cx + s * 0.25f, cy + s * 0.7f, cx + s * 0.55f, cy + s * 0.4f);
+                p.cubicTo(cx + s * 0.65f, cy + s * 0.3f, cx + s * 0.6f, cy + s * 0.15f, cx + s * 0.45f, cy + s * 0.05f);
+                p.cubicTo(cx + s * 0.35f, cy - s * 0.02f, cx + s * 0.25f, cy, cx + s * 0.2f, cy + s * 0.1f);
+                p.cubicTo(cx + s * 0.05f, cy + s * 0.05f, cx - s * 0.1f, cy - s * 0.1f, cx - s * 0.15f, cy - s * 0.25f);
+                p.cubicTo(cx - s * 0.05f, cy - s * 0.3f, cx - s * 0.02f, cy - s * 0.4f, cx - s * 0.1f, cy - s * 0.5f);
+                p.cubicTo(cx - s * 0.2f, cy - s * 0.65f, cx - s * 0.35f, cy - s * 0.85f, cx - s * 0.45f, cy - s * 0.85f);
+                p.close();
+                canvas.drawPath(p, paint);
+                break;
+            }
+            case TAB_MUSIC: {
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx - s * 0.45f, cy + s * 0.55f, s * 0.26f, paint);
+                canvas.drawCircle(cx + s * 0.45f, cy + s * 0.35f, s * 0.26f, paint);
+                canvas.drawRect(cx - s * 0.28f, cy - s * 0.85f, cx - s * 0.15f, cy + s * 0.55f, paint);
+                canvas.drawRect(cx + s * 0.6f, cy - s * 0.65f, cx + s * 0.73f, cy + s * 0.35f, paint);
+                Path beam = new Path();
+                beam.moveTo(cx - s * 0.28f, cy - s * 0.85f);
+                beam.lineTo(cx + s * 0.73f, cy - s * 0.65f);
+                beam.lineTo(cx + s * 0.73f, cy - s * 0.4f);
+                beam.lineTo(cx - s * 0.28f, cy - s * 0.6f);
+                beam.close();
+                canvas.drawPath(beam, paint);
+                break;
+            }
+            case TAB_VIDEOS: {
+                paint.setStyle(Paint.Style.FILL);
+                float top = cy - s * 0.55f, bottom = cy + s * 0.2f;
+                canvas.drawRect(cx - s * 0.85f, top, cx + s * 0.85f, bottom, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(1.6f));
+                float notch = (bottom - top) * 0.35f;
+                for (int i = 0; i < 4; i++) {
+                    float x = cx - s * 0.85f + (s * 1.7f) * (i + 0.5f) / 4f;
+                    canvas.drawLine(x - notch * 0.4f, top, x + notch * 0.4f, top + notch, paint);
+                }
+                break;
+            }
+            case CHECK: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(2f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                Path p = new Path();
+                p.moveTo(cx - s * 0.6f, cy);
+                p.lineTo(cx - s * 0.15f, cy + s * 0.45f);
+                p.lineTo(cx + s * 0.65f, cy - s * 0.5f);
+                canvas.drawPath(p, paint);
+                break;
+            }
+            case TAB_PROFILE: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(1.6f));
+                canvas.drawCircle(cx, cy, s * 0.85f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx, cy - s * 0.28f, s * 0.26f, paint);
+                Path p = new Path();
+                p.moveTo(cx - s * 0.48f, cy + s * 0.58f);
+                p.cubicTo(cx - s * 0.48f, cy + s * 0.12f, cx - s * 0.28f, cy + s * 0.08f, cx, cy + s * 0.08f);
+                p.cubicTo(cx + s * 0.28f, cy + s * 0.08f, cx + s * 0.48f, cy + s * 0.12f, cx + s * 0.48f, cy + s * 0.58f);
+                p.close();
+                canvas.drawPath(p, paint);
                 break;
             }
         }

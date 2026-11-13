@@ -105,6 +105,9 @@
     <string name="RivTabAlbums">الألبومات</string>
     <string name="RivTabArtists">الفنانون</string>
     <string name="RivTabFavorites">المفضلة</string>
+    <string name="RivTabSelectedChats">المحادثات المختارة</string>
+    <string name="RivMusicSourcesDesc">اختر المحادثات والقنوات لموسيقاك. إذا لم تختر شيئًا، تُستخدم كل المحادثات.</string>
+    <string name="RivVideosSourcesDesc">اختر المحادثات والقنوات لفيديوهاتك. إذا لم تختر شيئًا، تُستخدم كل المحادثات.</string>
     <string name="RivMusicEmptyTitle">مكتبة الموسيقى فارغة</string>
     <string name="RivNewPlaylist">قائمة تشغيل جديدة</string>
     <string name="RivSongsCount">أغاني</string>
@@ -148,4 +151,12 @@
     <string name="RivVipContactsInfo">سيتجاوز مرسلو VIP ساعات الهدوء عند إضافة هذه الميزة. حاليًا هذه القائمة محفوظة وجاهزة فقط.</string>
     <string name="RivVipContactsFooter">ضع علامة VIP على جهة اتصال لتصل رسائلها دائمًا، حتى في ساعات الهدوء.</string>
     <string name="RivAddVipContact">إضافة جهة اتصال VIP</string>
+
+    <!-- Bottom tab bar (Chats screen) -->
+    <string name="RivTabChats">المحادثات</string>
+    <string name="RivTabContacts">جهات الاتصال</string>
+    <string name="RivTabCalls">المكالمات</string>
+    <string name="RivTabMusicShort">الموسيقى</string>
+    <string name="RivTabVideosShort">الفيديو</string>
+    <string name="RivTabProfile">الملف الشخصي</string>
 </resources>

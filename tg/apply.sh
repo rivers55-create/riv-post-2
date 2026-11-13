@@ -219,6 +219,21 @@ edit(DA,
             return frozenDialogsList;
         }
 """)
+# Bottom tab bar (Chats/Contacts/Calls/Music/Videos/Profile) on the root Chats screen only.
+# Lives entirely inside DialogsActivity's own view, via the same RivBottomBar.attach() helper
+# RivMusicActivity and RivVideosActivity use, so the bar looks and behaves identically on all
+# three screens. Does not touch Telegram's own real tab bar (MainTabsActivity/GlassTabView),
+# which stays exactly as it was.
+edit(DA,
+"""        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""",
+"""        if (!onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT && !isArchive()) {
+            int rivBarBottomMargin = hasMainTabs ? dp(MAIN_TABS_HEIGHT_WITH_MARGINS) : AndroidUtilities.navigationBarHeight;
+            org.telegram.ui.RivBottomBar.attach(this, contentView, org.telegram.ui.RivBottomBar.TAB_CHATS, rivBarBottomMargin);
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""")
 # Riv strings live in normal Android resources; teach the resolver to fall back to them
 LC = 'TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java'
 edit(LC,

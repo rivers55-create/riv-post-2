@@ -105,6 +105,9 @@
     <string name="RivTabAlbums">Albums</string>
     <string name="RivTabArtists">Artists</string>
     <string name="RivTabFavorites">Favorites</string>
+    <string name="RivTabSelectedChats">Selected chats</string>
+    <string name="RivMusicSourcesDesc">Pick chats and channels for your music. If none are picked, every chat is used.</string>
+    <string name="RivVideosSourcesDesc">Pick chats and channels for your videos. If none are picked, every chat is used.</string>
     <string name="RivMusicEmptyTitle">Your music library is empty</string>
     <string name="RivNewPlaylist">New playlist</string>
     <string name="RivSongsCount">songs</string>
@@ -148,4 +151,12 @@
     <string name="RivVipContactsInfo">VIP senders will bypass Quiet Hours once that feature is added. For now this list is just kept ready.</string>
     <string name="RivVipContactsFooter">Mark a contact as VIP so their messages always get through, even during quiet hours.</string>
     <string name="RivAddVipContact">Add a VIP contact</string>
+
+    <!-- Bottom tab bar (Chats screen) -->
+    <string name="RivTabChats">Chats</string>
+    <string name="RivTabContacts">Contacts</string>
+    <string name="RivTabCalls">Calls</string>
+    <string name="RivTabMusicShort">Music</string>
+    <string name="RivTabVideosShort">Videos</string>
+    <string name="RivTabProfile">Profile</string>
 </resources>
