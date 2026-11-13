@@ -365,48 +365,59 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
     private void reloadVideos() {
         allVideos.clear();
         videoKeys.clear();
-        loading = sources.size();
+        // Riv Post: two searches per chat, not one. Telegram's own video filter leans on the
+        // same "was this tagged as a video" flag isVideo() does, so an .mkv (or anything else)
+        // sent without that tag can be invisible to the video filter on the server itself --
+        // real Telegram's own Files tab is exactly where such a file would show up instead. The
+        // document search below catches those; isVideo() (now recognising untagged .mkv too,
+        // see SharedConfig patch in apply.sh) still decides what actually counts as a video.
+        loading = sources.size() * 2;
         rebuildShelves();
         if (loading == 0) return;
         for (Long dialogId : sources) {
-            TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
-            req.peer = getMessagesController().getInputPeer(dialogId);
-            req.q = "";
-            req.filter = new TLRPC.TL_inputMessagesFilterVideo();
-            req.limit = 100;
-            if (req.peer == null) {
-                android.util.Log.d("RivVideos", "no input peer for dialog " + dialogId + ", skipping");
-                loading--;
-                rebuildShelves();
-                continue;
-            }
-            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-                loading--;
-                if (error != null) {
-                    android.util.Log.d("RivVideos", "search failed for " + dialogId + ": " + error.text);
-                } else if (response instanceof TLRPC.messages_Messages) {
-                    TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
-                    getMessagesController().putUsers(res.users, false);
-                    getMessagesController().putChats(res.chats, false);
-                    int matched = 0;
-                    for (TLRPC.Message msg : res.messages) {
-                        String key = MessageObject.getDialogId(msg) + "_" + msg.id;
-                        if (videoKeys.contains(key)) continue;
-                        MessageObject obj = new MessageObject(currentAccount, msg, false, true);
-                        if (obj.isVideo()) {
-                            videoKeys.add(key);
-                            allVideos.add(obj);
-                            matched++;
-                        }
-                    }
-                    android.util.Log.d("RivVideos", "dialog " + dialogId + " returned " + res.messages.size() + " messages, " + matched + " matched isVideo()");
-                    Collections.sort(allVideos, (a, b) -> Integer.compare(b.messageOwner.date, a.messageOwner.date));
-                } else {
-                    android.util.Log.d("RivVideos", "unexpected response type for " + dialogId + ": " + (response == null ? "null" : response.getClass().getSimpleName()));
-                }
-                rebuildShelves();
-            }));
+            searchForVideos(dialogId, new TLRPC.TL_inputMessagesFilterVideo());
+            searchForVideos(dialogId, new TLRPC.TL_inputMessagesFilterDocument());
         }
+    }
+
+    private void searchForVideos(long dialogId, TLRPC.MessagesFilter filter) {
+        TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
+        req.peer = getMessagesController().getInputPeer(dialogId);
+        req.q = "";
+        req.filter = filter;
+        req.limit = 100;
+        if (req.peer == null) {
+            android.util.Log.d("RivVideos", "no input peer for dialog " + dialogId + ", skipping");
+            loading--;
+            rebuildShelves();
+            return;
+        }
+        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            loading--;
+            if (error != null) {
+                android.util.Log.d("RivVideos", "search failed for " + dialogId + ": " + error.text);
+            } else if (response instanceof TLRPC.messages_Messages) {
+                TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                getMessagesController().putUsers(res.users, false);
+                getMessagesController().putChats(res.chats, false);
+                int matched = 0;
+                for (TLRPC.Message msg : res.messages) {
+                    String key = MessageObject.getDialogId(msg) + "_" + msg.id;
+                    if (videoKeys.contains(key)) continue;
+                    MessageObject obj = new MessageObject(currentAccount, msg, false, true);
+                    if (obj.isVideo()) {
+                        videoKeys.add(key);
+                        allVideos.add(obj);
+                        matched++;
+                    }
+                }
+                android.util.Log.d("RivVideos", "dialog " + dialogId + " (" + filter.getClass().getSimpleName() + ") returned " + res.messages.size() + " messages, " + matched + " matched isVideo()");
+                Collections.sort(allVideos, (a, b) -> Integer.compare(b.messageOwner.date, a.messageOwner.date));
+            } else {
+                android.util.Log.d("RivVideos", "unexpected response type for " + dialogId + ": " + (response == null ? "null" : response.getClass().getSimpleName()));
+            }
+            rebuildShelves();
+        }));
     }
 
     private void rebuildShelves() {

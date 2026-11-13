@@ -270,6 +270,16 @@ edit(FCV,
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
                             new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();""")
 
+# Telegram only recognises an .mkv file as a playable video if either the sender tagged it as
+# one, or this "Stream MKV videos" setting (real Telegram's own, in Data and Storage) is on --
+# it defaults off, so an .mkv sent without that tag silently doesn't count as a video anywhere,
+# including Riv Post's own video library. Default it on; the user can still switch it off
+# themselves in Data and Storage like always.
+SCFG = 'TMessagesProj/src/main/java/org/telegram/messenger/SharedConfig.java'
+edit(SCFG,
+"""            streamMkv = preferences.getBoolean("streamMkv", false);""",
+"""            streamMkv = preferences.getBoolean("streamMkv", true);""")
+
 # Riv strings live in normal Android resources; teach the resolver to fall back to them
 LC = 'TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java'
 edit(LC,
