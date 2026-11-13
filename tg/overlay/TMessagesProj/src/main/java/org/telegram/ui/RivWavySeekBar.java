@@ -131,17 +131,22 @@ public class RivWavySeekBar extends View {
         paint.setColor(trackColor);
         canvas.drawLine(px, cy, w, cy, paint);
 
-        // played portion: sine wave
+        // played portion: sine wave (a straight stub until there's enough room for a real wave,
+        // so the first few played seconds don't draw a stray short diagonal mark)
         paint.setColor(waveColor);
-        Path path = new Path();
-        float x = 0f;
-        path.moveTo(0f, cy + amp * (float) Math.sin(phase));
-        while (x < px) {
-            x = Math.min(x + 2f, px);
-            float y = cy + amp * (float) Math.sin(x / waveLen * 2f * (float) Math.PI - phase);
-            path.lineTo(x, y);
+        if (px < waveLen * 0.5f) {
+            canvas.drawLine(0f, cy, px, cy, paint);
+        } else {
+            Path path = new Path();
+            float x = 0f;
+            path.moveTo(0f, cy);
+            while (x < px) {
+                x = Math.min(x + 2f, px);
+                float y = cy + amp * (float) Math.sin(x / waveLen * 2f * (float) Math.PI - phase);
+                path.lineTo(x, y);
+            }
+            canvas.drawPath(path, paint);
         }
-        canvas.drawPath(path, paint);
 
         // thumb tick
         paint.setStyle(Paint.Style.FILL);

@@ -49,6 +49,7 @@ public class RivMusicPlayerActivity extends BaseFragment implements Notification
     private TextView artistView;
     private TextView formatView;
     private RivWavySeekBar seekBar;
+    private float draggedFraction = -1f;
     private TextView posLabel;
     private TextView durLabel;
     private RivIcon shuffleIcon;
@@ -341,13 +342,15 @@ public class RivMusicPlayerActivity extends BaseFragment implements Notification
         seekBar.setListener(new RivWavySeekBar.Listener() {
             @Override
             public void onSeek(float fraction) {
+                draggedFraction = fraction;
                 posLabel.setText(AndroidUtilities.formatShortDuration((int) (fraction * MediaController.getInstance().getDuration() / 1000)));
             }
 
             @Override
             public void onSeekEnd() {
                 MessageObject m = MediaController.getInstance().getPlayingMessageObject();
-                if (m != null) MediaController.getInstance().seekToProgress(m, seekBarProgress());
+                if (m != null) MediaController.getInstance().seekToProgress(m, draggedFraction);
+                draggedFraction = -1f;
             }
         });
 
