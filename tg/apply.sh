@@ -298,10 +298,28 @@ PY
 #   Floating, Classic bottom bar + Flat/Rounded style): both deferred by the
 #   user's own request for this pass. No hook needed yet -- just not built.
 #
+# - Calls tab "talk time" header: screenshots confirm the old Riv Post app
+#   showed, above the real call-log list, an instructional subtitle, a
+#   "Talk time: this week H:MM . this month H:MM" line, and a per-contact
+#   top-talk-time breakdown line, all computed from the same call-log data
+#   the real calls screen already has. For this pass the Calls tab just
+#   opens the real stock CallLogActivity() with no header, to avoid
+#   rushing a stats-aggregation feature against call-log internals that
+#   weren't verified in this pass. To build it: fetch CallLogActivity.java
+#   fresh, find exactly how it sources its call rows (TL request vs local
+#   DB query) and its duration field, then either (a) prepend a small
+#   header view above wherever that fragment builds its list -- needs a
+#   confirmed, non-guessed anchor in that file -- or (b) wrap it in a new
+#   RivCallsActivity.java that reuses the same data source and adds the
+#   header on top, which is lower-risk since it needs no real-file hook at
+#   all. Do not guess the data source or duration field; read them first.
+#
 # Everything else in this batch (quick replies, export chat, VIP contacts,
-# the video/music library rebuild) is additive-only: new Riv*.java files plus
-# extensions to our own RivSettingsActivity.java. No new real-file edits were
-# needed for any of it.
+# the video/music library rebuild, the bottom tab bar, the shared chat-
+# source picker, the selected-chats filters) is additive-only: new
+# Riv*.java files plus one confirmed, minimal hook into DialogsActivity.java
+# (see RivBottomBar.attach() above) to dock the bar on the root Chats
+# screen. No other new real-file edits were needed for any of it.
 # ---------------------------------------------------------------------------
 
 echo "Riv Post changes applied"
