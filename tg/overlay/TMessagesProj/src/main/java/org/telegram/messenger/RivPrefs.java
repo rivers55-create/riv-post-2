@@ -18,6 +18,18 @@ public class RivPrefs {
     public static final String HIDE_STORIES = "hideStories";     // no stories row above chats
     public static final String STICKER_SIZE = "stickerSize";     // percent, 100 = official
 
+    // Video & music libraries (metadata lookup, My List, playback position)
+    public static final String TMDB_KEY = "tmdbKey";             // user's own TMDb API key
+    public static final String TVDB_KEY = "tvdbKey";             // user's own TheTVDB v4 API key
+    public static final String TVDB_PIN = "tvdbPin";             // TheTVDB subscriber PIN, optional
+    public static final String TMDB_ON = "tmdbOn";               // use TMDb for lookups (default on once a key is set)
+    public static final String TVDB_ON = "tvdbOn";               // use TheTVDB for lookups
+    public static final String SHOW_SOURCE = "showSource";       // "tmdb" or "tvdb": preferred source for TV shows
+    public static final String CLEAN_TITLES = "cleanTitles";     // show tidy titles instead of raw file names
+    public static final String MY_LIST_VIDEOS = "myListVideos";  // comma list of "acc_dialogId_msgId" keys
+    public static final String FAV_SONGS = "favSongs";           // comma list of "acc_dialogId_msgId" keys
+    public static final String HIDDEN_SONGS = "hiddenSongs";     // comma list of "acc_dialogId_msgId" keys
+
     private static SharedPreferences prefs;
 
     private static SharedPreferences prefs() {

@@ -68,4 +68,84 @@
     <string name="RivVaultHidden">المحادثات المخفية</string>
     <string name="RivVaultUnhide">هل تريد إظهار هذه المحادثة من جديد؟ سيُلغى كتمها أيضًا.</string>
     <string name="RivVaultInfo">المحادثات المخفية تختفي من قائمة المحادثات وتُكتم فلا يظهر شيء في الإشعارات. تبقى مخفية حتى تُظهرها هنا، وتُخفى من جديد عند إعادة تشغيل التطبيق. يبقى من الممكن إيجادها بالبحث.</string>
+
+    <!-- Video library -->
+    <string name="RivContinueWatching">متابعة المشاهدة</string>
+    <string name="RivMyList">قائمتي</string>
+    <string name="RivMyListAdd">قائمتي</string>
+    <string name="RivPlay">تشغيل</string>
+    <string name="RivVideosEmptyTitle">مكتبة الفيديو فارغة</string>
+    <string name="RivVideosEmptyHint">أضف محادثة أو قناة لتحصل على صف خاص بها هنا.</string>
+    <string name="RivCast">طاقم التمثيل</string>
+    <string name="RivThisEpisode">هذه الحلقة</string>
+    <string name="RivSeason">الموسم</string>
+    <string name="RivEpisode">الحلقة</string>
+    <string name="RivNoOnlineInfo">لم يتم العثور على معلومات لهذا العنوان.</string>
+    <string name="RivInfoFrom">المعلومات من</string>
+    <string name="RivMinutesShort">د</string>
+
+    <!-- Video & music metadata settings -->
+    <string name="RivMetaHeader">معلومات الفيديو والموسيقى</string>
+    <string name="RivTmdbKey">مفتاح TMDb API</string>
+    <string name="RivUseTmdb">استخدام TMDb</string>
+    <string name="RivTvdbKey">مفتاح TheTVDB API</string>
+    <string name="RivTvdbPin">رمز PIN لمشتركي TheTVDB</string>
+    <string name="RivUseTvdb">استخدام TheTVDB</string>
+    <string name="RivPreferTvdbShows">تفضيل TheTVDB للمسلسلات</string>
+    <string name="RivPreferTvdbShowsInfo">استخدام TheTVDB أولًا للمسلسلات بدلاً من TMDb</string>
+    <string name="RivCleanTitles">تنظيف العناوين</string>
+    <string name="RivCleanTitlesInfo">إظهار عناوين مرتبة بدلاً من أسماء الملفات الخام</string>
+    <string name="RivMetaFooter">بمفتاح TMDb أو TheTVDB الخاص بك، يعرض Riv Videos الملصقات والخلفيات والملخصات وطاقم التمثيل لفيديوهاتك. كلاهما مجاني التسجيل. لا يُرفع شيء سوى العنوان الذي تبحث عنه.</string>
+    <string name="RivNotSet">غير محدد</string>
+
+    <!-- Music library -->
+    <string name="RivSearchSongs">البحث عن الأغاني</string>
+    <string name="RivTabAll">كل المحادثات</string>
+    <string name="RivTabPlaylists">قوائم التشغيل</string>
+    <string name="RivTabAlbums">الألبومات</string>
+    <string name="RivTabArtists">الفنانون</string>
+    <string name="RivTabFavorites">المفضلة</string>
+    <string name="RivMusicEmptyTitle">مكتبة الموسيقى فارغة</string>
+    <string name="RivNewPlaylist">قائمة تشغيل جديدة</string>
+    <string name="RivSongsCount">أغاني</string>
+    <string name="RivUnknownArtist">فنان غير معروف</string>
+    <string name="RivPlayNext">التشغيل التالي</string>
+    <string name="RivAddToQueue">إضافة إلى قائمة الانتظار</string>
+    <string name="RivAddToPlaylist">إضافة إلى قائمة تشغيل</string>
+    <string name="RivRemoveFromPlaylist">إزالة من قائمة التشغيل</string>
+    <string name="RivHideSong">إخفاء الأغنية</string>
+    <string name="RivGoToMessage">الانتقال إلى الرسالة</string>
+
+    <!-- Music player (Now Playing) -->
+    <string name="RivPlaying">التشغيل</string>
+    <string name="RivLyrics">كلمات الأغنية</string>
+    <string name="RivQueue">قائمة الانتظار</string>
+    <string name="RivNoLyricsFound">لم يتم العثور على كلمات</string>
+    <string name="RivPhoneSpeaker">سماعة الهاتف</string>
+    <string name="RivBluetooth">بلوتوث</string>
+    <string name="RivWiredHeadphones">سماعات سلكية</string>
+    <string name="RivSleepTimer">مؤقت النوم</string>
+    <string name="RivMinutesWord">دقائق</string>
+    <string name="RivTurnOff">إيقاف</string>
+    <string name="RivSpeed">السرعة</string>
+    <string name="RivEqualizer">موازن الصوت</string>
+    <string name="RivEqualizerInfo">موازن الصوت غير متوفر في هذا الإصدار بعد. قريبًا.</string>
+
+    <!-- Extras: quick replies, export chat, VIP contacts -->
+    <string name="RivQuickReplies">الردود السريعة</string>
+    <string name="RivQuickRepliesInfo">اضغط على رد سريع لنسخه، ثم ألصقه في خانة الرسائل في أي محادثة.</string>
+    <string name="RivAddQuickReply">إضافة رد سريع</string>
+    <string name="RivQuickReplyHint">نص الرد</string>
+    <string name="RivDeleteQuickReply">هل تريد حذف هذا الرد السريع؟</string>
+    <string name="RivCopied">تم النسخ</string>
+    <string name="RivExportChat">تصدير محادثة</string>
+    <string name="RivExportChatInfo">يحفظ رسائل محادثة في ملف نصي يمكنك مشاركته أو الاحتفاظ به. المحادثات الكبيرة تستغرق وقتًا قليلًا.</string>
+    <string name="RivPickChatToExport">اختر محادثة للتصدير</string>
+    <string name="RivStartExport">بدء التصدير</string>
+    <string name="RivExportFailed">تعذّر تصدير هذه المحادثة.</string>
+    <string name="RivMediaMessage">ملف وسائط</string>
+    <string name="RivVipContacts">جهات الاتصال المهمة (VIP)</string>
+    <string name="RivVipContactsInfo">سيتجاوز مرسلو VIP ساعات الهدوء عند إضافة هذه الميزة. حاليًا هذه القائمة محفوظة وجاهزة فقط.</string>
+    <string name="RivVipContactsFooter">ضع علامة VIP على جهة اتصال لتصل رسائلها دائمًا، حتى في ساعات الهدوء.</string>
+    <string name="RivAddVipContact">إضافة جهة اتصال VIP</string>
 </resources>

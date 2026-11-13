@@ -67,10 +67,43 @@ public class RivSettingsActivity extends BaseFragment {
         layout.addView(videos);
         TextSettingsCell reminders = new TextSettingsCell(context);
         reminders.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-        reminders.setText(LocaleController.getString(R.string.RivReminders), false);
+        reminders.setText(LocaleController.getString(R.string.RivReminders), true);
         reminders.setOnClickListener(v -> presentFragment(new RivRemindersActivity()));
         layout.addView(reminders);
+        TextSettingsCell quickReplies = new TextSettingsCell(context);
+        quickReplies.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        quickReplies.setText(LocaleController.getString(R.string.RivQuickReplies), true);
+        quickReplies.setOnClickListener(v -> presentFragment(new RivQuickRepliesActivity()));
+        layout.addView(quickReplies);
+        TextSettingsCell exportChat = new TextSettingsCell(context);
+        exportChat.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        exportChat.setText(LocaleController.getString(R.string.RivExportChat), false);
+        exportChat.setOnClickListener(v -> presentFragment(new RivExportChatActivity()));
+        layout.addView(exportChat);
         layout.addView(info(context, LocaleController.getString(R.string.RivLibrariesInfo)));
+
+        // ---- Video & music metadata (optional, user's own keys)
+        layout.addView(header(context, LocaleController.getString(R.string.RivMetaHeader)));
+        TextSettingsCell tmdbKey = new TextSettingsCell(context);
+        tmdbKey.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        tmdbKey.setTextAndValue(LocaleController.getString(R.string.RivTmdbKey), maskKey(RivPrefs.s(RivPrefs.TMDB_KEY, "")), true, true);
+        tmdbKey.setOnClickListener(v -> askKey(context, RivPrefs.TMDB_KEY, LocaleController.getString(R.string.RivTmdbKey), tmdbKey));
+        layout.addView(tmdbKey);
+        layout.addView(check(context, LocaleController.getString(R.string.RivUseTmdb), null, RivPrefs.TMDB_ON, true));
+        TextSettingsCell tvdbKey = new TextSettingsCell(context);
+        tvdbKey.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        tvdbKey.setTextAndValue(LocaleController.getString(R.string.RivTvdbKey), maskKey(RivPrefs.s(RivPrefs.TVDB_KEY, "")), true, true);
+        tvdbKey.setOnClickListener(v -> askKey(context, RivPrefs.TVDB_KEY, LocaleController.getString(R.string.RivTvdbKey), tvdbKey));
+        layout.addView(tvdbKey);
+        TextSettingsCell tvdbPin = new TextSettingsCell(context);
+        tvdbPin.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        tvdbPin.setTextAndValue(LocaleController.getString(R.string.RivTvdbPin), maskKey(RivPrefs.s(RivPrefs.TVDB_PIN, "")), true, true);
+        tvdbPin.setOnClickListener(v -> askKey(context, RivPrefs.TVDB_PIN, LocaleController.getString(R.string.RivTvdbPin), tvdbPin));
+        layout.addView(tvdbPin);
+        layout.addView(check(context, LocaleController.getString(R.string.RivUseTvdb), null, RivPrefs.TVDB_ON, true));
+        layout.addView(showSourceCheck(context));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivCleanTitles), LocaleController.getString(R.string.RivCleanTitlesInfo), RivPrefs.CLEAN_TITLES));
+        layout.addView(info(context, LocaleController.getString(R.string.RivMetaFooter)));
 
         // ---- Look
         layout.addView(header(context, LocaleController.getString(R.string.RivLookHeader)));
@@ -107,6 +140,13 @@ public class RivSettingsActivity extends BaseFragment {
         layout.addView(check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, true));
         layout.addView(check(context, LocaleController.getString(R.string.RivKeepDeleted), LocaleController.getString(R.string.RivKeepDeletedInfo), RivPrefs.KEEP_DELETED, false));
         layout.addView(info(context, LocaleController.getString(R.string.RivGhostModeFooter)));
+
+        TextSettingsCell vipContacts = new TextSettingsCell(context);
+        vipContacts.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        vipContacts.setText(LocaleController.getString(R.string.RivVipContacts), false);
+        vipContacts.setOnClickListener(v -> presentFragment(new RivVipContactsActivity()));
+        layout.addView(vipContacts);
+        layout.addView(info(context, LocaleController.getString(R.string.RivVipContactsFooter)));
 
         // ---- Help
         layout.addView(header(context, LocaleController.getString(R.string.RivHelpHeader)));
@@ -185,6 +225,60 @@ public class RivSettingsActivity extends BaseFragment {
             org.telegram.messenger.MessagesController.getGlobalNotificationsSettings().edit().putBoolean("pushConnection", now).putBoolean("pushService", now).apply();
             org.telegram.tgnet.ConnectionsManager.getInstance(currentAccount).setPushConnectionEnabled(now);
             org.telegram.messenger.ApplicationLoader.startPushService();
+        });
+        return cell;
+    }
+
+    private String maskKey(String key) {
+        if (key == null || key.isEmpty()) return LocaleController.getString(R.string.RivNotSet);
+        if (key.length() <= 6) return "••••••";
+        return key.substring(0, 4) + "••••" + key.substring(key.length() - 2);
+    }
+
+    private void askKey(Context context, String prefKey, String title, TextSettingsCell cell) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        android.widget.EditText edit = new android.widget.EditText(context);
+        edit.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        edit.setText(RivPrefs.s(prefKey, ""));
+        edit.setHint(title);
+        android.widget.FrameLayout wrap = new android.widget.FrameLayout(context);
+        wrap.setPadding(org.telegram.messenger.AndroidUtilities.dp(22), 0, org.telegram.messenger.AndroidUtilities.dp(22), 0);
+        wrap.addView(edit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(getParentActivity());
+        b.setTitle(title);
+        b.setView(wrap);
+        b.setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> {
+            String val = edit.getText() == null ? "" : edit.getText().toString().trim();
+            RivPrefs.set(prefKey, val);
+            cell.setTextAndValue(title, maskKey(val), true, true);
+        });
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(b.create());
+    }
+
+    private TextCheckCell defaultOnCheck(Context context, String title, String subtitle, String prefKey) {
+        TextCheckCell cell = new TextCheckCell(context);
+        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        cell.setTextAndValueAndCheck(title, subtitle, RivPrefs.b(prefKey, true), true, false);
+        cell.setOnClickListener(v -> {
+            boolean now = !RivPrefs.b(prefKey, true);
+            RivPrefs.set(prefKey, now);
+            cell.setChecked(now);
+        });
+        return cell;
+    }
+
+    private TextCheckCell showSourceCheck(Context context) {
+        TextCheckCell cell = new TextCheckCell(context);
+        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        boolean tvdbPreferred = "tvdb".equals(RivPrefs.s(RivPrefs.SHOW_SOURCE, "tmdb"));
+        cell.setTextAndValueAndCheck(LocaleController.getString(R.string.RivPreferTvdbShows), LocaleController.getString(R.string.RivPreferTvdbShowsInfo), tvdbPreferred, true, false);
+        cell.setOnClickListener(v -> {
+            boolean now = !"tvdb".equals(RivPrefs.s(RivPrefs.SHOW_SOURCE, "tmdb"));
+            RivPrefs.set(RivPrefs.SHOW_SOURCE, now ? "tvdb" : "tmdb");
+            cell.setChecked(now);
         });
         return cell;
     }

@@ -248,4 +248,45 @@ edit(LC,
 print("Riv hooks applied")
 PY
 
+# ---------------------------------------------------------------------------
+# TODO (deferred, not done in this pass -- see the agent's report for why):
+#
+# - Custom swipe actions per chat list (pick what left/right swipe does on a
+#   chat row). This needs a hook into DialogsActivity's swipe/ItemTouchHelper
+#   handling, which isn't in this overlay's sparse checkout of real Telegram
+#   source and has no prior confirmed anchor in this file's edit() calls above.
+#   Do not guess the anchor text blind -- fetch DialogsActivity.java for real,
+#   locate its swipe callback, and extend it additively (read, don't replace).
+#
+# - Per-chat media auto-download override (disable auto-download for one
+#   chat regardless of the global network-based setting). Needs a hook into
+#   DownloadController's decision logic, another real file with no prior
+#   anchor in this script. Same rule: confirm the exact anchor before editing.
+#
+# - Picture-in-picture for video messages/circles while scrolling. Needs a
+#   hook into how round video messages play inline in the chat list (likely
+#   ChatMessageCell / the round-video player). Lowest priority of the
+#   deferred items; only attempt once the two above are confirmed-safe.
+#
+# - Draft indicator dot and per-folder unread badge: likely already covered
+#   by stock Telegram's own dialog cell / folder tab rendering (draft text
+#   preview and folder badge counts are already a stock feature) -- re-check
+#   against a real build before adding anything, to avoid duplicating a
+#   feature Telegram already has.
+#
+# - "Mark all read" on long-press of the Chats tab: needs to find how the
+#   main tab bar / header currently handles long-press in LaunchActivity or
+#   the bottom tab view, neither of which has a confirmed anchor here yet.
+#
+# - Theme colour-picker screen (swatches + "colour by current track" +
+#   per-element colours) and the "Quick looks" layout picker (Side menu/tabs,
+#   Floating, Classic bottom bar + Flat/Rounded style): both deferred by the
+#   user's own request for this pass. No hook needed yet -- just not built.
+#
+# Everything else in this batch (quick replies, export chat, VIP contacts,
+# the video/music library rebuild) is additive-only: new Riv*.java files plus
+# extensions to our own RivSettingsActivity.java. No new real-file edits were
+# needed for any of it.
+# ---------------------------------------------------------------------------
+
 echo "Riv Post changes applied"

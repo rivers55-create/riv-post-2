@@ -68,4 +68,84 @@
     <string name="RivVaultHidden">Hidden chats</string>
     <string name="RivVaultUnhide">Show this chat again? It will also be unmuted.</string>
     <string name="RivVaultInfo">Hidden chats leave the chat list and are muted, so nothing shows in notifications. They stay hidden until you show them here, and hide again when the app restarts. They can still be found with search.</string>
+
+    <!-- Video library -->
+    <string name="RivContinueWatching">Continue watching</string>
+    <string name="RivMyList">My List</string>
+    <string name="RivMyListAdd">My List</string>
+    <string name="RivPlay">Play</string>
+    <string name="RivVideosEmptyTitle">Your video library is empty</string>
+    <string name="RivVideosEmptyHint">Add a chat or channel to give it its own row here.</string>
+    <string name="RivCast">Cast</string>
+    <string name="RivThisEpisode">This episode</string>
+    <string name="RivSeason">Season</string>
+    <string name="RivEpisode">Episode</string>
+    <string name="RivNoOnlineInfo">No online info found for this title.</string>
+    <string name="RivInfoFrom">Info from</string>
+    <string name="RivMinutesShort">min</string>
+
+    <!-- Video & music metadata settings -->
+    <string name="RivMetaHeader">Video &amp; music info</string>
+    <string name="RivTmdbKey">TMDb API key</string>
+    <string name="RivUseTmdb">Use TMDb</string>
+    <string name="RivTvdbKey">TheTVDB API key</string>
+    <string name="RivTvdbPin">TheTVDB subscriber PIN</string>
+    <string name="RivUseTvdb">Use TheTVDB</string>
+    <string name="RivPreferTvdbShows">Prefer TheTVDB for shows</string>
+    <string name="RivPreferTvdbShowsInfo">Use TheTVDB first for TV shows instead of TMDb</string>
+    <string name="RivCleanTitles">Clean up titles</string>
+    <string name="RivCleanTitlesInfo">Show tidy titles instead of raw file names</string>
+    <string name="RivMetaFooter">With your own TMDb or TheTVDB key, Riv Videos shows posters, backdrops, overviews and cast for your videos. Both are free to sign up for. Nothing is uploaded except the title you\'re looking up.</string>
+    <string name="RivNotSet">Not set</string>
+
+    <!-- Music library -->
+    <string name="RivSearchSongs">Search songs</string>
+    <string name="RivTabAll">All chats</string>
+    <string name="RivTabPlaylists">Playlists</string>
+    <string name="RivTabAlbums">Albums</string>
+    <string name="RivTabArtists">Artists</string>
+    <string name="RivTabFavorites">Favorites</string>
+    <string name="RivMusicEmptyTitle">Your music library is empty</string>
+    <string name="RivNewPlaylist">New playlist</string>
+    <string name="RivSongsCount">songs</string>
+    <string name="RivUnknownArtist">Unknown artist</string>
+    <string name="RivPlayNext">Play next</string>
+    <string name="RivAddToQueue">Add to queue</string>
+    <string name="RivAddToPlaylist">Add to playlist</string>
+    <string name="RivRemoveFromPlaylist">Remove from playlist</string>
+    <string name="RivHideSong">Hide song</string>
+    <string name="RivGoToMessage">Go to message</string>
+
+    <!-- Music player (Now Playing) -->
+    <string name="RivPlaying">Playing</string>
+    <string name="RivLyrics">Lyrics</string>
+    <string name="RivQueue">Queue</string>
+    <string name="RivNoLyricsFound">No lyrics found</string>
+    <string name="RivPhoneSpeaker">Phone speaker</string>
+    <string name="RivBluetooth">Bluetooth</string>
+    <string name="RivWiredHeadphones">Wired headphones</string>
+    <string name="RivSleepTimer">Sleep timer</string>
+    <string name="RivMinutesWord">minutes</string>
+    <string name="RivTurnOff">Turn off</string>
+    <string name="RivSpeed">Speed</string>
+    <string name="RivEqualizer">Equalizer</string>
+    <string name="RivEqualizerInfo">A system equalizer isn\'t wired in yet in this version. Coming soon.</string>
+
+    <!-- Extras: quick replies, export chat, VIP contacts -->
+    <string name="RivQuickReplies">Quick replies</string>
+    <string name="RivQuickRepliesInfo">Tap a snippet to copy it, then paste it into any chat\'s message box.</string>
+    <string name="RivAddQuickReply">Add a quick reply</string>
+    <string name="RivQuickReplyHint">Snippet text</string>
+    <string name="RivDeleteQuickReply">Delete this quick reply?</string>
+    <string name="RivCopied">Copied</string>
+    <string name="RivExportChat">Export a chat</string>
+    <string name="RivExportChatInfo">Saves a chat\'s messages to a text file you can share or keep. Large chats take a little while.</string>
+    <string name="RivPickChatToExport">Pick a chat to export</string>
+    <string name="RivStartExport">Start export</string>
+    <string name="RivExportFailed">Couldn\'t export this chat.</string>
+    <string name="RivMediaMessage">media</string>
+    <string name="RivVipContacts">VIP contacts</string>
+    <string name="RivVipContactsInfo">VIP senders will bypass Quiet Hours once that feature is added. For now this list is just kept ready.</string>
+    <string name="RivVipContactsFooter">Mark a contact as VIP so their messages always get through, even during quiet hours.</string>
+    <string name="RivAddVipContact">Add a VIP contact</string>
 </resources>
