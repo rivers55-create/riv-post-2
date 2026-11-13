@@ -87,7 +87,7 @@ public class RivIcon extends View {
                 canvas.drawPath(p, paint);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(AndroidUtilities.dp(1.6f));
-                canvas.drawArc(cx + s * 0.35f, cy - s * 0.6f, cx + s * 1.1f, cy + s * 0.6f, -55, 110, false);
+                canvas.drawArc(cx + s * 0.35f, cy - s * 0.6f, cx + s * 1.1f, cy + s * 0.6f, -55, 110, false, paint);
                 paint.setStyle(Paint.Style.FILL);
                 break;
             }
@@ -154,7 +154,7 @@ public class RivIcon extends View {
             case REPEAT_ONE: {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(AndroidUtilities.dp(1.8f));
-                canvas.drawArc(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f, -200, 290, false);
+                canvas.drawArc(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f, -200, 290, false, paint);
                 paint.setStyle(Paint.Style.FILL);
                 drawArrowHead(canvas, cx + s * 0.6f, cy - s * 0.55f, s * 0.22f, false);
                 if (kind == REPEAT_ONE) {
@@ -178,7 +178,7 @@ public class RivIcon extends View {
             case SPEED: {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(AndroidUtilities.dp(1.8f));
-                canvas.drawArc(cx - s * 0.8f, cy - s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, 180, 180, false);
+                canvas.drawArc(cx - s * 0.8f, cy - s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, 180, 180, false, paint);
                 canvas.drawLine(cx, cy, cx + s * 0.45f, cy - s * 0.35f, paint);
                 break;
             }

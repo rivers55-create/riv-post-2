@@ -265,7 +265,7 @@ public class RivVideosActivity extends BaseFragment {
         PhotoViewer.getInstance().setParentActivity(this);
         int index = playlist.indexOf(m);
         if (index < 0) index = 0;
-        PhotoViewer.getInstance().openPhoto(playlist, index, m.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
+        PhotoViewer.getInstance().openPhoto(new ArrayList<>(playlist), index, m.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
     }
 
     // ---------------------------------------------------------------- rows

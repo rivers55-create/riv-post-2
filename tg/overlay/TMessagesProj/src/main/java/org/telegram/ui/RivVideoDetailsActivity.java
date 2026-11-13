@@ -218,7 +218,7 @@ public class RivVideoDetailsActivity extends BaseFragment {
         PhotoViewer.getInstance().setParentActivity(this);
         int index = playlist.indexOf(video);
         List<MessageObject> list = playlist.isEmpty() ? new ArrayList<>(java.util.Collections.singletonList(video)) : playlist;
-        PhotoViewer.getInstance().openPhoto(list, Math.max(0, index), video.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
+        PhotoViewer.getInstance().openPhoto(new ArrayList<>(list), Math.max(0, index), video.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
     }
 
     private void bindInfo() {
