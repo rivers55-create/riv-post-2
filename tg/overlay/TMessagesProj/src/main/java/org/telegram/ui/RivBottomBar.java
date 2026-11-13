@@ -196,9 +196,21 @@ public class RivBottomBar extends LinearLayout {
     /**
      * Returns to the root Chats screen regardless of how many Riv screens were pushed on top
      * of it (e.g. Music -> Videos -> tap Chats should land back on Chats, not just go back one
-     * step). Finds the deepest DialogsActivity already on the stack and drops everything above
-     * it; if none is found (shouldn't normally happen, since every one of these screens is
-     * reached from a Chats-rooted stack), falls back to a plain finishFragment().
+     * step). Finds the deepest DialogsActivity already on the stack and drops everything strictly
+     * between it and the current fragment, then closes the current fragment normally so
+     * ActionBarLayout's own closeLastFragment() transitions onto whatever is now directly beneath
+     * it on the stack -- which, once everything in between has been dropped, is root itself.
+     *
+     * Important: the fragment calling this (the current screen) is deliberately NOT included in
+     * the forced-removal pass. ActionBarLayout.closeLastFragment() reads fragmentsStack.get(size-1)
+     * as "the fragment to close" and fragmentsStack.get(size-2) as "the fragment to reveal"; if the
+     * current fragment were force-removed first, the stack's top would already be root with nothing
+     * below it by the time closeLastFragment() ran, so it would hit the no-previous-fragment branch
+     * instead of the normal transition-to-previous-fragment branch and root would never actually be
+     * shown. Removing only the fragments strictly above the current one, then letting
+     * closeLastFragment() close the current one normally, is what makes root end up revealed.
+     * If none is found (shouldn't normally happen, since every one of these screens is reached
+     * from a Chats-rooted stack), falls back to a plain finishFragment().
      */
     private static void goToChats(BaseFragment fragment) {
         org.telegram.ui.ActionBar.INavigationLayout layout = fragment.getParentLayout();
@@ -218,18 +230,24 @@ public class RivBottomBar extends LinearLayout {
             fragment.finishFragment();
             return;
         }
-        java.util.List<BaseFragment> above = new java.util.ArrayList<>();
+        // Everything strictly between root and the current fragment (exclusive of both ends).
+        java.util.List<BaseFragment> between = new java.util.ArrayList<>();
         boolean pastRoot = false;
         for (BaseFragment f : stack) {
             if (f == root) {
                 pastRoot = true;
                 continue;
             }
-            if (pastRoot) above.add(f);
+            if (f == fragment) {
+                break;
+            }
+            if (pastRoot) between.add(f);
         }
-        for (int i = above.size() - 1; i >= 0; i--) {
-            layout.removeFragmentFromStack(above.get(i), true);
+        for (int i = between.size() - 1; i >= 0; i--) {
+            layout.removeFragmentFromStack(between.get(i), true);
         }
+        // Now the stack is [..., root, fragment] with nothing in between, so closing the last
+        // fragment (the current one) correctly reveals root.
         layout.closeLastFragment();
     }
 }
