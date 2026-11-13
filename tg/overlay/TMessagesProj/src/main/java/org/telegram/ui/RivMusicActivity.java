@@ -122,7 +122,10 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
 
         LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.navigationBarHeight;
+        // Riv Post: AndroidUtilities.navigationBarHeight is never actually set anywhere in real
+        // Telegram, so it's always 0 -- getViewInset() reads the real, live nav-bar height off
+        // the window instead, so the list and bottom bar don't end up under the phone's own nav bar.
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.getViewInset(root);
         root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, bottomBarSpace));
 
         // search bar

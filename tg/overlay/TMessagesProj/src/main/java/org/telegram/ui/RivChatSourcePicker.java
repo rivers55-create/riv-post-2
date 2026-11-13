@@ -58,6 +58,8 @@ public class RivChatSourcePicker extends BaseFragment {
     private EditText searchField;
     private RecyclerListView listView;
     private RowAdapter adapter;
+    private boolean showPreviewBtn;
+    private LinearLayout column;
     private String query = "";
     private final List<TLRPC.Dialog> allDialogs = new ArrayList<>();
 
@@ -78,12 +80,39 @@ public class RivChatSourcePicker extends BaseFragment {
     }
 
     // Riv Post: tells the framework which RecyclerListView to inset for simpleActionBar, so the
-    // header is attached and the description/search/list row no longer start under the status
-    // bar and title. Without this override (the default returns null) the header is created but
-    // never wired to this screen's content at all.
+    // header is attached. The framework only ever pads this one view though, and on this screen
+    // "desc" and "searchBar" sit above listView as separate siblings in the same column, so they
+    // never got pushed down -- only listView did, which is why the search box still showed up
+    // partly under the title. onInsets() below pushes the whole column down instead, and cancels
+    // out listView's own top padding so it isn't pushed down twice.
     @Override
     protected RecyclerListView getListViewForSimpleGlass() {
         return listView;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        super.onInsets(left, top, right, bottom);
+        applyHeaderInset();
+    }
+
+    private void applyHeaderInset() {
+        if (column == null) return;
+        int headerHeight = mSystemInsets.top + ActionBar.getCurrentActionBarHeight();
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) column.getLayoutParams();
+        if (lp != null && lp.topMargin != headerHeight) {
+            lp.topMargin = headerHeight;
+            column.setLayoutParams(lp);
+        }
+        // Riv Post: the framework resets listView's own padding (top AND bottom) on every inset
+        // change, which would silently wipe out the room reserved below for the floating preview
+        // button -- so that room is recomputed here every time instead of just being preserved.
+        if (listView != null) {
+            int listBottomPad = showPreviewBtn ? AndroidUtilities.dp(84) : AndroidUtilities.dp(8);
+            if (listView.getPaddingTop() != 0 || listView.getPaddingBottom() != listBottomPad) {
+                listView.setPadding(listView.getPaddingLeft(), 0, listView.getPaddingRight(), listBottomPad);
+            }
+        }
     }
 
     @Override
@@ -112,9 +141,10 @@ public class RivChatSourcePicker extends BaseFragment {
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         fragmentView = root;
 
-        LinearLayout column = new LinearLayout(context);
+        column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
         root.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        applyHeaderInset();
 
         TextView desc = new TextView(context);
         desc.setText(description);
@@ -164,9 +194,8 @@ public class RivChatSourcePicker extends BaseFragment {
         // Riv Post: reserve room at the bottom of the list so the floating preview button (added
         // below) never sits on top of the last row; clipToPadding(false) keeps that last row
         // scrollable all the way into view instead of stopping short.
-        boolean showPreviewBtn = !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.HIDE_SOURCE_PREVIEW_BUTTON);
-        int listBottomPad = showPreviewBtn ? AndroidUtilities.dp(84) : AndroidUtilities.dp(8);
-        listView.setPadding(0, 0, 0, listBottomPad);
+        showPreviewBtn = !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.HIDE_SOURCE_PREVIEW_BUTTON);
+        applyHeaderInset();
         listView.setClipToPadding(false);
         listWrap.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 

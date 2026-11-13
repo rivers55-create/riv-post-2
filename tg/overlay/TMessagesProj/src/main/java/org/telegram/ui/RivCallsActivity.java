@@ -77,10 +77,26 @@ public class RivCallsActivity extends BaseFragment {
 
     // Riv Post: without this, the header is created but never wired to this screen's list, so
     // the stats block and the call list start drawing under the status bar and title instead
-    // of below them.
+    // of below them. The framework re-applies listView's padding on every inset change and
+    // always sets its own bottom padding to just the nav-bar inset (overwriting whatever this
+    // screen set for the bottom bar), so onInsets() below re-adds room for the bar every time.
     @Override
     protected RecyclerListView getListViewForSimpleGlass() {
         return listView;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        super.onInsets(left, top, right, bottom);
+        applyBottomBarPadding();
+    }
+
+    private void applyBottomBarPadding() {
+        if (listView == null) return;
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + mSystemInsets.bottom;
+        if (listView.getPaddingBottom() != bottomBarSpace) {
+            listView.setPadding(listView.getPaddingLeft(), listView.getPaddingTop(), listView.getPaddingRight(), bottomBarSpace);
+        }
     }
 
     @Override
@@ -154,8 +170,7 @@ public class RivCallsActivity extends BaseFragment {
         });
         column.addView(listView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, 1f));
 
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.navigationBarHeight;
-        listView.setPadding(0, 0, 0, bottomBarSpace);
+        applyBottomBarPadding();
         listView.setClipToPadding(false);
 
         TextView empty = new TextView(context);

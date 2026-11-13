@@ -60,6 +60,7 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
     private final HashSet<String> videoKeys = new HashSet<>();
     private int loading = 0;
     private FrameLayout root;
+    private LinearLayout column;
     private RivMiniPlayerView miniPlayer;
     private LinearLayout sourceFilterRow;
 
@@ -85,11 +86,38 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
         return true;
     }
 
-    // Riv Post: without this, the header is created but never wired to this screen's list, so
-    // the hero banner/shelves start drawing under the status bar and title instead of below them.
+    // Riv Post: the framework only ever pads this one view, but sourceFilterRow sits above
+    // listView as a separate sibling in the same column, so it never got pushed down -- only
+    // listView did. onInsets() below pushes the whole column down instead (keeping its existing
+    // bottom margin for the bottom bar), and cancels out listView's own top padding so it isn't
+    // pushed down twice.
     @Override
     protected RecyclerListView getListViewForSimpleGlass() {
         return listView;
+    }
+
+    @Override
+    public void onInsets(int left, int top, int right, int bottom) {
+        super.onInsets(left, top, right, bottom);
+        applyHeaderInset();
+    }
+
+    private void applyHeaderInset() {
+        if (column == null) return;
+        int headerHeight = mSystemInsets.top + ActionBar.getCurrentActionBarHeight();
+        // Riv Post: AndroidUtilities.navigationBarHeight (used when column was first built) is
+        // never actually set anywhere in real Telegram, so it's always 0 -- mSystemInsets.bottom
+        // is the real, live nav-bar height, same value BaseFragment.getBottomInset() returns.
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + mSystemInsets.bottom;
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) column.getLayoutParams();
+        if (lp != null && (lp.topMargin != headerHeight || lp.bottomMargin != bottomBarSpace)) {
+            lp.topMargin = headerHeight;
+            lp.bottomMargin = bottomBarSpace;
+            column.setLayoutParams(lp);
+        }
+        if (listView != null && listView.getPaddingTop() != 0) {
+            listView.setPadding(listView.getPaddingLeft(), 0, listView.getPaddingRight(), listView.getPaddingBottom());
+        }
     }
 
     @Override
@@ -142,10 +170,10 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         fragmentView = root;
 
-        LinearLayout column = new LinearLayout(context);
+        column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.navigationBarHeight;
-        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, bottomBarSpace));
+        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, AndroidUtilities.dp(RivBottomBar.HEIGHT_DP)));
+        applyHeaderInset();
 
         sourceFilterRow = buildSourceFilterRow(context);
         column.addView(sourceFilterRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));

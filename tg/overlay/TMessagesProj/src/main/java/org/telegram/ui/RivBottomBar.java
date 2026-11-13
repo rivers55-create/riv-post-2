@@ -159,10 +159,18 @@ public class RivBottomBar extends LinearLayout {
     public static Docked attach(BaseFragment fragment, FrameLayout contentView, int activeTab, int bottomMarginPx) {
         Context context = contentView.getContext();
 
+        // Riv Post: bottomMarginPx is almost always 0 by the time the caller reads it (it comes
+        // from AndroidUtilities.navigationBarHeight, which nothing in real Telegram ever actually
+        // sets), so the bar and mini-player used to sit flush against the very bottom of the
+        // screen, under the phone's own nav bar. AndroidUtilities.getViewInset() reads the real,
+        // live inset straight off the window instead, and the layout listener below keeps it
+        // correct if the inset changes later (rotation, switching gesture nav on/off).
+        final int[] navInset = {Math.max(bottomMarginPx, AndroidUtilities.getViewInset(contentView))};
+
         RivMiniPlayerView miniPlayer = new RivMiniPlayerView(context);
         miniPlayer.setVisibility(android.view.View.GONE);
         miniPlayer.setOnOpenPlayer(() -> fragment.presentFragment(new RivMusicPlayerActivity()));
-        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, 0, 0, 0, bottomMarginPx + AndroidUtilities.dp(HEIGHT_DP)));
+        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, 0, 0, 0, navInset[0] + AndroidUtilities.dp(HEIGHT_DP)));
         miniPlayer.refresh();
 
         RivBottomBar bar = new RivBottomBar(context);
@@ -188,7 +196,27 @@ public class RivBottomBar extends LinearLayout {
                 fragment.presentFragment(new ProfileActivity(args));
             }
         });
-        contentView.addView(bar, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, HEIGHT_DP, Gravity.BOTTOM, 0, 0, 0, bottomMarginPx));
+        contentView.addView(bar, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, HEIGHT_DP, Gravity.BOTTOM, 0, 0, 0, navInset[0]));
+
+        // Riv Post: re-checks the real inset on every layout pass and re-applies both margins
+        // when it changes, so this stays correct through rotation or a nav-mode change without
+        // needing every screen that calls attach() to wire up its own insets callback.
+        contentView.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            int inset = Math.max(bottomMarginPx, AndroidUtilities.getViewInset(contentView));
+            if (inset == navInset[0]) return;
+            navInset[0] = inset;
+            FrameLayout.LayoutParams barLp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+            if (barLp.bottomMargin != inset) {
+                barLp.bottomMargin = inset;
+                bar.setLayoutParams(barLp);
+            }
+            FrameLayout.LayoutParams playerLp = (FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
+            int playerMargin = inset + AndroidUtilities.dp(HEIGHT_DP);
+            if (playerLp.bottomMargin != playerMargin) {
+                playerLp.bottomMargin = playerMargin;
+                miniPlayer.setLayoutParams(playerLp);
+            }
+        });
 
         return new Docked(bar, miniPlayer);
     }

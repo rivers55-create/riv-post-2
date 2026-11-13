@@ -174,8 +174,12 @@ public class RivMiniPlayerView extends FrameLayout {
             hideFloating();
             if (fragment != null) fragment.presentFragment(new RivMusicPlayerActivity());
         });
+        // Riv Post: AndroidUtilities.navigationBarHeight is never actually set anywhere in real
+        // Telegram, so it's always 0 -- getViewInset() reads the real, live nav-bar height off
+        // the window instead.
+        int navInset = AndroidUtilities.getViewInset(decor);
         android.widget.FrameLayout.LayoutParams lp = LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, AndroidUtilities.dp(64), Gravity.BOTTOM,
-                0, 0, 0, AndroidUtilities.navigationBarHeight);
+                0, 0, 0, navInset);
         decor.addView(v, lp);
         v.refresh();
         floating = v;
