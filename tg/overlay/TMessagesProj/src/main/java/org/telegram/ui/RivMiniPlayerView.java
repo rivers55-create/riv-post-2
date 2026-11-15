@@ -33,7 +33,7 @@ public class RivMiniPlayerView extends FrameLayout {
     private final TextView title;
     private final TextView artist;
     private final RivIcon favIcon;
-    private final ImageView playPauseIcon;
+    private final RivIcon playPauseIcon;
     private final View progressLine;
     private Runnable onOpenPlayer;
 
@@ -48,7 +48,7 @@ public class RivMiniPlayerView extends FrameLayout {
 
         LinearLayout col = new LinearLayout(context);
         col.setOrientation(LinearLayout.VERTICAL);
-        addView(col, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.LEFT, 66, 0, 120, 0));
+        addView(col, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.LEFT, 66, 0, 140, 0));
 
         title = new TextView(context);
         title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
@@ -70,15 +70,19 @@ public class RivMiniPlayerView extends FrameLayout {
         right.setGravity(Gravity.CENTER_VERTICAL);
         addView(right, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER_VERTICAL | Gravity.RIGHT, 0, 0, 6, 0));
 
+        // Riv Post: each icon now sits at a normal 22dp size inside its own 44dp tap area; before,
+        // the icons were drawn at the full 40dp box size, so the speaker looked huge and the
+        // play button was cut off at the edge.
         RivIcon outputIcon = new RivIcon(context);
         outputIcon.setKind(RivIcon.SPEAKER);
         outputIcon.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
-        right.addView(outputIcon, LayoutHelper.createLinear(40, 40));
+        right.addView(wrap(context, outputIcon), LayoutHelper.createLinear(44, 44));
 
         favIcon = new RivIcon(context);
         favIcon.setKind(RivIcon.HEART_OUTLINE);
-        right.addView(favIcon, LayoutHelper.createLinear(40, 40));
-        favIcon.setOnClickListener(v -> {
+        FrameLayout favWrap = wrap(context, favIcon);
+        right.addView(favWrap, LayoutHelper.createLinear(44, 44));
+        favWrap.setOnClickListener(v -> {
             MessageObject m = MediaController.getInstance().getPlayingMessageObject();
             if (m != null) {
                 RivMeta.toggleFavoriteSong(RivMusicActivity.keyOf(m));
@@ -86,11 +90,11 @@ public class RivMiniPlayerView extends FrameLayout {
             }
         });
 
-        playPauseIcon = new ImageView(context);
-        playPauseIcon.setPadding(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6), 0);
-        playPauseIcon.setColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        right.addView(playPauseIcon, LayoutHelper.createLinear(40, 40));
-        playPauseIcon.setOnClickListener(v -> {
+        playPauseIcon = new RivIcon(context);
+        playPauseIcon.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        FrameLayout playWrap = wrap(context, playPauseIcon);
+        right.addView(playWrap, LayoutHelper.createLinear(44, 44));
+        playWrap.setOnClickListener(v -> {
             MessageObject m = MediaController.getInstance().getPlayingMessageObject();
             if (m == null) return;
             if (MediaController.getInstance().isMessagePaused()) {
@@ -108,6 +112,35 @@ public class RivMiniPlayerView extends FrameLayout {
         setOnClickListener(v -> {
             if (onOpenPlayer != null) onOpenPlayer.run();
         });
+    }
+
+    private static FrameLayout wrap(Context context, RivIcon icon) {
+        FrameLayout f = new FrameLayout(context);
+        f.addView(icon, LayoutHelper.createFrame(22, 22, Gravity.CENTER));
+        return f;
+    }
+
+    // Riv Post: keeps itself current (song, play/pause, progress, shown/hidden) on every page,
+    // not only on the pages that remembered to call refresh().
+    private final Runnable tick = new Runnable() {
+        @Override
+        public void run() {
+            refresh();
+            AndroidUtilities.runOnUIThread(this, 1000);
+        }
+    };
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        AndroidUtilities.cancelRunOnUIThread(tick);
+        AndroidUtilities.runOnUIThread(tick, 300);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        AndroidUtilities.cancelRunOnUIThread(tick);
     }
 
     public void setOnOpenPlayer(Runnable r) {
@@ -155,7 +188,7 @@ public class RivMiniPlayerView extends FrameLayout {
 
     private void updatePlayPause() {
         boolean playing = !MediaController.getInstance().isMessagePaused();
-        playPauseIcon.setImageResource(playing ? R.drawable.ic_action_pause : R.drawable.ic_action_play);
+        playPauseIcon.setKind(playing ? RivIcon.PAUSE : RivIcon.PLAY);
     }
 
     // ---- Floating overlay shown over a chat (not docked above RivBottomBar) ----
@@ -179,7 +212,7 @@ public class RivMiniPlayerView extends FrameLayout {
         // Telegram, so it's always 0 -- getViewInset() reads the real, live nav-bar height off
         // the window instead.
         int navInset = AndroidUtilities.getViewInset(decor);
-        android.widget.FrameLayout.LayoutParams lp = LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, AndroidUtilities.dp(64), Gravity.BOTTOM,
+        android.widget.FrameLayout.LayoutParams lp = LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM,
                 0, 0, 0, navInset);
         decor.addView(v, lp);
         v.refresh();

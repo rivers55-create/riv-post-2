@@ -30,6 +30,7 @@ import org.telegram.messenger.RivMeta;
 import org.telegram.messenger.RivMusicStats;
 import org.telegram.messenger.RivPlaylists;
 import org.telegram.messenger.RivPrefs;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -784,7 +785,42 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
         RecyclerListView list = new RecyclerListView(context);
         list.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         list.setAdapter(new SongAdapter(context, songs, currentPlaylist));
-        return list;
+        if (songs == null || songs.size() < 2) return list;
+        // Riv Post: "Play all" / "Shuffle" above any song list (a whole chat, an artist, a
+        // playlist, favourites...), so a chat can be played like an album in one tap.
+        LinearLayout col = new LinearLayout(context);
+        col.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout buttons = new LinearLayout(context);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(4), AndroidUtilities.dp(12), AndroidUtilities.dp(6));
+        buttons.addView(actionPill(context, "\u25B6  " + LocaleController.getString(R.string.RivPlayAll), v -> {
+            if (SharedConfig.shuffleMusic) MediaController.getInstance().setPlaybackOrderType(0);
+            playFrom(songs, songs.get(0));
+        }), LayoutHelper.createLinear(0, 40, 1f, 0, 0, 6, 0));
+        buttons.addView(actionPill(context, "\u21C4  " + LocaleController.getString(R.string.RivShuffle), v -> {
+            MessageObject first = songs.get(new java.util.Random().nextInt(songs.size()));
+            if (!SharedConfig.shuffleMusic) MediaController.getInstance().setPlaybackOrderType(2);
+            playFrom(songs, first);
+        }), LayoutHelper.createLinear(0, 40, 1f, 6, 0, 0, 0));
+        col.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        col.addView(list, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        return col;
+    }
+
+    private TextView actionPill(Context context, String text, View.OnClickListener l) {
+        TextView t = new TextView(context);
+        t.setText(text);
+        t.setTextSize(14);
+        t.setTypeface(AndroidUtilities.bold());
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
+        t.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        bg.setCornerRadius(AndroidUtilities.dp(20));
+        t.setBackground(bg);
+        t.setOnClickListener(l);
+        return t;
     }
 
     private void playFrom(List<MessageObject> list, MessageObject m) {

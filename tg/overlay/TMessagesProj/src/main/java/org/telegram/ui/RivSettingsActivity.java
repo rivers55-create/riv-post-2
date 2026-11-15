@@ -78,6 +78,11 @@ public class RivSettingsActivity extends RivFragment {
         exportChat.setText(LocaleController.getString(R.string.RivExportChat), false);
         exportChat.setOnClickListener(v -> presentFragment(new RivExportChatActivity()));
         layout.addView(exportChat);
+        TextSettingsCell downloads = new TextSettingsCell(context);
+        downloads.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        downloads.setText(LocaleController.getString(R.string.RivDownloads), false);
+        downloads.setOnClickListener(v -> presentFragment(new RivDownloadsActivity()));
+        layout.addView(downloads);
         layout.addView(info(context, LocaleController.getString(R.string.RivLibrariesInfo)));
 
         // ---- Video & music metadata (optional, user's own keys)
@@ -142,6 +147,18 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivFastDownloads), LocaleController.getString(R.string.RivFastDownloadsInfo), RivPrefs.FAST_DOWNLOADS));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivExactLastSeen), LocaleController.getString(R.string.RivExactLastSeenInfo), RivPrefs.EXACT_LAST_SEEN));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivShowUserId), LocaleController.getString(R.string.RivShowUserIdInfo), RivPrefs.SHOW_USER_ID));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivQuickReplyInsert), LocaleController.getString(R.string.RivQuickReplyInsertInfo), RivPrefs.QUICK_REPLY_INSERT));
+        layout.addView(check(context, LocaleController.getString(R.string.RivBadgeMuted), LocaleController.getString(R.string.RivBadgeMutedInfo), RivPrefs.BADGE_MUTED, true));
+        quietCell = new TextSettingsCell(context);
+        quietCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        updateQuietCell();
+        quietCell.setOnClickListener(v -> pickQuietHours(context));
+        layout.addView(quietCell);
+        TextSettingsCell swipe = new TextSettingsCell(context);
+        swipe.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        swipe.setText(LocaleController.getString(R.string.RivSwipeGesture), false);
+        swipe.setOnClickListener(v -> presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC)));
+        layout.addView(swipe);
         layout.addView(info(context, LocaleController.getString(R.string.RivChatsFooter)));
 
         // ---- Music & video players
@@ -150,6 +167,8 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivLyricsSwitch), LocaleController.getString(R.string.RivLyricsSwitchInfo), RivPrefs.LYRICS));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivLyricsOnline), LocaleController.getString(R.string.RivLyricsOnlineInfo), RivPrefs.LYRICS_ONLINE));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivVideoPlayerRvp), LocaleController.getString(R.string.RivVideoPlayerRvpInfo), RivPrefs.VIDEO_PLAYER_RVP));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivSubtitlesSwitch), LocaleController.getString(R.string.RivSubtitlesSwitchInfo), RivPrefs.SUBTITLES));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivSleepFade), LocaleController.getString(R.string.RivSleepFadeInfo), RivPrefs.SLEEP_FADE));
         layout.addView(info(context, LocaleController.getString(R.string.RivPlayersFooter)));
 
         // ---- In-chat music player
@@ -171,6 +190,7 @@ public class RivSettingsActivity extends RivFragment {
         vault.setText(LocaleController.getString(R.string.RivVault), true);
         vault.setOnClickListener(v -> presentFragment(new RivVaultActivity()));
         layout.addView(vault);
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivVaultFingerprint), LocaleController.getString(R.string.RivVaultFingerprintInfo), RivPrefs.VAULT_FINGERPRINT));
         TextCheckCell ghostCell = new TextCheckCell(context);
         ghostCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         ghostCell.setTextAndValueAndCheck(LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.ghost(), true, true);
@@ -196,6 +216,37 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(vipContacts);
         layout.addView(info(context, LocaleController.getString(R.string.RivVipContactsFooter)));
 
+        // ---- Backup
+        layout.addView(header(context, LocaleController.getString(R.string.RivBackupHeader)));
+        TextSettingsCell backup = new TextSettingsCell(context);
+        backup.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        backup.setText(LocaleController.getString(R.string.RivBackupSave), true);
+        backup.setOnClickListener(v -> {
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT);
+            i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            i.setType("application/json");
+            i.putExtra(android.content.Intent.EXTRA_TITLE, "RivPost-settings.json");
+            try {
+                startActivityForResult(i, REQ_BACKUP);
+            } catch (Throwable ignored) {
+            }
+        });
+        layout.addView(backup);
+        TextSettingsCell restore = new TextSettingsCell(context);
+        restore.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        restore.setText(LocaleController.getString(R.string.RivBackupRestore), false);
+        restore.setOnClickListener(v -> {
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            try {
+                startActivityForResult(i, REQ_RESTORE);
+            } catch (Throwable ignored) {
+            }
+        });
+        layout.addView(restore);
+        layout.addView(info(context, LocaleController.getString(R.string.RivBackupFooter)));
+
         // ---- Help
         layout.addView(header(context, LocaleController.getString(R.string.RivHelpHeader)));
         TextSettingsCell log = new TextSettingsCell(context);
@@ -210,6 +261,58 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(info(context, LocaleController.getString(R.string.RivComingFooter)));
 
         return fragmentView;
+    }
+
+    private static final int REQ_BACKUP = 9301;
+    private static final int REQ_RESTORE = 9302;
+    private TextSettingsCell quietCell;
+
+    private void updateQuietCell() {
+        if (quietCell == null) return;
+        quietCell.setTextAndValue(LocaleController.getString(R.string.RivQuietHours),
+                org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.from()) + " \u2013 " + org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.to()), false, true);
+    }
+
+    private void pickQuietHours(Context context) {
+        if (getParentActivity() == null) return;
+        int from = org.telegram.messenger.RivQuiet.from();
+        new android.app.TimePickerDialog(getParentActivity(), (v1, h1, m1) -> {
+            RivPrefs.set(RivPrefs.QUIET_FROM, h1 * 60 + m1);
+            int to = org.telegram.messenger.RivQuiet.to();
+            new android.app.TimePickerDialog(getParentActivity(), (v2, h2, m2) -> {
+                RivPrefs.set(RivPrefs.QUIET_TO, h2 * 60 + m2);
+                updateQuietCell();
+            }, to / 60, to % 60, true).show();
+        }, from / 60, from % 60, true).show();
+        android.widget.Toast.makeText(context, LocaleController.getString(R.string.RivQuietPickStart), android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (resultCode != android.app.Activity.RESULT_OK || data == null || data.getData() == null || getParentActivity() == null) return;
+        android.net.Uri uri = data.getData();
+        try {
+            if (requestCode == REQ_BACKUP) {
+                try (java.io.OutputStream out = getParentActivity().getContentResolver().openOutputStream(uri)) {
+                    out.write(RivPrefs.exportAll().getBytes("UTF-8"));
+                }
+                android.widget.Toast.makeText(getParentActivity(), LocaleController.getString(R.string.RivBackupSaved), android.widget.Toast.LENGTH_LONG).show();
+            } else if (requestCode == REQ_RESTORE) {
+                java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                try (java.io.InputStream in = getParentActivity().getContentResolver().openInputStream(uri)) {
+                    byte[] b = new byte[8192];
+                    int r;
+                    while ((r = in.read(b)) > 0) buf.write(b, 0, r);
+                }
+                int n = RivPrefs.importAll(buf.toString("UTF-8"));
+                Theme.refreshThemeColors();
+                android.widget.Toast.makeText(getParentActivity(), LocaleController.formatString(R.string.RivBackupRestored, n), android.widget.Toast.LENGTH_LONG).show();
+                finishFragment();
+            }
+        } catch (Throwable t) {
+            android.widget.Toast.makeText(getParentActivity(), LocaleController.getString(R.string.RivBackupFailed), android.widget.Toast.LENGTH_LONG).show();
+        }
     }
 
     private View space(Context context, int height) {

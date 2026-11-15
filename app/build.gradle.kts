@@ -18,10 +18,12 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("rivpost-release.jks")
-            storePassword = "JEBSunegi18WsKssaZXOc5T3"
+            // Riv Post: the old app's key and password are no longer kept in this public project.
+            // To build the old app again, put the key file here and set these two values.
+            storeFile = file(System.getenv("RIVPOST_KEYSTORE") ?: "rivpost-release.jks")
+            storePassword = System.getenv("RIVPOST_KEY_PASSWORD") ?: ""
             keyAlias = "rivpost"
-            keyPassword = "JEBSunegi18WsKssaZXOc5T3"
+            keyPassword = System.getenv("RIVPOST_KEY_PASSWORD") ?: ""
         }
     }
 

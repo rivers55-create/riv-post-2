@@ -220,6 +220,42 @@ public class RivVaultActivity extends RivFragment {
             onOk.run();
             return;
         }
+        if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.VAULT_FINGERPRINT, true) && android.os.Build.VERSION.SDK_INT >= 28 && getParentActivity() != null) {
+            // Riv Post: fingerprint first; "Use PIN" (or any failure) falls back to the PIN box
+            final boolean[] fellBack = {false};
+            final Runnable toPin = () -> {
+                if (fellBack[0]) return;
+                fellBack[0] = true;
+                askPinBox(context, onOk);
+            };
+            try {
+                android.hardware.biometrics.BiometricPrompt prompt = new android.hardware.biometrics.BiometricPrompt.Builder(getParentActivity())
+                        .setTitle(LocaleController.getString(R.string.RivVault))
+                        .setNegativeButton(LocaleController.getString(R.string.RivUsePin), getParentActivity().getMainExecutor(), (d, w) -> toPin.run())
+                        .build();
+                prompt.authenticate(new android.os.CancellationSignal(), getParentActivity().getMainExecutor(), new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
+                        onOk.run();
+                    }
+
+                    @Override
+                    public void onAuthenticationError(int errorCode, CharSequence errString) {
+                        if (errorCode != android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
+                                && errorCode != android.hardware.biometrics.BiometricPrompt.BIOMETRIC_ERROR_CANCELED) {
+                            toPin.run();
+                        }
+                    }
+                });
+                return;
+            } catch (Throwable ignored) {
+            }
+        }
+        askPinBox(context, onOk);
+    }
+
+    private void askPinBox(Context context, Runnable onOk) {
+        if (getParentActivity() == null) return;
         FrameLayout wrap = new FrameLayout(context);
         EditText edit = pinField(context, wrap);
         AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());

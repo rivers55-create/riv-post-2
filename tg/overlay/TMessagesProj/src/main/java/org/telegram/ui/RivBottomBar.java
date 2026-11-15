@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -83,6 +84,7 @@ public class RivBottomBar extends LinearLayout {
         final FrameLayout iconWrap;
         final RivIcon icon;
         final TextView label;
+        final TextView badge;
 
         Item(Context context) {
             super(context);
@@ -95,6 +97,22 @@ public class RivBottomBar extends LinearLayout {
 
             icon = new RivIcon(context);
             iconWrap.addView(icon, LayoutHelper.createFrame(24, 24, Gravity.CENTER));
+
+            badge = new TextView(context);
+            badge.setTextSize(10);
+            badge.setTypeface(AndroidUtilities.bold());
+            badge.setTextColor(0xFFFFFFFF);
+            badge.setGravity(Gravity.CENTER);
+            badge.setPadding(AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4), 0);
+            GradientDrawable bb = new GradientDrawable();
+            bb.setColor(0xFFE53935);
+            bb.setCornerRadius(AndroidUtilities.dp(8));
+            badge.setBackground(bb);
+            badge.setMinWidth(AndroidUtilities.dp(16));
+            badge.setVisibility(GONE);
+            setClipChildren(false);
+            iconWrap.setClipChildren(false);
+            iconWrap.addView(badge, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 16, Gravity.TOP | Gravity.RIGHT, 0, -4, -10, 0));
 
             label = new TextView(context);
             label.setTextSize(10.5f);
@@ -209,10 +227,23 @@ public class RivBottomBar extends LinearLayout {
         // correct if the inset changes later (rotation, switching gesture nav on/off).
         final int[] navInset = {Math.max(bottomMarginPx, AndroidUtilities.getViewInset(contentView))};
 
+        final int side = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
+        final int gap = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
+
+        // Riv Post: the strip under the bar (where the phone's own buttons sit) used to be see-
+        // through, so the list showed between the bar and the phone's buttons. It is now filled
+        // with the bar's colour (Classic and Icons-only looks; the Floating look floats on purpose).
+        View navFill = new View(context);
+        navFill.setBackgroundColor(barColor());
+        navFill.setClickable(true);
+        navFill.setVisibility(style() == STYLE_FLOATING ? View.GONE : View.VISIBLE);
+        contentView.addView(navFill, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 0, Gravity.BOTTOM, 0, 0, 0, 0));
+        navFill.getLayoutParams().height = navInset[0];
+
         RivMiniPlayerView miniPlayer = new RivMiniPlayerView(context);
         miniPlayer.setVisibility(android.view.View.GONE);
         miniPlayer.setOnOpenPlayer(() -> fragment.presentFragment(new RivMusicPlayerActivity()));
-        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, 0, 0, 0, navInset[0] + AndroidUtilities.dp(heightDp())));
+        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, side, 0, side, navInset[0] + AndroidUtilities.dp(heightDp()) + (gap > 0 ? AndroidUtilities.dp(4) : 0)));
         miniPlayer.refresh();
 
         RivBottomBar bar = new RivBottomBar(context);
@@ -248,31 +279,49 @@ public class RivBottomBar extends LinearLayout {
             }
             fragment.presentFragment(target, replace);
         });
-        final int side = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
-        final int gap = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
+        // long-press Chats: mark every chat as read (with a confirm)
+        bar.items[TAB_CHATS].setOnLongClickListener(v -> {
+            confirmMarkAllRead(fragment);
+            return true;
+        });
         contentView.addView(bar, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, barHeightDp(), Gravity.BOTTOM, side, 0, side, navInset[0] + gap));
+        bar.updateBadge(fragment.getCurrentAccount());
 
-        // Riv Post: re-checks the real inset on every layout pass and re-applies both margins
-        // when it changes, so this stays correct through rotation or a nav-mode change without
-        // needing every screen that calls attach() to wire up its own insets callback.
+        final Docked docked = new Docked(bar, miniPlayer);
+        registry.put(fragment, docked);
+        final boolean[] lastMiniVisible = {miniPlayer.getVisibility() == View.VISIBLE};
+
+        // Riv Post: re-checks the real inset on every layout pass and re-applies the margins
+        // when it changes (rotation, nav-mode change), and nudges the page to re-place its own
+        // floating buttons when the music bar appears or disappears.
         contentView.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            boolean miniVisible = miniPlayer.getVisibility() == View.VISIBLE;
+            if (miniVisible != lastMiniVisible[0]) {
+                lastMiniVisible[0] = miniVisible;
+                contentView.post(contentView::requestApplyInsets);
+            }
             int inset = Math.max(bottomMarginPx, AndroidUtilities.getViewInset(contentView));
             if (inset == navInset[0]) return;
             navInset[0] = inset;
+            FrameLayout.LayoutParams fillLp = (FrameLayout.LayoutParams) navFill.getLayoutParams();
+            if (fillLp.height != inset) {
+                fillLp.height = inset;
+                navFill.setLayoutParams(fillLp);
+            }
             FrameLayout.LayoutParams barLp = (FrameLayout.LayoutParams) bar.getLayoutParams();
             if (barLp.bottomMargin != inset + gap) {
                 barLp.bottomMargin = inset + gap;
                 bar.setLayoutParams(barLp);
             }
             FrameLayout.LayoutParams playerLp = (FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
-            int playerMargin = inset + AndroidUtilities.dp(heightDp());
+            int playerMargin = inset + AndroidUtilities.dp(heightDp()) + (gap > 0 ? AndroidUtilities.dp(4) : 0);
             if (playerLp.bottomMargin != playerMargin) {
                 playerLp.bottomMargin = playerMargin;
                 miniPlayer.setLayoutParams(playerLp);
             }
         });
 
-        return new Docked(bar, miniPlayer);
+        return docked;
     }
 
     /**
@@ -301,15 +350,12 @@ public class RivBottomBar extends LinearLayout {
             return;
         }
         java.util.List<BaseFragment> stack = layout.getFragmentStack();
-        BaseFragment root = null;
-        for (BaseFragment f : stack) {
-            if (f instanceof DialogsActivity) {
-                root = f;
-                break;
-            }
-        }
-        if (root == null) {
-            fragment.finishFragment();
+        // Riv Post: in this Telegram version the Chats list isn't on the page stack itself -- it
+        // lives inside MainTabsActivity, which is the first page. Looking only for a
+        // DialogsActivity found nothing, so the old code fell back to finishFragment(), which is
+        // why the Chats button acted like Back. The first page on the stack is home either way.
+        BaseFragment root = stack.isEmpty() ? null : stack.get(0);
+        if (root == null || root == fragment) {
             return;
         }
         // Everything strictly between root and the current fragment (exclusive of both ends).
@@ -331,5 +377,94 @@ public class RivBottomBar extends LinearLayout {
         // Now the stack is [..., root, fragment] with nothing in between, so closing the last
         // fragment (the current one) correctly reveals root.
         layout.closeLastFragment();
+    }
+
+    // ---------------------------------------------------------------- shared helpers
+
+    private static final java.util.WeakHashMap<BaseFragment, Docked> registry = new java.util.WeakHashMap<>();
+
+    /**
+     * How far a page's own floating buttons (new message, camera) must sit above the bottom so
+     * they clear the Riv bar and, while a song plays, the music bar. Pages without a Riv bar keep
+     * Telegram's own value.
+     */
+    public static int fabOffset(BaseFragment fragment, int telegramValue) {
+        Docked d = fragment == null ? null : registry.get(fragment);
+        if (d == null) return telegramValue;
+        int off = AndroidUtilities.dp(heightDp() + 8);
+        if (d.miniPlayer.getVisibility() == View.VISIBLE) off += AndroidUtilities.dp(64);
+        return off;
+    }
+
+    /** True when this page has the Riv bar docked. */
+    public static boolean hasBar(BaseFragment fragment) {
+        return fragment != null && registry.get(fragment) != null;
+    }
+
+    private final Runnable badgeTick = new Runnable() {
+        @Override
+        public void run() {
+            updateBadge(org.telegram.messenger.UserConfig.selectedAccount);
+            AndroidUtilities.runOnUIThread(this, 3000);
+        }
+    };
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        AndroidUtilities.cancelRunOnUIThread(badgeTick);
+        AndroidUtilities.runOnUIThread(badgeTick, 500);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        AndroidUtilities.cancelRunOnUIThread(badgeTick);
+    }
+
+    /** Unread chats on the Chats tab; muted chats are left out unless the switch says otherwise. */
+    void updateBadge(int account) {
+        try {
+            org.telegram.messenger.MessagesController mc = org.telegram.messenger.MessagesController.getInstance(account);
+            boolean countMuted = org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.BADGE_MUTED, false);
+            int count = 0;
+            for (org.telegram.tgnet.TLRPC.Dialog d : mc.getAllDialogs()) {
+                if (d == null || d.id == 0 || d.folder_id != 0) continue;
+                if (d.unread_count <= 0 && !d.unread_mark) continue;
+                if (!countMuted && mc.isDialogMuted(d.id, 0)) continue;
+                count++;
+            }
+            TextView badge = items[TAB_CHATS].badge;
+            if (count > 0) {
+                badge.setText(count > 999 ? "999+" : String.valueOf(count));
+                badge.setVisibility(VISIBLE);
+            } else {
+                badge.setVisibility(GONE);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void confirmMarkAllRead(BaseFragment fragment) {
+        if (fragment.getParentActivity() == null) return;
+        org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(fragment.getParentActivity());
+        b.setTitle(LocaleController.getString(R.string.MarkAllAsRead));
+        b.setMessage(LocaleController.getString(R.string.RivMarkAllReadInfo));
+        b.setPositiveButton(LocaleController.getString(R.string.MarkAllAsRead), (d, w) -> {
+            org.telegram.messenger.MessagesController mc = fragment.getMessagesController();
+            java.util.ArrayList<org.telegram.tgnet.TLRPC.Dialog> all = new java.util.ArrayList<>(mc.getAllDialogs());
+            for (org.telegram.tgnet.TLRPC.Dialog dialog : all) {
+                if (dialog == null || dialog.id == 0) continue;
+                if (dialog.unread_count <= 0 && !dialog.unread_mark && dialog.unread_mentions_count <= 0) continue;
+                long did = dialog.id;
+                if (mc.isForum(did) || mc.isMonoForumWithManageRights(did)) {
+                    mc.markAllTopicsAsRead(did);
+                }
+                mc.markMentionsAsRead(did, 0);
+                mc.markDialogAsRead(did, dialog.top_message, dialog.top_message, dialog.last_message_date, false, 0, 0, true, 0);
+            }
+        });
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        fragment.showDialog(b.create());
     }
 }

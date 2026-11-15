@@ -59,6 +59,18 @@ public class RivPrefs {
     public static final String LAYOUT_STYLE = "layoutStyle";         // 0 classic bar, 1 floating bar, 2 compact (labels hidden)
     public static final String BAR_ROUNDED = "barRounded";           // rounded vs flat bottom bar
 
+    // Round 3
+    public static final String BADGE_MUTED = "badgeMuted";           // count muted chats in the Chats badge (default off)
+    public static final String SWIPE_ACTION = "swipeAction";         // what swiping a chat does: 0 = Telegram's own
+    public static final String NO_AUTODL_CHATS = "noAutoDlChats";    // comma list of chat ids that never auto-download
+    public static final String QUIET_CHATS = "quietChats";           // comma list of chat ids silenced during quiet hours
+    public static final String QUIET_FROM = "quietFrom";             // minutes after midnight
+    public static final String QUIET_TO = "quietTo";                 // minutes after midnight
+    public static final String VAULT_FINGERPRINT = "vaultFingerprint"; // open the Vault with a fingerprint (default on)
+    public static final String SUBTITLES = "subtitles";              // load .srt subtitles in the video player (default on)
+    public static final String SLEEP_FADE = "sleepFade";             // fade out at the end of the sleep timer (default on)
+    public static final String QUICK_REPLY_INSERT = "quickReplyInsert"; // quick replies button in the chat menu (default on)
+
     private static SharedPreferences prefs;
 
     private static SharedPreferences prefs() {
@@ -169,5 +181,61 @@ public class RivPrefs {
             sb.append(it);
         }
         set(key, sb.toString());
+    }
+
+    public static boolean inList(String key, long id) {
+        return list(key).contains(String.valueOf(id));
+    }
+
+    public static void toggleInList(String key, long id) {
+        java.util.ArrayList<String> l = list(key);
+        String v = String.valueOf(id);
+        if (!l.remove(v)) l.add(v);
+        setList(key, l);
+    }
+
+    /** All Riv settings as one JSON text, for backup. */
+    public static String exportAll() {
+        org.json.JSONObject o = new org.json.JSONObject();
+        try {
+            for (java.util.Map.Entry<String, ?> e : prefs().getAll().entrySet()) {
+                Object v = e.getValue();
+                org.json.JSONObject item = new org.json.JSONObject();
+                if (v instanceof Boolean) item.put("b", v);
+                else if (v instanceof Integer) item.put("i", v);
+                else if (v instanceof Long) item.put("l", v);
+                else if (v instanceof Float) item.put("f", (double) (Float) v);
+                else if (v instanceof String) item.put("s", v);
+                else continue;
+                o.put(e.getKey(), item);
+            }
+            o.put("_rivpost_backup", new org.json.JSONObject().put("i", 1));
+        } catch (Throwable ignored) {
+        }
+        return o.toString();
+    }
+
+    /** Restores a backup made by exportAll(); returns how many settings were read. */
+    public static int importAll(String json) throws org.json.JSONException {
+        org.json.JSONObject o = new org.json.JSONObject(json);
+        if (!o.has("_rivpost_backup")) throw new org.json.JSONException("not a Riv Post backup");
+        SharedPreferences.Editor ed = prefs().edit();
+        int n = 0;
+        java.util.Iterator<String> keys = o.keys();
+        while (keys.hasNext()) {
+            String k = keys.next();
+            if (k.startsWith("_")) continue;
+            org.json.JSONObject item = o.optJSONObject(k);
+            if (item == null) continue;
+            if (item.has("b")) ed.putBoolean(k, item.getBoolean("b"));
+            else if (item.has("i")) ed.putInt(k, item.getInt("i"));
+            else if (item.has("l")) ed.putLong(k, item.getLong("l"));
+            else if (item.has("f")) ed.putFloat(k, (float) item.getDouble("f"));
+            else if (item.has("s")) ed.putString(k, item.getString("s"));
+            else continue;
+            n++;
+        }
+        ed.apply();
+        return n;
     }
 }

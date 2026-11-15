@@ -527,6 +527,13 @@ edit(MCO,
 """,
 """    private VideoPlayer audioPlayer = null;
 
+    public void rivSetVolume(float v) {
+        try {
+            if (audioPlayer != null) audioPlayer.setVolume(v);
+        } catch (Throwable ignored) {
+        }
+    }
+
     public int rivAudioSessionId() {
         try {
             return audioPlayer != null && audioPlayer.player != null ? audioPlayer.player.getAudioSessionId() : 0;
@@ -545,6 +552,109 @@ edit(MCO,
                     RivEq.attach(rivAudioSessionId());
                 }
                 if (!messageObject.isVoice()) {""")
+
+
+# Chats: floating buttons (new message, camera) sit above the Riv bar and the music bar,
+# and the chat list leaves room at the bottom for both
+edit(DA,
+"""        final float top = -navigationBarHeight - additionFloatingButtonOffset - additionalFloatingTranslation;""",
+"""        final float top = -navigationBarHeight - org.telegram.ui.RivBottomBar.fabOffset(this, additionFloatingButtonOffset) - additionalFloatingTranslation;""")
+edit(DA,
+"""        additionNavigationBarHeight = hasMainTabs ? dp(MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
+        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+""",
+"""        additionNavigationBarHeight = hasMainTabs ? dp(MAIN_TABS_HEIGHT_WITH_MARGINS) : 0;
+        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+        if (!onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT && folderId == 0) {
+            additionNavigationBarHeight = dp(org.telegram.ui.RivBottomBar.heightDp() + 64);
+        }
+""")
+
+
+# Per-chat "don't auto-download" and quiet hours
+DLC = 'TMessagesProj/src/main/java/org/telegram/messenger/DownloadController.java'
+edit(DLC,
+"""    private int canDownloadMediaInternal(MessageObject message) {
+        if (message == null || message.messageOwner == null) return 0;
+""",
+"""    private int canDownloadMediaInternal(MessageObject message) {
+        if (message == null || message.messageOwner == null) return 0;
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId())) return 0;
+""")
+edit(DLC,
+"""    private int canDownloadMediaInternal(MessageObject message, long overrideSize) {
+        if (message == null || message.messageOwner == null) return 0;
+""",
+"""    private int canDownloadMediaInternal(MessageObject message, long overrideSize) {
+        if (message == null || message.messageOwner == null) return 0;
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId())) return 0;
+""")
+edit(DLC,
+"""    public int canDownloadMedia(TLRPC.Message message) {
+        if (message == null || message.media instanceof TLRPC.TL_messageMediaStory) {
+            return canPreloadStories() ? 2 : 0;
+        }
+""",
+"""    public int canDownloadMedia(TLRPC.Message message) {
+        if (message == null || message.media instanceof TLRPC.TL_messageMediaStory) {
+            return canPreloadStories() ? 2 : 0;
+        }
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, MessageObject.getDialogId(message))) return 0;
+""")
+NC = 'TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java'
+edit(NC,
+"""        /*if (BuildVars.LOGS_ENABLED && BuildVars.DEBUG_VERSION) {
+            FileLog.d("notify override for " + dialog_id + " = " + notifyOverride);
+        }*/
+        return notifyOverride;""",
+"""        /*if (BuildVars.LOGS_ENABLED && BuildVars.DEBUG_VERSION) {
+            FileLog.d("notify override for " + dialog_id + " = " + notifyOverride);
+        }*/
+        if (RivQuiet.isQuiet(dialog_id)) {
+            return 2;
+        }
+        return notifyOverride;""")
+
+# Chat menu: quick replies into the message box, jump to the first message, chat stats, chat options
+edit(CHA,
+"""    private final static int riv_more = 9100;
+""",
+"""    private final static int riv_more = 9100;
+    private final static int riv_quick_replies = 9104;
+    private final static int riv_jump_first = 9105;
+    private final static int riv_chat_stats = 9106;
+    private final static int riv_chat_options = 9107;
+""")
+edit(CHA,
+"""                headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
+            }
+""",
+"""                headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
+            }
+            if (chatMode == 0 && !isTopic) {
+                if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.QUICK_REPLY_INSERT, true)) {
+                    headerItem.lazilyAddSubItem(riv_quick_replies, R.drawable.msg_edit, LocaleController.getString(R.string.RivQuickReplies));
+                }
+                headerItem.lazilyAddSubItem(riv_jump_first, R.drawable.msg_go_up, LocaleController.getString(R.string.RivJumpFirst));
+                headerItem.lazilyAddSubItem(riv_chat_stats, R.drawable.msg_stats, LocaleController.getString(R.string.RivChatStats));
+                headerItem.lazilyAddSubItem(riv_chat_options, R.drawable.msg_settings_old, LocaleController.getString(R.string.RivChatOptions));
+            }
+""")
+edit(CHA,
+"""                } else if (id == riv_range) {
+""",
+"""                } else if (id == riv_quick_replies) {
+                    if (chatActivityEnterView != null) {
+                        org.telegram.ui.RivChatTools.showQuickReplies(ChatActivity.this, chatActivityEnterView.getEditField());
+                    }
+                } else if (id == riv_jump_first) {
+                    scrollToMessageId(1, 0, false, 0, true, 0);
+                } else if (id == riv_chat_stats) {
+                    org.telegram.ui.RivChatTools.showChatStats(ChatActivity.this, dialog_id);
+                } else if (id == riv_chat_options) {
+                    org.telegram.ui.RivChatTools.showChatOptions(ChatActivity.this, dialog_id);
+                } else if (id == riv_range) {
+""")
 
 print("Riv hooks applied")
 PY

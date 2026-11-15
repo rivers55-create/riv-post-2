@@ -75,6 +75,12 @@ public class RivVideoPlayerActivity extends RivFragment {
     private float speed = 1f;
     private int previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private boolean landscape;
+    private boolean enteringPip;
+    private TextView subtitleView;
+    private final ArrayList<long[]> subTimes = new ArrayList<>();
+    private final ArrayList<String> subTexts = new ArrayList<>();
+    private boolean subtitlesOn = true;
+    private int subsForIndex = -1;
 
     // gesture state
     private int gestureMode; // 0 none, 1 seek, 2 brightness, 3 volume
@@ -160,6 +166,15 @@ public class RivVideoPlayerActivity extends RivFragment {
         hint.setBackground(hintBg);
         hint.setVisibility(View.GONE);
         root.addView(hint, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
+
+        subtitleView = new TextView(context);
+        subtitleView.setTextColor(0xFFFFFFFF);
+        subtitleView.setTextSize(18);
+        subtitleView.setGravity(Gravity.CENTER);
+        subtitleView.setShadowLayer(AndroidUtilities.dp(3), 0, AndroidUtilities.dp(1), 0xFF000000);
+        subtitleView.setPadding(AndroidUtilities.dp(24), 0, AndroidUtilities.dp(24), 0);
+        subtitleView.setVisibility(View.GONE);
+        root.addView(subtitleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 0, 0, 0, 56));
 
         GestureDetector detector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
             @Override
@@ -288,6 +303,20 @@ public class RivVideoPlayerActivity extends RivFragment {
         topBar.addView(speedBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44));
         speedBtn.setOnClickListener(v -> cycleSpeed());
 
+        TextView tracksBtn = new TextView(context);
+        tracksBtn.setTextColor(0xFFFFFFFF);
+        tracksBtn.setTextSize(13);
+        tracksBtn.setTypeface(AndroidUtilities.bold());
+        tracksBtn.setGravity(Gravity.CENTER);
+        GradientDrawable tbg = new GradientDrawable();
+        tbg.setColor(GLASS);
+        tbg.setCornerRadius(AndroidUtilities.dp(22));
+        tracksBtn.setBackground(tbg);
+        tracksBtn.setPadding(AndroidUtilities.dp(12), 0, AndroidUtilities.dp(12), 0);
+        tracksBtn.setText("CC \u266B");
+        topBar.addView(tracksBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 44, 8, 0, 0, 0));
+        tracksBtn.setOnClickListener(v -> showTracksMenu());
+
         // centre: previous, -10s, play/pause, +10s, next
         centerRow = new LinearLayout(context);
         centerRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -389,6 +418,21 @@ public class RivVideoPlayerActivity extends RivFragment {
             AndroidUtilities.runOnUIThread(hideHint, 900);
             scheduleHide();
         });
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            TextView pip = new TextView(context);
+            pip.setText("PiP");
+            pip.setTextColor(0xFFFFFFFF);
+            pip.setTextSize(12);
+            pip.setTypeface(AndroidUtilities.bold());
+            pip.setGravity(Gravity.CENTER);
+            GradientDrawable pbg = new GradientDrawable();
+            pbg.setShape(GradientDrawable.OVAL);
+            pbg.setColor(GLASS);
+            pbg.setStroke(AndroidUtilities.dp(1), 0x40FFFFFF);
+            pip.setBackground(pbg);
+            buttons.addView(pip, LayoutHelper.createLinear(44, 44, 0, 0, 12, 0));
+            pip.setOnClickListener(v -> enterPip());
+        }
         FrameLayout rotate = glassButton(context, RivIcon.ROTATE, 44, 22);
         buttons.addView(rotate, LayoutHelper.createLinear(44, 44));
         rotate.setOnClickListener(v -> {
@@ -513,6 +557,7 @@ public class RivVideoPlayerActivity extends RivFragment {
         }
         player.setPlayWhenReady(true);
         keepScreenOn(true);
+        loadSubtitles(m);
     }
 
     private void playIndex(int i) {
@@ -575,9 +620,15 @@ public class RivVideoPlayerActivity extends RivFragment {
             }
             posLabel.setText(format(pos));
             updatePlayIcon();
-            if (System.currentTimeMillis() % 5000 < 500) savePosition();
+            updateSubtitle(pos);
+            Activity pa = getParentActivity();
+            if (android.os.Build.VERSION.SDK_INT >= 24 && pa != null && pa.isInPictureInPictureMode() && controls.getAlpha() > 0f) {
+                controls.setAlpha(0f);
+                hint.setVisibility(View.GONE);
+            }
+            if (System.currentTimeMillis() % 5000 < 250) savePosition();
         }
-        AndroidUtilities.runOnUIThread(tick, 500);
+        AndroidUtilities.runOnUIThread(tick, 250);
     }
 
     private void savePosition() {
@@ -662,6 +713,10 @@ public class RivVideoPlayerActivity extends RivFragment {
     @Override
     public void onPause() {
         super.onPause();
+        Activity pa = getParentActivity();
+        if (enteringPip || (android.os.Build.VERSION.SDK_INT >= 24 && pa != null && pa.isInPictureInPictureMode())) {
+            return;
+        }
         if (player != null) {
             player.pause();
             savePosition();
@@ -696,5 +751,210 @@ public class RivVideoPlayerActivity extends RivFragment {
         Activity a = getParentActivity();
         if (a != null) previousOrientation = a.getRequestedOrientation();
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        enteringPip = false;
+        if (controls != null && controlsVisible) controls.setAlpha(1f);
+    }
+
+    // ------------------------------------------------------------------ picture-in-picture
+
+    private void enterPip() {
+        Activity a = getParentActivity();
+        if (a == null || android.os.Build.VERSION.SDK_INT < 26) return;
+        try {
+            android.app.PictureInPictureParams.Builder b = new android.app.PictureInPictureParams.Builder();
+            if (videoW > 0 && videoH > 0) {
+                float r = Math.max(1f / 2.3f, Math.min(2.3f, (float) videoW / videoH));
+                b.setAspectRatio(new android.util.Rational(Math.round(r * 1000), 1000));
+            }
+            enteringPip = true;
+            setControlsVisible(false);
+            a.enterPictureInPictureMode(b.build());
+        } catch (Throwable t) {
+            enteringPip = false;
+            showHint(LocaleController.getString(R.string.RivPipUnavailable));
+        }
+    }
+
+    // ------------------------------------------------------------------ audio tracks & subtitles
+
+    private void showTracksMenu() {
+        Activity a = getParentActivity();
+        if (a == null || player == null || player.player == null) return;
+        final ArrayList<String> names = new ArrayList<>();
+        final ArrayList<Runnable> actions = new ArrayList<>();
+        try {
+            androidx.media3.common.Tracks tracks = player.player.getCurrentTracks();
+            int n = 1;
+            for (androidx.media3.common.Tracks.Group g : tracks.getGroups()) {
+                if (g.getType() != androidx.media3.common.C.TRACK_TYPE_AUDIO) continue;
+                for (int i = 0; i < g.length; i++) {
+                    androidx.media3.common.Format f = g.getTrackFormat(i);
+                    String name = f.label;
+                    if (TextUtils.isEmpty(name) && !TextUtils.isEmpty(f.language) && !"und".equals(f.language)) {
+                        name = new Locale(f.language).getDisplayLanguage();
+                    }
+                    if (TextUtils.isEmpty(name)) name = LocaleController.getString(R.string.RivAudioTrack) + " " + n;
+                    n++;
+                    final androidx.media3.common.Tracks.Group group = g;
+                    final int index = i;
+                    names.add("\u266B  " + name + (g.isTrackSelected(i) ? "  \u2713" : ""));
+                    actions.add(() -> player.player.setTrackSelectionParameters(player.player.getTrackSelectionParameters().buildUpon()
+                            .setOverrideForType(new androidx.media3.common.TrackSelectionOverride(group.getMediaTrackGroup(), index)).build()));
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!subTimes.isEmpty()) {
+            names.add("CC  " + LocaleController.getString(subtitlesOn ? R.string.RivSubtitlesOff : R.string.RivSubtitlesOn));
+            actions.add(() -> {
+                subtitlesOn = !subtitlesOn;
+                if (!subtitlesOn) subtitleView.setVisibility(View.GONE);
+            });
+        } else {
+            names.add("CC  " + LocaleController.getString(R.string.RivNoSubtitles));
+            actions.add(() -> {
+            });
+        }
+        org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(a);
+        b.setTitle(LocaleController.getString(R.string.RivAudioAndSubtitles));
+        b.setItems(names.toArray(new CharSequence[0]), (d, w) -> actions.get(w).run());
+        showDialog(b.create());
+    }
+
+    private static String baseName(String fileName) {
+        if (fileName == null) return "";
+        int dot = fileName.lastIndexOf('.');
+        String b = dot > 0 ? fileName.substring(0, dot) : fileName;
+        return b.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
+    }
+
+    /** Looks in the video's chat for an .srt with the same name, downloads it and reads it. */
+    private void loadSubtitles(MessageObject video) {
+        subTimes.clear();
+        subTexts.clear();
+        if (subtitleView != null) subtitleView.setVisibility(View.GONE);
+        subsForIndex = index;
+        if (!RivPrefs.b(RivPrefs.SUBTITLES, true) || video == null || video.getDocument() == null) return;
+        final int forIndex = index;
+        final int account = getCurrentAccount();
+        String videoName = org.telegram.messenger.FileLoader.getDocumentFileName(video.getDocument());
+        final String base = baseName(videoName);
+        if (base.isEmpty()) return;
+        int dot = videoName.lastIndexOf('.');
+        String query = dot > 0 ? videoName.substring(0, dot) : videoName;
+        TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
+        req.peer = getMessagesController().getInputPeer(video.getDialogId());
+        req.q = query.length() > 60 ? query.substring(0, 60) : query;
+        req.filter = new TLRPC.TL_inputMessagesFilterDocument();
+        req.limit = 30;
+        org.telegram.tgnet.ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
+            if (!(response instanceof TLRPC.messages_Messages)) return;
+            TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+            for (TLRPC.Message msg : res.messages) {
+                MessageObject mo = new MessageObject(account, msg, false, false);
+                TLRPC.Document d = mo.getDocument();
+                if (d == null) continue;
+                String n = org.telegram.messenger.FileLoader.getDocumentFileName(d);
+                if (n == null || !n.toLowerCase(Locale.US).endsWith(".srt")) continue;
+                if (!baseName(n).equals(base)) continue;
+                downloadAndParse(account, mo, d, forIndex);
+                return;
+            }
+        });
+    }
+
+    private void downloadAndParse(int account, MessageObject mo, TLRPC.Document d, int forIndex) {
+        AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.FileLoader.getInstance(account).loadFile(d, mo, org.telegram.messenger.FileLoader.PRIORITY_HIGH, 0));
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            java.io.File f = null;
+            for (int i = 0; i < 120; i++) {
+                f = org.telegram.messenger.FileLoader.getInstance(account).getPathToAttach(d);
+                if (f != null && f.exists() && f.length() > 0) break;
+                f = org.telegram.messenger.FileLoader.getInstance(account).getPathToMessage(mo.messageOwner);
+                if (f != null && f.exists() && f.length() > 0) break;
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+            if (f == null || !f.exists()) return;
+            ArrayList<long[]> times = new ArrayList<>();
+            ArrayList<String> texts = new ArrayList<>();
+            try {
+                parseSrt(new String(readAll(f), "UTF-8"), times, texts);
+            } catch (Throwable ignored) {
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                if (forIndex != index || times.isEmpty()) return;
+                subTimes.clear();
+                subTimes.addAll(times);
+                subTexts.clear();
+                subTexts.addAll(texts);
+                showHint(LocaleController.getString(R.string.RivSubtitlesLoaded));
+            });
+        });
+    }
+
+    private static byte[] readAll(java.io.File f) throws java.io.IOException {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int r;
+            while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+            return out.toByteArray();
+        }
+    }
+
+    private static final java.util.regex.Pattern SRT_TIME = java.util.regex.Pattern.compile("(\\d+):(\\d+):(\\d+)[,.](\\d+)\\s*-->\\s*(\\d+):(\\d+):(\\d+)[,.](\\d+)");
+
+    static void parseSrt(String text, ArrayList<long[]> times, ArrayList<String> texts) {
+        if (text.startsWith("\uFEFF")) text = text.substring(1);
+        String[] blocks = text.replace("\r", "").split("\n\\s*\n");
+        for (String block : blocks) {
+            String[] lines = block.trim().split("\n");
+            for (int i = 0; i < lines.length; i++) {
+                java.util.regex.Matcher m = SRT_TIME.matcher(lines[i]);
+                if (!m.find()) continue;
+                long start = Long.parseLong(m.group(1)) * 3600000 + Long.parseLong(m.group(2)) * 60000 + Long.parseLong(m.group(3)) * 1000 + Long.parseLong(m.group(4));
+                long end = Long.parseLong(m.group(5)) * 3600000 + Long.parseLong(m.group(6)) * 60000 + Long.parseLong(m.group(7)) * 1000 + Long.parseLong(m.group(8));
+                StringBuilder sb = new StringBuilder();
+                for (int k = i + 1; k < lines.length; k++) {
+                    if (sb.length() > 0) sb.append('\n');
+                    sb.append(lines[k].replaceAll("<[^>]+>", ""));
+                }
+                times.add(new long[]{start, end});
+                texts.add(sb.toString());
+                break;
+            }
+        }
+    }
+
+    private void updateSubtitle(long posMs) {
+        if (subtitleView == null) return;
+        if (!subtitlesOn || subTimes.isEmpty()) {
+            if (subtitleView.getVisibility() != View.GONE) subtitleView.setVisibility(View.GONE);
+            return;
+        }
+        String show = null;
+        for (int i = 0; i < subTimes.size(); i++) {
+            long[] t = subTimes.get(i);
+            if (posMs >= t[0] && posMs <= t[1]) {
+                show = subTexts.get(i);
+                break;
+            }
+        }
+        if (show == null) {
+            subtitleView.setVisibility(View.GONE);
+        } else {
+            if (!show.contentEquals(subtitleView.getText())) subtitleView.setText(show);
+            subtitleView.setVisibility(View.VISIBLE);
+            subtitleView.setTranslationY(controlsVisible ? -AndroidUtilities.dp(70) : 0);
+        }
     }
 }

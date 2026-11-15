@@ -151,4 +151,138 @@ public class RivChatTools {
         textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         list.addView(textView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
     }
+
+    // ------------------------------------------------------------------ quick replies
+
+    /** Pick a saved quick reply and drop it into the message box where the cursor is. */
+    public static void showQuickReplies(BaseFragment fragment, android.widget.EditText field) {
+        Activity activity = fragment.getParentActivity();
+        if (activity == null || field == null) return;
+        ArrayList<String> items = org.telegram.messenger.RivQuickReplies.load();
+        AlertDialog.Builder b = new AlertDialog.Builder(activity);
+        b.setTitle(LocaleController.getString(R.string.RivQuickReplies));
+        if (items.isEmpty()) {
+            b.setMessage(LocaleController.getString(R.string.RivNoQuickReplies));
+            b.setPositiveButton(LocaleController.getString(R.string.RivAddQuickReply), (d, w) -> fragment.presentFragment(new RivQuickRepliesActivity()));
+            b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        } else {
+            b.setItems(items.toArray(new CharSequence[0]), (d, w) -> {
+                String text = items.get(w);
+                android.text.Editable e = field.getText();
+                if (e == null) return;
+                int at = Math.max(0, field.getSelectionStart());
+                e.insert(Math.min(at, e.length()), text);
+                field.requestFocus();
+                AndroidUtilities.showKeyboard(field);
+            });
+            b.setNeutralButton(LocaleController.getString(R.string.RivManage), (d, w) -> fragment.presentFragment(new RivQuickRepliesActivity()));
+        }
+        fragment.showDialog(b.create());
+    }
+
+    // ------------------------------------------------------------------ chat options
+
+    /** Per-chat switches: no auto-download here, and quiet hours for this chat. */
+    public static void showChatOptions(BaseFragment fragment, long dialogId) {
+        Activity activity = fragment.getParentActivity();
+        if (activity == null) return;
+        String quietLine = LocaleController.formatString(R.string.RivQuietHoursFor, org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.from()), org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.to()));
+        CharSequence[] labels = {LocaleController.getString(R.string.RivNoAutoDownloadHere), quietLine};
+        boolean[] checked = {
+                org.telegram.messenger.RivPrefs.inList(org.telegram.messenger.RivPrefs.NO_AUTODL_CHATS, dialogId),
+                org.telegram.messenger.RivPrefs.inList(org.telegram.messenger.RivPrefs.QUIET_CHATS, dialogId),
+        };
+        LinearLayout col = new LinearLayout(activity);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(4), AndroidUtilities.dp(8), 0);
+        for (int i = 0; i < labels.length; i++) {
+            org.telegram.ui.Cells.CheckBoxCell cell = new org.telegram.ui.Cells.CheckBoxCell(activity, 1);
+            cell.setText(labels[i], "", checked[i], false);
+            final int idx = i;
+            cell.setOnClickListener(v -> {
+                checked[idx] = !checked[idx];
+                cell.setChecked(checked[idx], true);
+            });
+            col.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(activity);
+        b.setTitle(LocaleController.getString(R.string.RivChatOptions));
+        b.setView(col);
+        b.setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> {
+            setInList(org.telegram.messenger.RivPrefs.NO_AUTODL_CHATS, dialogId, checked[0]);
+            setInList(org.telegram.messenger.RivPrefs.QUIET_CHATS, dialogId, checked[1]);
+        });
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        fragment.showDialog(b.create());
+    }
+
+    private static void setInList(String key, long id, boolean on) {
+        if (org.telegram.messenger.RivPrefs.inList(key, id) != on) org.telegram.messenger.RivPrefs.toggleInList(key, id);
+    }
+
+    // ------------------------------------------------------------------ chat stats
+
+    private static final String[] STAT_KEYS = {"all", "photos", "videos", "music", "files", "voice", "links"};
+
+    /** Counts what's in a chat (messages, photos, videos, songs, files, voice, links) from Telegram's servers. */
+    public static void showChatStats(BaseFragment fragment, long dialogId) {
+        Activity activity = fragment.getParentActivity();
+        if (activity == null) return;
+        int account = fragment.getCurrentAccount();
+        TLRPC.InputPeer peer = fragment.getMessagesController().getInputPeer(dialogId);
+        int[] counts = new int[STAT_KEYS.length];
+        int[] done = {0};
+        AlertDialog progress = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(true);
+        fragment.showDialog(progress);
+        for (int i = 0; i < STAT_KEYS.length; i++) {
+            final int idx = i;
+            org.telegram.tgnet.TLObject req;
+            if (i == 0) {
+                TLRPC.TL_messages_getHistory h = new TLRPC.TL_messages_getHistory();
+                h.peer = peer;
+                h.limit = 1;
+                req = h;
+            } else {
+                TLRPC.TL_messages_search q = new TLRPC.TL_messages_search();
+                q.peer = peer;
+                q.q = "";
+                q.limit = 1;
+                switch (i) {
+                    case 1: q.filter = new TLRPC.TL_inputMessagesFilterPhotos(); break;
+                    case 2: q.filter = new TLRPC.TL_inputMessagesFilterVideo(); break;
+                    case 3: q.filter = new TLRPC.TL_inputMessagesFilterMusic(); break;
+                    case 4: q.filter = new TLRPC.TL_inputMessagesFilterDocument(); break;
+                    case 5: q.filter = new TLRPC.TL_inputMessagesFilterVoice(); break;
+                    default: q.filter = new TLRPC.TL_inputMessagesFilterUrl(); break;
+                }
+                req = q;
+            }
+            org.telegram.tgnet.ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                if (response instanceof TLRPC.messages_Messages) {
+                    TLRPC.messages_Messages r = (TLRPC.messages_Messages) response;
+                    counts[idx] = Math.max(r.count, r.messages.size());
+                } else {
+                    counts[idx] = -1;
+                }
+                done[0]++;
+                if (done[0] == STAT_KEYS.length) {
+                    try {
+                        progress.dismiss();
+                    } catch (Throwable ignored) {
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    int[] labels = {R.string.RivStatMessages, R.string.RivStatPhotos, R.string.RivStatVideos, R.string.RivStatMusic, R.string.RivStatFiles, R.string.RivStatVoice, R.string.RivStatLinks};
+                    for (int k = 0; k < labels.length; k++) {
+                        sb.append(LocaleController.getString(labels[k])).append(": ").append(counts[k] < 0 ? "\u2014" : String.format(java.util.Locale.US, "%,d", counts[k])).append('\n');
+                    }
+                    AlertDialog.Builder b = new AlertDialog.Builder(activity);
+                    b.setTitle(LocaleController.getString(R.string.RivChatStats));
+                    b.setMessage(sb.toString().trim());
+                    b.setPositiveButton(LocaleController.getString(R.string.OK), null);
+                    fragment.showDialog(b.create());
+                }
+            }));
+        }
+    }
 }
