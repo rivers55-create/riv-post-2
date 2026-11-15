@@ -27,7 +27,7 @@ import java.util.LinkedHashSet;
  * (see the TODO in apply.sh and the note in RivVipContacts.java) -- for now this screen
  * just keeps the list so it's ready the moment Quiet Hours is built.
  */
-public class RivVipContactsActivity extends BaseFragment {
+public class RivVipContactsActivity extends RivFragment {
 
     private LinearLayout layout;
 

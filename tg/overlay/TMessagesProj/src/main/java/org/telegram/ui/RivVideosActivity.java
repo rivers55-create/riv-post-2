@@ -46,7 +46,7 @@ import java.util.Map;
  * Actual playback stays on Telegram's own player (PhotoViewer); this screen is only
  * about browsing and the details screen.
  */
-public class RivVideosActivity extends BaseFragment implements org.telegram.messenger.NotificationCenter.NotificationCenterDelegate {
+public class RivVideosActivity extends RivFragment implements org.telegram.messenger.NotificationCenter.NotificationCenterDelegate {
 
     private static final String SOURCES_KEY = "videoSources";
 
@@ -104,11 +104,11 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
 
     private void applyHeaderInset() {
         if (column == null) return;
-        int headerHeight = mSystemInsets.top + ActionBar.getCurrentActionBarHeight();
+        int headerHeight = rivHeaderHeight();
         // Riv Post: AndroidUtilities.navigationBarHeight (used when column was first built) is
         // never actually set anywhere in real Telegram, so it's always 0 -- mSystemInsets.bottom
         // is the real, live nav-bar height, same value BaseFragment.getBottomInset() returns.
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + mSystemInsets.bottom;
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.heightDp()) + rivNavBarHeight();
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) column.getLayoutParams();
         if (lp != null && (lp.topMargin != headerHeight || lp.bottomMargin != bottomBarSpace)) {
             lp.topMargin = headerHeight;
@@ -172,7 +172,7 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
 
         column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, AndroidUtilities.dp(RivBottomBar.HEIGHT_DP)));
+        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, AndroidUtilities.dp(RivBottomBar.heightDp())));
         applyHeaderInset();
 
         sourceFilterRow = buildSourceFilterRow(context);
@@ -472,10 +472,7 @@ public class RivVideosActivity extends BaseFragment implements org.telegram.mess
     }
 
     private void play(MessageObject m, List<MessageObject> playlist) {
-        PhotoViewer.getInstance().setParentActivity(this);
-        int index = playlist.indexOf(m);
-        if (index < 0) index = 0;
-        PhotoViewer.getInstance().openPhoto(new ArrayList<>(playlist), index, m.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
+        RivVideoPlayerActivity.open(this, m, playlist);
     }
 
     // ---------------------------------------------------------------- rows

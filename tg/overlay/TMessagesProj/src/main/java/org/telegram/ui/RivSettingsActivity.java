@@ -20,7 +20,7 @@ import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.LayoutHelper;
 
 /** Riv Post: the extra features, each with its own switch. Official behaviour is the default. */
-public class RivSettingsActivity extends BaseFragment {
+public class RivSettingsActivity extends RivFragment {
 
     @Override
     protected boolean useSimpleActionBar() {
@@ -51,8 +51,6 @@ public class RivSettingsActivity extends BaseFragment {
         layout.setOrientation(LinearLayout.VERTICAL);
         scrollView.addView(layout, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0));
         frameLayout.addView(scrollView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-
-        layout.addView(space(context, ActionBar.getCurrentActionBarHeight()));
 
         // ---- Features
         TextSettingsCell music = new TextSettingsCell(context);
@@ -120,8 +118,39 @@ public class RivSettingsActivity extends BaseFragment {
         });
         layout.addView(stickerCell);
         layout.addView(check(context, LocaleController.getString(R.string.RivHideStories), LocaleController.getString(R.string.RivHideStoriesInfo), RivPrefs.HIDE_STORIES, true));
-        layout.addView(check(context, LocaleController.getString(R.string.RivHideSponsored), LocaleController.getString(R.string.RivHideSponsoredInfo), RivPrefs.HIDE_SPONSORED, false));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivHideAds), LocaleController.getString(R.string.RivHideAdsInfo), RivPrefs.HIDE_ADS));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivHideUpdateBanner), LocaleController.getString(R.string.RivHideUpdateBannerInfo), RivPrefs.HIDE_UPDATE_BANNER));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivNameFit), LocaleController.getString(R.string.RivNameFitInfo), RivPrefs.NAME_FIT));
+        TextSettingsCell themeColors = new TextSettingsCell(context);
+        themeColors.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        themeColors.setText(LocaleController.getString(R.string.RivThemeColors), true);
+        themeColors.setOnClickListener(v -> presentFragment(new RivThemeActivity()));
+        layout.addView(themeColors);
+        TextSettingsCell looks = new TextSettingsCell(context);
+        looks.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        looks.setText(LocaleController.getString(R.string.RivQuickLooks), false);
+        looks.setOnClickListener(v -> presentFragment(new RivLooksActivity()));
+        layout.addView(looks);
         layout.addView(info(context, LocaleController.getString(R.string.RivLookFooter)));
+
+        // ---- Chats
+        layout.addView(header(context, LocaleController.getString(R.string.RivChatsHeader)));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivGhostButton), LocaleController.getString(R.string.RivGhostButtonInfo), RivPrefs.GHOST_BUTTON));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivRangeSelect), LocaleController.getString(R.string.RivRangeSelectInfo), RivPrefs.RANGE_SELECT));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivEditHistory), LocaleController.getString(R.string.RivEditHistoryInfo), RivPrefs.EDIT_HISTORY));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivMarkDeleted), LocaleController.getString(R.string.RivMarkDeletedInfo), RivPrefs.MARK_DELETED));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivFastDownloads), LocaleController.getString(R.string.RivFastDownloadsInfo), RivPrefs.FAST_DOWNLOADS));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivExactLastSeen), LocaleController.getString(R.string.RivExactLastSeenInfo), RivPrefs.EXACT_LAST_SEEN));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivShowUserId), LocaleController.getString(R.string.RivShowUserIdInfo), RivPrefs.SHOW_USER_ID));
+        layout.addView(info(context, LocaleController.getString(R.string.RivChatsFooter)));
+
+        // ---- Music & video players
+        layout.addView(header(context, LocaleController.getString(R.string.RivPlayersHeader)));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivPlayerRtp), LocaleController.getString(R.string.RivPlayerRtpInfo), RivPrefs.PLAYER_RTP));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivLyricsSwitch), LocaleController.getString(R.string.RivLyricsSwitchInfo), RivPrefs.LYRICS));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivLyricsOnline), LocaleController.getString(R.string.RivLyricsOnlineInfo), RivPrefs.LYRICS_ONLINE));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivVideoPlayerRvp), LocaleController.getString(R.string.RivVideoPlayerRvpInfo), RivPrefs.VIDEO_PLAYER_RVP));
+        layout.addView(info(context, LocaleController.getString(R.string.RivPlayersFooter)));
 
         // ---- In-chat music player
         layout.addView(header(context, LocaleController.getString(R.string.RivChatPlayerHeader)));
@@ -142,9 +171,21 @@ public class RivSettingsActivity extends BaseFragment {
         vault.setText(LocaleController.getString(R.string.RivVault), true);
         vault.setOnClickListener(v -> presentFragment(new RivVaultActivity()));
         layout.addView(vault);
-        layout.addView(check(context, LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.GHOST, true));
-        layout.addView(check(context, LocaleController.getString(R.string.RivHideTyping), LocaleController.getString(R.string.RivHideTypingInfo), RivPrefs.HIDE_TYPING, true));
-        layout.addView(check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, true));
+        TextCheckCell ghostCell = new TextCheckCell(context);
+        ghostCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        ghostCell.setTextAndValueAndCheck(LocaleController.getString(R.string.RivGhostMode), LocaleController.getString(R.string.RivGhostModeInfo), RivPrefs.ghost(), true, true);
+        layout.addView(ghostCell);
+        TextCheckCell typingCell = check(context, LocaleController.getString(R.string.RivHideTyping), LocaleController.getString(R.string.RivHideTypingInfo), RivPrefs.HIDE_TYPING, true);
+        layout.addView(typingCell);
+        TextCheckCell onlineCell = check(context, LocaleController.getString(R.string.RivHideOnline), LocaleController.getString(R.string.RivHideOnlineInfo), RivPrefs.HIDE_ONLINE, true);
+        layout.addView(onlineCell);
+        ghostCell.setOnClickListener(v -> {
+            boolean now = !RivPrefs.ghost();
+            RivPrefs.setGhost(now);
+            ghostCell.setChecked(now);
+            typingCell.setChecked(now);
+            onlineCell.setChecked(now);
+        });
         layout.addView(check(context, LocaleController.getString(R.string.RivKeepDeleted), LocaleController.getString(R.string.RivKeepDeletedInfo), RivPrefs.KEEP_DELETED, false));
         layout.addView(info(context, LocaleController.getString(R.string.RivGhostModeFooter)));
 

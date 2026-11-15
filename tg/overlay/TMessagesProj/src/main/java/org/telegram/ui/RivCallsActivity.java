@@ -42,7 +42,7 @@ import java.util.Map;
  * read-only summary screen. Tapping a row opens the chat; there's no swipe-to-delete or
  * multi-select here, unlike Telegram's own Calls screen.
  */
-public class RivCallsActivity extends BaseFragment {
+public class RivCallsActivity extends RivFragment {
 
     private static final int TYPE_IN = 0;
     private static final int TYPE_OUT = 1;
@@ -93,7 +93,7 @@ public class RivCallsActivity extends BaseFragment {
 
     private void applyBottomBarPadding() {
         if (listView == null) return;
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + mSystemInsets.bottom;
+        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.heightDp()) + rivNavBarHeight();
         if (listView.getPaddingBottom() != bottomBarSpace) {
             listView.setPadding(listView.getPaddingLeft(), listView.getPaddingTop(), listView.getPaddingRight(), bottomBarSpace);
         }

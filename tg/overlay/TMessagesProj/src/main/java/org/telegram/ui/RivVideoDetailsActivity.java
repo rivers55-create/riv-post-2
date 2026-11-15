@@ -40,7 +40,7 @@ import java.util.Locale;
  * Play + My List buttons, overview, "This episode" block, cast row.
  * Metadata comes from RivMeta (TMDb/TheTVDB), looked up asynchronously.
  */
-public class RivVideoDetailsActivity extends BaseFragment {
+public class RivVideoDetailsActivity extends RivFragment {
 
     private final MessageObject video;
     private final List<MessageObject> playlist;
@@ -215,10 +215,7 @@ public class RivVideoDetailsActivity extends BaseFragment {
     }
 
     private void play() {
-        PhotoViewer.getInstance().setParentActivity(this);
-        int index = playlist.indexOf(video);
-        List<MessageObject> list = playlist.isEmpty() ? new ArrayList<>(java.util.Collections.singletonList(video)) : playlist;
-        PhotoViewer.getInstance().openPhoto(new ArrayList<>(list), Math.max(0, index), video.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider());
+        RivVideoPlayerActivity.open(this, video, playlist);
     }
 
     private void bindInfo() {

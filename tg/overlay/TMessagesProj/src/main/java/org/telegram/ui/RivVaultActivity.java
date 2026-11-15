@@ -29,7 +29,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import java.util.ArrayList;
 
 /** Riv Post Vault: hide chosen chats behind a PIN. */
-public class RivVaultActivity extends BaseFragment {
+public class RivVaultActivity extends RivFragment {
 
     private LinearLayout layout;
 
@@ -68,10 +68,6 @@ public class RivVaultActivity extends BaseFragment {
 
     private void rebuild(Context context) {
         layout.removeAllViews();
-
-        View space = new View(context);
-        space.setLayoutParams(new LinearLayout.LayoutParams(LayoutHelper.MATCH_PARENT, ActionBar.getCurrentActionBarHeight()));
-        layout.addView(space);
 
         TextSettingsCell pin = new TextSettingsCell(context);
         pin.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));

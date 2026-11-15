@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 
 /** Riv Post: reminders that repeat. They arrive in Saved Messages. */
-public class RivRemindersActivity extends BaseFragment {
+public class RivRemindersActivity extends RivFragment {
 
     private LinearLayout layout;
 
@@ -66,10 +66,6 @@ public class RivRemindersActivity extends BaseFragment {
 
     private void rebuild(Context context) {
         layout.removeAllViews();
-
-        View space = new View(context);
-        space.setLayoutParams(new LinearLayout.LayoutParams(LayoutHelper.MATCH_PARENT, ActionBar.getCurrentActionBarHeight()));
-        layout.addView(space);
 
         TextSettingsCell add = new TextSettingsCell(context);
         add.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));

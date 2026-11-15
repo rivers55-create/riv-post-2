@@ -51,7 +51,7 @@ import java.util.Locale;
  * chats and channels the user picks. Playback stays on MediaController, Telegram's own
  * working audio engine; this screen is only about browsing, playlists and the mini-player.
  */
-public class RivMusicActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
+public class RivMusicActivity extends RivFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private static final String SOURCES_KEY = "musicSources";
     private static final String[] TAB_KEYS = {"all", "playlists", "albums", "artists", "favorites", "selected"};
@@ -61,7 +61,8 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
     private final ArrayList<MessageObject> allSongs = new ArrayList<>();
     private final HashSet<String> songKeys = new HashSet<>();
     private int loading = 0;
-    private int currentTab = 0;
+    private String currentTabKey = "all";
+    private final ArrayList<String> tabOrder = new ArrayList<>();
     private String query = "";
 
     private FrameLayout root;
@@ -122,11 +123,9 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
 
         LinearLayout column = new LinearLayout(context);
         column.setOrientation(LinearLayout.VERTICAL);
-        // Riv Post: AndroidUtilities.navigationBarHeight is never actually set anywhere in real
-        // Telegram, so it's always 0 -- getViewInset() reads the real, live nav-bar height off
-        // the window instead, so the list and bottom bar don't end up under the phone's own nav bar.
-        int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.HEIGHT_DP) + AndroidUtilities.getViewInset(root);
-        root.addView(column, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP, 0, 0, 0, bottomBarSpace));
+        // Riv Post: room for the header (top) and the bottom bar + phone nav bar (bottom) is
+        // added by RivFragment.applyRivInsets(), which re-checks the real sizes every layout.
+        root.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP));
 
         // search bar
         LinearLayout searchBar = new LinearLayout(context);
@@ -189,28 +188,91 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
         if (miniPlayer != null) miniPlayer.refresh();
     }
 
+    /** The tabs in the user's chosen order (hold a tab and drag it to move it). */
+    private void loadTabOrder() {
+        tabOrder.clear();
+        for (String k : RivPrefs.list(RivPrefs.MUSIC_TAB_ORDER)) {
+            for (String known : TAB_KEYS) {
+                if (known.equals(k) && !tabOrder.contains(k)) tabOrder.add(k);
+            }
+        }
+        for (String known : TAB_KEYS) {
+            if (!tabOrder.contains(known)) tabOrder.add(known);
+        }
+    }
+
     private void buildTabs(Context context) {
+        if (tabOrder.isEmpty()) loadTabOrder();
         tabsRow.removeAllViews();
-        for (int i = 0; i < TAB_KEYS.length; i++) {
-            int idx = i;
+        for (int i = 0; i < tabOrder.size(); i++) {
+            String key = tabOrder.get(i);
             TextView pill = new TextView(context);
-            pill.setText(tabLabel(TAB_KEYS[i]));
+            pill.setText(tabLabel(key));
             pill.setTextSize(14);
             pill.setGravity(Gravity.CENTER);
+            pill.setSingleLine(true);
             pill.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
-            boolean sel = currentTab == idx;
+            boolean sel = key.equals(currentTabKey);
             GradientDrawable bg = new GradientDrawable();
             bg.setColor(sel ? Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4) : Theme.getColor(Theme.key_windowBackgroundWhite));
             bg.setCornerRadius(AndroidUtilities.dp(18));
             pill.setBackground(bg);
             pill.setTextColor(sel ? Theme.getColor(Theme.key_windowBackgroundWhite) : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            pill.setTag(key);
             pill.setOnClickListener(v -> {
-                currentTab = idx;
+                currentTabKey = key;
                 buildTabs(context);
                 refreshList();
             });
+            pill.setOnLongClickListener(v -> {
+                android.content.ClipData data = android.content.ClipData.newPlainText("rivtab", key);
+                View.DragShadowBuilder shadow = new View.DragShadowBuilder(v);
+                if (android.os.Build.VERSION.SDK_INT >= 24) {
+                    v.startDragAndDrop(data, shadow, key, 0);
+                } else {
+                    v.startDrag(data, shadow, key, 0);
+                }
+                v.setAlpha(0.3f);
+                return true;
+            });
             tabsRow.addView(pill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36, 0, 0, 0, 8, 0));
         }
+        tabsRow.setOnDragListener((row, event) -> {
+            Object local = event.getLocalState();
+            if (!(local instanceof String)) return false;
+            String dragged = (String) local;
+            switch (event.getAction()) {
+                case android.view.DragEvent.ACTION_DRAG_STARTED:
+                    return true;
+                case android.view.DragEvent.ACTION_DRAG_LOCATION: {
+                    int target = -1;
+                    for (int i = 0; i < tabsRow.getChildCount(); i++) {
+                        View c = tabsRow.getChildAt(i);
+                        if (event.getX() >= c.getLeft() && event.getX() <= c.getRight()) {
+                            target = i;
+                            break;
+                        }
+                    }
+                    int from = tabOrder.indexOf(dragged);
+                    if (target >= 0 && from >= 0 && target != from) {
+                        tabOrder.remove(from);
+                        tabOrder.add(target, dragged);
+                        buildTabs(context);
+                        View moved = tabsRow.findViewWithTag(dragged);
+                        if (moved != null) moved.setAlpha(0.3f);
+                    }
+                    return true;
+                }
+                case android.view.DragEvent.ACTION_DROP:
+                case android.view.DragEvent.ACTION_DRAG_ENDED:
+                    RivPrefs.setList(RivPrefs.MUSIC_TAB_ORDER, tabOrder);
+                    for (int i = 0; i < tabsRow.getChildCount(); i++) {
+                        tabsRow.getChildAt(i).setAlpha(1f);
+                    }
+                    return true;
+            }
+            return true;
+        });
     }
 
     private String tabLabel(String k) {
@@ -405,7 +467,7 @@ public class RivMusicActivity extends BaseFragment implements NotificationCenter
             return;
         }
 
-        String tab = TAB_KEYS[currentTab];
+        String tab = currentTabKey;
         switch (tab) {
             case "playlists":
                 listContainer.addView(playlistsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));

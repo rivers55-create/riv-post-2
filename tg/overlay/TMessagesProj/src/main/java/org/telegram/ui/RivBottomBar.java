@@ -38,6 +38,34 @@ public class RivBottomBar extends LinearLayout {
 
     public static final int HEIGHT_DP = 56;
 
+    public static final int STYLE_CLASSIC = 0;
+    public static final int STYLE_FLOATING = 1;
+    public static final int STYLE_ICONS = 2;
+
+    public static int style() {
+        return org.telegram.messenger.RivPrefs.i(org.telegram.messenger.RivPrefs.LAYOUT_STYLE, STYLE_CLASSIC);
+    }
+
+    private static boolean rounded() {
+        return org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.BAR_ROUNDED, true);
+    }
+
+    /** The bar's own height in dp for the chosen look. */
+    private static int barHeightDp() {
+        return style() == STYLE_ICONS ? 48 : HEIGHT_DP;
+    }
+
+    /** Space the bar takes at the bottom of a screen (bar + floating gap), in dp. */
+    public static int heightDp() {
+        return barHeightDp() + (style() == STYLE_FLOATING ? 12 : 0);
+    }
+
+    /** Bar background: custom "Navigation bar" colour if set, else the theme's. */
+    private static int barColor() {
+        int c = org.telegram.messenger.RivPrefs.i(org.telegram.messenger.RivTheme.NAV_COLOR, 0);
+        return c != 0 ? c : Theme.getColor(Theme.key_windowBackgroundWhite);
+    }
+
     private static final int[] ICON_KINDS = {
             RivIcon.TAB_CHATS, RivIcon.TAB_CONTACTS, RivIcon.TAB_CALLS,
             RivIcon.TAB_MUSIC, RivIcon.TAB_VIDEOS, RivIcon.TAB_PROFILE,
@@ -80,7 +108,16 @@ public class RivBottomBar extends LinearLayout {
     public RivBottomBar(Context context) {
         super(context);
         setOrientation(HORIZONTAL);
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        setGravity(Gravity.CENTER_VERTICAL);
+        if (style() == STYLE_FLOATING) {
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(barColor());
+            bg.setCornerRadius(AndroidUtilities.dp(rounded() ? 28 : 8));
+            setBackground(bg);
+            setElevation(AndroidUtilities.dp(6));
+        } else {
+            setBackgroundColor(barColor());
+        }
 
         String[] labels = {
                 LocaleController.getString(R.string.RivTabChats),
@@ -95,6 +132,7 @@ public class RivBottomBar extends LinearLayout {
             Item item = new Item(context);
             item.icon.setKind(ICON_KINDS[i]);
             item.label.setText(labels[i]);
+            if (style() == STYLE_ICONS) item.label.setVisibility(GONE);
             items[i] = item;
             final int tab = i;
             item.setOnClickListener(v -> {
@@ -124,7 +162,11 @@ public class RivBottomBar extends LinearLayout {
             Item item = items[i];
             if (sel) {
                 GradientDrawable pill = new GradientDrawable();
-                pill.setShape(GradientDrawable.OVAL);
+                if (rounded()) {
+                    pill.setShape(GradientDrawable.OVAL);
+                } else {
+                    pill.setCornerRadius(AndroidUtilities.dp(6));
+                }
                 pill.setColor(accent);
                 item.iconWrap.setBackground(pill);
                 item.icon.setColor(0xFFFFFFFF);
@@ -170,7 +212,7 @@ public class RivBottomBar extends LinearLayout {
         RivMiniPlayerView miniPlayer = new RivMiniPlayerView(context);
         miniPlayer.setVisibility(android.view.View.GONE);
         miniPlayer.setOnOpenPlayer(() -> fragment.presentFragment(new RivMusicPlayerActivity()));
-        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, 0, 0, 0, navInset[0] + AndroidUtilities.dp(HEIGHT_DP)));
+        contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, 0, 0, 0, navInset[0] + AndroidUtilities.dp(heightDp())));
         miniPlayer.refresh();
 
         RivBottomBar bar = new RivBottomBar(context);
@@ -179,24 +221,36 @@ public class RivBottomBar extends LinearLayout {
             if (tab == activeTab) return;
             if (tab == TAB_CHATS) {
                 goToChats(fragment);
-            } else if (tab == TAB_CONTACTS) {
+                return;
+            }
+            // Riv Post: when switching between two tab pages (e.g. Music -> Videos), the new page
+            // replaces the current one instead of piling up, so Back always lands on Chats and the
+            // bar stays put on every page.
+            boolean replace = activeTab != TAB_CHATS;
+            BaseFragment target;
+            if (tab == TAB_CONTACTS) {
                 android.os.Bundle args = new android.os.Bundle();
                 args.putBoolean("needPhonebook", true);
-                fragment.presentFragment(new ContactsActivity(args));
+                args.putBoolean("rivTab", true);
+                target = new ContactsActivity(args);
             } else if (tab == TAB_CALLS) {
-                fragment.presentFragment(new RivCallsActivity());
+                target = new RivCallsActivity();
             } else if (tab == TAB_MUSIC) {
-                fragment.presentFragment(new RivMusicActivity());
+                target = new RivMusicActivity();
             } else if (tab == TAB_VIDEOS) {
-                fragment.presentFragment(new RivVideosActivity());
-            } else if (tab == TAB_PROFILE) {
+                target = new RivVideosActivity();
+            } else {
                 android.os.Bundle args = new android.os.Bundle();
                 args.putLong("user_id", org.telegram.messenger.UserConfig.getInstance(fragment.getCurrentAccount()).getClientUserId());
                 args.putBoolean("my_profile", true);
-                fragment.presentFragment(new ProfileActivity(args));
+                args.putBoolean("rivTab", true);
+                target = new ProfileActivity(args);
             }
+            fragment.presentFragment(target, replace);
         });
-        contentView.addView(bar, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, HEIGHT_DP, Gravity.BOTTOM, 0, 0, 0, navInset[0]));
+        final int side = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
+        final int gap = style() == STYLE_FLOATING ? AndroidUtilities.dp(12) : 0;
+        contentView.addView(bar, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, barHeightDp(), Gravity.BOTTOM, side, 0, side, navInset[0] + gap));
 
         // Riv Post: re-checks the real inset on every layout pass and re-applies both margins
         // when it changes, so this stays correct through rotation or a nav-mode change without
@@ -206,12 +260,12 @@ public class RivBottomBar extends LinearLayout {
             if (inset == navInset[0]) return;
             navInset[0] = inset;
             FrameLayout.LayoutParams barLp = (FrameLayout.LayoutParams) bar.getLayoutParams();
-            if (barLp.bottomMargin != inset) {
-                barLp.bottomMargin = inset;
+            if (barLp.bottomMargin != inset + gap) {
+                barLp.bottomMargin = inset + gap;
                 bar.setLayoutParams(barLp);
             }
             FrameLayout.LayoutParams playerLp = (FrameLayout.LayoutParams) miniPlayer.getLayoutParams();
-            int playerMargin = inset + AndroidUtilities.dp(HEIGHT_DP);
+            int playerMargin = inset + AndroidUtilities.dp(heightDp());
             if (playerLp.bottomMargin != playerMargin) {
                 playerLp.bottomMargin = playerMargin;
                 miniPlayer.setLayoutParams(playerLp);

@@ -14,6 +14,19 @@ public class RivTheme {
     public static final String AMOLED = "amoled";
     public static final String GREEN = "greenClassic";
 
+    // custom colours (0 = automatic / theme's own)
+    public static final String BG_COLOR = "colorBackground";
+    public static final String CARD_COLOR = "colorCards";
+    public static final String TEXT_COLOR = "colorText";
+    public static final String NAV_COLOR = "colorNavBar";
+    public static final String MINI_COLOR = "colorMiniPlayer";
+
+    /** Accent choices shown as swatches (same idea as RTP's theme screen). */
+    public static final int[] SWATCHES = {
+            0xFF7C4DFF, 0xFFAB47BC, 0xFF5E35B1, 0xFFB388FF, 0xFF3D5AFE, 0xFF2196F3, 0xFF00BCD4,
+            0xFF26A69A, 0xFF43A047, 0xFFC0CA33, 0xFFFFB300, 0xFFFF7043, 0xFFE53935, 0xFFEC407A,
+    };
+
     private static final int BLACK = 0xFF000000;
     private static final int NEAR_BLACK = 0xFF0D0D0D;
     private static final int DARK_CARD = 0xFF151515;
@@ -45,6 +58,40 @@ public class RivTheme {
                 put(colors, Theme.key_chat_inBubble, DARK_CARD);
                 put(colors, Theme.key_chat_inBubbleSelected, 0xFF1F1F1F);
                 put(colors, Theme.key_chat_inBubbleShadow, BLACK);
+            }
+            int accent = RivPrefs.i(RivPrefs.ACCENT, 0);
+            if (accent != 0) {
+                put(colors, Theme.key_windowBackgroundWhiteBlueText4, accent);
+                put(colors, Theme.key_windowBackgroundWhiteValueText, accent);
+                put(colors, Theme.key_windowBackgroundWhiteBlueHeader, accent);
+                put(colors, Theme.key_chats_actionBackground, accent);
+                put(colors, Theme.key_chats_unreadCounter, accent);
+                put(colors, Theme.key_switchTrackChecked, accent);
+                put(colors, Theme.key_checkboxSquareBackground, accent);
+                put(colors, Theme.key_featuredStickers_addButton, accent);
+                put(colors, Theme.key_actionBarTabLine, accent);
+                put(colors, Theme.key_actionBarTabActiveText, accent);
+                put(colors, Theme.key_chats_menuItemCheck, accent);
+            }
+            int bg = RivPrefs.i(BG_COLOR, 0);
+            if (bg != 0) {
+                put(colors, Theme.key_windowBackgroundWhite, bg);
+                put(colors, Theme.key_windowBackgroundGray, bg);
+                put(colors, Theme.key_actionBarDefault, bg);
+                put(colors, Theme.key_chats_menuBackground, bg);
+            }
+            int card = RivPrefs.i(CARD_COLOR, 0);
+            if (card != 0) {
+                put(colors, Theme.key_actionBarDefaultSubmenuBackground, card);
+                put(colors, Theme.key_dialogBackground, card);
+                put(colors, Theme.key_chat_inBubble, card);
+            }
+            int text = RivPrefs.i(TEXT_COLOR, 0);
+            if (text != 0) {
+                put(colors, Theme.key_windowBackgroundWhiteBlackText, text);
+                put(colors, Theme.key_chats_name, text);
+                put(colors, Theme.key_actionBarDefaultTitle, text);
+                put(colors, Theme.key_dialogTextBlack, text);
             }
             if (!isDark && RivPrefs.b(GREEN)) {
                 put(colors, Theme.key_actionBarDefault, GREEN_BAR);

@@ -41,7 +41,7 @@ import java.util.Locale;
  * Pages backward through the chat with TL_messages_search (empty filter), the same request
  * type RivVideosActivity/RivMusicActivity already use, just without a media filter.
  */
-public class RivExportChatActivity extends BaseFragment {
+public class RivExportChatActivity extends RivFragment {
 
     private long dialogId = 0;
     private TextSettingsCell pickCell;

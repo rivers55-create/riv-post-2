@@ -31,7 +31,7 @@ import java.util.ArrayList;
  * Telegram's own ChatActivity input bar, which this build does not add yet -- see the TODO
  * in apply.sh. Copy-and-paste works today without touching any real Telegram file.)
  */
-public class RivQuickRepliesActivity extends BaseFragment {
+public class RivQuickRepliesActivity extends RivFragment {
 
     private LinearLayout layout;
 

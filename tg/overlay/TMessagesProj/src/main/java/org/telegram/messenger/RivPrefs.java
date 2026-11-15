@@ -35,6 +35,30 @@ public class RivPrefs {
     public static final String IN_CHAT_PLAYER_RTP_STYLE = "inChatPlayerRtpStyle"; // style the in-chat music bar like RTP instead of stock Telegram
     public static final String TAP_OPENS_RTP_MINI_PLAYER = "tapOpensRtpMiniPlayer"; // tapping a chat's music bar opens RTP's mini player (default on)
 
+    // Added in this round
+    public static final String NAME_FIT = "nameFit";                 // shrink long chat names to fit (default on)
+    public static final String GHOST_BUTTON = "ghostButton";         // ghost button in the Chats top bar (default on)
+    public static final String HIDE_UPDATE_BANNER = "hideUpdateBanner"; // hide "Update Telegram" (default on)
+    public static final String HIDE_ADS = "hideAds";                 // hide sponsored chats / proxy sponsor (default on)
+    public static final String MARK_DELETED = "markDeleted";         // label kept messages as deleted (default on)
+    public static final String EDIT_HISTORY = "editHistory";         // remember earlier versions of edited messages (default on)
+    public static final String EXACT_LAST_SEEN = "exactLastSeen";    // exact last seen time on profiles (default on)
+    public static final String SHOW_USER_ID = "showUserId";          // show the person's ID on profiles (default on)
+    public static final String FAST_DOWNLOADS = "fastDownloads";     // more download pieces at once (default on)
+    public static final String RANGE_SELECT = "rangeSelect";         // select-in-between + mass download (default on)
+    public static final String MUSIC_TAB_ORDER = "musicTabOrder";    // comma list of tab ids
+    public static final String LYRICS = "lyrics";                    // synced lyrics in the player (default on)
+    public static final String LYRICS_ONLINE = "lyricsOnline";       // look lyrics up online (LRCLIB) (default on)
+    public static final String EQ_ON = "eqOn";                       // equalizer enabled
+    public static final String EQ_BANDS = "eqBands";                 // comma list of band levels (millibels)
+    public static final String EQ_PRESET = "eqPreset";               // chosen preset name
+    public static final String PLAYER_RTP = "playerRtp";             // RTP-style Now Playing (default on)
+    public static final String VIDEO_PLAYER_RVP = "videoPlayerRvp";  // RVP-style video player (default on)
+    public static final String ACCENT = "accent";                    // custom accent colour, 0 = theme default
+    public static final String ACCENT_FROM_COVER = "accentFromCover"; // tint the player from the song cover
+    public static final String LAYOUT_STYLE = "layoutStyle";         // 0 classic bar, 1 floating bar, 2 compact (labels hidden)
+    public static final String BAR_ROUNDED = "barRounded";           // rounded vs flat bottom bar
+
     private static SharedPreferences prefs;
 
     private static SharedPreferences prefs() {
@@ -96,5 +120,54 @@ public class RivPrefs {
     /** Sticker size factor; 1.0 is official. */
     public static float stickerScale() {
         return i(STICKER_SIZE, 100) / 100f;
+    }
+
+    /** Ghost mode = no read ticks, no "typing...", never online. One switch for all three. */
+    public static boolean ghost() {
+        return b(GHOST);
+    }
+
+    public static void setGhost(boolean on) {
+        set(GHOST, on);
+        set(HIDE_TYPING, on);
+        set(HIDE_ONLINE, on);
+    }
+
+    /**
+     * A chat name that is a little too long for its row is drawn smaller (down to 80%) so the
+     * whole name fits on one line; anything longer still ends in "..." as before.
+     */
+    public static CharSequence fitName(CharSequence name, android.text.TextPaint paint, int width) {
+        try {
+            if (name == null || width <= 0 || !b(NAME_FIT, true)) return name;
+            float w = paint.measureText(name.toString());
+            if (w <= width) return name;
+            float scale = Math.max(0.8f, width / w);
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(name);
+            sb.setSpan(new android.text.style.RelativeSizeSpan(scale), 0, sb.length(), android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+            return sb;
+        } catch (Throwable t) {
+            return name;
+        }
+    }
+
+    /** Comma list of longs (chat ids etc.). */
+    public static java.util.ArrayList<String> list(String key) {
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        String raw = s(key, "");
+        if (raw == null || raw.isEmpty()) return out;
+        for (String p : raw.split(",")) {
+            if (!p.isEmpty()) out.add(p);
+        }
+        return out;
+    }
+
+    public static void setList(String key, java.util.List<String> items) {
+        StringBuilder sb = new StringBuilder();
+        for (String it : items) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(it);
+        }
+        set(key, sb.toString());
     }
 }

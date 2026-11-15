@@ -112,6 +112,8 @@ edit(MC,
                 }
                 if (!RivPrefs.b(RivPrefs.KEEP_DELETED)) {
                     arrayList.addAll(update.messages);
+                } else {
+                    RivDeleted.add(currentAccount, 0, update.messages);
                 }
 """)
 edit(MC,
@@ -129,6 +131,8 @@ edit(MC,
                 }
                 if (!RivPrefs.b(RivPrefs.KEEP_DELETED)) {
                     arrayList.addAll(update.messages);
+                } else {
+                    RivDeleted.add(currentAccount, dialogId, update.messages);
                 }
 """)
 # Palette overrides (AMOLED / Green classic) each time the theme table is rebuilt
@@ -159,7 +163,7 @@ edit(MC,
 """    public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
 """,
 """    public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
-        if (RivPrefs.b(RivPrefs.HIDE_SPONSORED)) {
+        if (RivPrefs.b(RivPrefs.HIDE_ADS, true)) {
             return null;
         }
 """)
@@ -306,6 +310,242 @@ edit(LC,
         }
         return value;
 """)
+
+# Bottom bar on every tab page: Contacts and Profile, when opened from the Riv bottom bar
+# (argument "rivTab"), dock the same bar and leave room for it the same way Telegram leaves
+# room for its own tab pill (additionNavigationBarHeight / additionFloatingButtonOffset).
+CA = 'TMessagesProj/src/main/java/org/telegram/ui/ContactsActivity.java'
+PA = 'TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java'
+for path in (CA, PA):
+    edit(path,
+"""        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+""",
+"""        additionFloatingButtonOffset = hasMainTabs ? dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN) : 0;
+        if (arguments != null && arguments.getBoolean("rivTab", false)) {
+            additionNavigationBarHeight = dp(org.telegram.ui.RivBottomBar.heightDp() + 8);
+            additionFloatingButtonOffset = dp(org.telegram.ui.RivBottomBar.heightDp() + 8);
+        }
+""")
+edit(CA,
+"""        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""",
+"""        if (arguments != null && arguments.getBoolean("rivTab", false)) {
+            org.telegram.ui.RivBottomBar.attach(this, contentView, org.telegram.ui.RivBottomBar.TAB_CONTACTS, 0);
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""")
+edit(PA,
+"""        setupHeaderGlass();
+
+        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""",
+"""        setupHeaderGlass();
+
+        if (arguments != null && arguments.getBoolean("rivTab", false) && fragmentView instanceof android.widget.FrameLayout) {
+            org.telegram.ui.RivBottomBar.attach(this, (android.widget.FrameLayout) fragmentView, org.telegram.ui.RivBottomBar.TAB_PROFILE, 0);
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
+        return fragmentView;""")
+
+
+# Full chat names: a name slightly too long for its row is shrunk (down to 80%) to fit on one
+# line instead of being cut with "..."; only names longer than that still end in "...".
+DC = 'TMessagesProj/src/main/java/org/telegram/ui/Cells/DialogCell.java'
+edit(DC,
+"""            CharSequence nameStringFinal = nameString;
+            if (nameLayoutEllipsizeByGradient) {""",
+"""            CharSequence nameStringFinal = nameString;
+            if (!twoLinesForName && !nameLayoutEllipsizeByGradient) {
+                nameStringFinal = org.telegram.messenger.RivPrefs.fitName(nameStringFinal, Theme.dialogs_namePaint[paintIndex], ellipsizeWidth);
+            }
+            if (nameLayoutEllipsizeByGradient) {""")
+
+
+# Ghost button in the Chats top bar (tap: ghost mode on/off)
+edit(DA,
+"""            downloadsItem.setVisibility(View.GONE);
+
+            updateProxyButton(false, false);""",
+"""            downloadsItem.setVisibility(View.GONE);
+            if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {
+                org.telegram.ui.RivGhostButton.add(menu);
+            }
+
+            updateProxyButton(false, false);""")
+
+
+# Hide the "Update Telegram" bar: it would install official Telegram over Riv Post
+MT = 'TMessagesProj/src/main/java/org/telegram/ui/MainTabsActivity.java'
+edit(MT,
+"""        updateLayout = ApplicationLoader.applicationLoaderInstance.takeUpdateLayout(getParentActivity(), updateLayoutWrapper);""",
+"""        updateLayout = org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.HIDE_UPDATE_BANNER, true) ? null : ApplicationLoader.applicationLoaderInstance.takeUpdateLayout(getParentActivity(), updateLayoutWrapper);""")
+
+
+# Kept (deleted-by-others) messages get a "deleted" label next to their time
+edit(CC,
+"""    public static String timeString(MessageObject current, MessageObject message, boolean edited, int editDate) {
+        if (current.notime""",
+"""    public static String timeString(MessageObject current, MessageObject message, boolean edited, int editDate) {
+        return org.telegram.messenger.RivDeleted.decorate(current, timeStringRivInternal(current, message, edited, editDate));
+    }
+
+    private static String timeStringRivInternal(MessageObject current, MessageObject message, boolean edited, int editDate) {
+        if (current.notime""")
+
+
+# Chats: select-in-between, download all, save all to phone, edit history
+CHA = 'TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java'
+edit(CHA,
+"""    private final static int save_to = 25;
+""",
+"""    private final static int save_to = 25;
+    private final static int riv_more = 9100;
+    private final static int riv_range = 9101;
+    private final static int riv_download_all = 9102;
+    private final static int riv_save_all = 9103;
+    private final static int RIV_OPTION_EDIT_HISTORY = 9201;
+""")
+edit(CHA,
+"""                } else if (id == save_to) {
+""",
+"""                } else if (id == riv_range) {
+                    rivSelectBetween();
+                } else if (id == riv_download_all || id == riv_save_all) {
+                    ArrayList<MessageObject> rivPicked = new ArrayList<>();
+                    for (int a = 1; a >= 0; a--) {
+                        for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
+                            rivPicked.add(selectedMessagesIds[a].valueAt(b));
+                        }
+                    }
+                    clearSelectionMode();
+                    org.telegram.ui.RivChatTools.downloadAll(ChatActivity.this, rivPicked, id == riv_save_all);
+                } else if (id == save_to) {
+""")
+edit(CHA,
+"""            actionModeViews.add(actionMode.addItemWithWidth(share, R.drawable.msg_shareout, dp(48), LocaleController.getString(R.string.ShareFile)));
+""",
+"""            actionModeViews.add(actionMode.addItemWithWidth(share, R.drawable.msg_shareout, dp(48), LocaleController.getString(R.string.ShareFile)));
+            if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.RANGE_SELECT, true)) {
+                ActionBarMenuItem rivMore = actionMode.addItemWithWidth(riv_more, R.drawable.ic_ab_other, dp(48), LocaleController.getString(R.string.AccDescrMoreOptions));
+                rivMore.addSubItem(riv_range, R.drawable.msg_select, LocaleController.getString(R.string.RivSelectBetween));
+                rivMore.addSubItem(riv_download_all, R.drawable.msg_download, LocaleController.getString(R.string.RivDownloadAll));
+                rivMore.addSubItem(riv_save_all, R.drawable.msg_download, LocaleController.getString(R.string.RivSaveAllToPhone));
+                actionModeViews.add(rivMore);
+            }
+""")
+edit(CHA,
+"""    private void hideTagSelector() {
+""",
+"""    /** Riv Post: selects every message between the first and the last one already selected. */
+    private void rivSelectBetween() {
+        int first = -1, last = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            MessageObject m = messages.get(i);
+            if (m == null) continue;
+            int index = m.getDialogId() == dialog_id ? 0 : 1;
+            if (selectedMessagesIds[index].indexOfKey(m.getId()) >= 0) {
+                if (first < 0) first = i;
+                last = i;
+            }
+        }
+        if (first < 0 || last <= first) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.getString(R.string.RivSelectBetweenHint)).show();
+            return;
+        }
+        for (int i = first + 1; i < last; i++) {
+            MessageObject m = messages.get(i);
+            if (m == null) continue;
+            int index = m.getDialogId() == dialog_id ? 0 : 1;
+            if (selectedMessagesIds[index].indexOfKey(m.getId()) >= 0) continue;
+            int type = getMessageType(m);
+            if (m.isAnyGift() || type < 2 || type == 20 || type == MessageObject.TYPE_SUGGEST_PHOTO || m.type == MessageObject.TYPE_JOINED_CHANNEL || m.type == MessageObject.TYPE_GIFT_STARS || m.isWallpaperAction() || m.isSponsored() || m.isEphemeral()) {
+                continue;
+            }
+            addToSelectedMessages(m, false);
+        }
+        updateActionModeTitle();
+        updateVisibleRows();
+    }
+
+    private void hideTagSelector() {
+""")
+edit(CHA,
+"""            addToPolls(messageObject, old);
+""",
+"""            addToPolls(messageObject, old);
+            org.telegram.messenger.RivEdits.record(old, messageObject);
+""")
+edit(CHA,
+"""            if (options.isEmpty() && optionsView == null) {
+""",
+"""            if (!suggestEdit && selectedObject != null && !options.isEmpty()) {
+                if (org.telegram.messenger.RivEdits.has(selectedObject)) {
+                    items.add(LocaleController.getString(R.string.RivEditHistory));
+                    options.add(RIV_OPTION_EDIT_HISTORY);
+                    icons.add(R.drawable.msg_recent);
+                }
+            }
+            if (options.isEmpty() && optionsView == null) {
+""")
+edit(CHA,
+"""        switch (option) {
+            case OPTION_RETRY: {
+""",
+"""        switch (option) {
+            case RIV_OPTION_EDIT_HISTORY: {
+                org.telegram.ui.RivChatTools.showEditHistory(this, selectedObject);
+                break;
+            }
+            case OPTION_RETRY: {
+""")
+
+
+# Profile: full "last seen" time and the person's ID under their name
+edit(PA,
+"""                newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline, shortStatus ? new boolean[1] : null);
+""",
+"""                newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline, shortStatus ? new boolean[1] : null);
+                if (!isOnline[0]) {
+                    newString2 = org.telegram.messenger.RivProfile.decorateStatus(newString2, user);
+                } else if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.SHOW_USER_ID, true)) {
+                    newString2 = newString2 + "  \\u00B7  ID " + user.id;
+                }
+""")
+
+
+# Faster downloads: use Telegram's own bigger-pieces setting (512 KB x 8 at once) for every file
+FLO = 'TMessagesProj/src/main/java/org/telegram/messenger/FileLoadOperation.java'
+edit(FLO,
+"""        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {""",
+"""        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams || RivPrefs.b(RivPrefs.FAST_DOWNLOADS, true)) && !forceSmallChunk) {""")
+
+
+# Equalizer: attach to every song's audio as it starts, and expose the session for the EQ screen
+MCO = 'TMessagesProj/src/main/java/org/telegram/messenger/MediaController.java'
+edit(MCO,
+"""    private VideoPlayer audioPlayer = null;
+""",
+"""    private VideoPlayer audioPlayer = null;
+
+    public int rivAudioSessionId() {
+        try {
+            return audioPlayer != null && audioPlayer.player != null ? audioPlayer.player.getAudioSessionId() : 0;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+""")
+edit(MCO,
+"""                audioPlayer.setStreamType(useFrontSpeaker ? AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
+                audioPlayer.play();
+                if (!messageObject.isVoice()) {""",
+"""                audioPlayer.setStreamType(useFrontSpeaker ? AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
+                audioPlayer.play();
+                if (messageObject.isMusic()) {
+                    RivEq.attach(rivAudioSessionId());
+                }
+                if (!messageObject.isVoice()) {""")
+
 print("Riv hooks applied")
 PY
 

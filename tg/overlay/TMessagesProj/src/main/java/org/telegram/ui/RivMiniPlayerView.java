@@ -39,7 +39,8 @@ public class RivMiniPlayerView extends FrameLayout {
 
     public RivMiniPlayerView(Context context) {
         super(context);
-        setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        int rivMini = org.telegram.messenger.RivPrefs.i(org.telegram.messenger.RivTheme.MINI_COLOR, 0);
+        setBackgroundColor(rivMini != 0 ? rivMini : Theme.getColor(Theme.key_windowBackgroundWhite));
 
         art = new BackupImageView(context);
         art.getImageReceiver().setRoundRadius(AndroidUtilities.dp(8));

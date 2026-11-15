@@ -41,7 +41,7 @@ import java.util.Locale;
  * it) + a floating round button that plays a sample item from the currently checked sources,
  * via a caller-supplied preview callback (what "preview" means differs for music vs video).
  */
-public class RivChatSourcePicker extends BaseFragment {
+public class RivChatSourcePicker extends RivFragment {
 
     public interface Delegate {
         void onSourcesChanged(ArrayList<Long> sources);
@@ -98,7 +98,7 @@ public class RivChatSourcePicker extends BaseFragment {
 
     private void applyHeaderInset() {
         if (column == null) return;
-        int headerHeight = mSystemInsets.top + ActionBar.getCurrentActionBarHeight();
+        int headerHeight = rivHeaderHeight();
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) column.getLayoutParams();
         if (lp != null && lp.topMargin != headerHeight) {
             lp.topMargin = headerHeight;

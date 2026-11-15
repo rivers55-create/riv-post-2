@@ -41,6 +41,16 @@ public class RivIcon extends View {
     public static final int TAB_VIDEOS = 22;
     public static final int TAB_PROFILE = 23;
     public static final int CHECK = 24;
+    public static final int MORE = 25;
+    public static final int REWIND = 26;
+    public static final int FORWARD = 27;
+    public static final int PHONE = 28;
+    public static final int NEXT_FILLED = 29;
+    public static final int PREV_FILLED = 30;
+    public static final int BACK = 31;
+    public static final int LOCK = 32;
+    public static final int ROTATE = 33;
+    public static final int ASPECT = 34;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int kind;
@@ -67,7 +77,122 @@ public class RivIcon extends View {
         float cx = w / 2f, cy = h / 2f;
         float s = Math.min(w, h) * 0.5f;
         paint.setColor(color);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setStrokeCap(Paint.Cap.BUTT);
         switch (kind) {
+            case BACK: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(2.2f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setStrokeJoin(Paint.Join.ROUND);
+                canvas.drawLine(cx - s * 0.65f, cy, cx + s * 0.65f, cy, paint);
+                Path p = new Path();
+                p.moveTo(cx - s * 0.1f, cy - s * 0.55f);
+                p.lineTo(cx - s * 0.65f, cy);
+                p.lineTo(cx - s * 0.1f, cy + s * 0.55f);
+                canvas.drawPath(p, paint);
+                break;
+            }
+            case LOCK: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(2f));
+                canvas.drawArc(cx - s * 0.38f, cy - s * 0.8f, cx + s * 0.38f, cy - s * 0.05f, 180, 180, false, paint);
+                canvas.drawLine(cx - s * 0.38f, cy - s * 0.42f, cx - s * 0.38f, cy - s * 0.1f, paint);
+                canvas.drawLine(cx + s * 0.38f, cy - s * 0.42f, cx + s * 0.38f, cy - s * 0.1f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawRoundRect(new android.graphics.RectF(cx - s * 0.6f, cy - s * 0.1f, cx + s * 0.6f, cy + s * 0.75f), s * 0.12f, s * 0.12f, paint);
+                break;
+            }
+            case ROTATE: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(1.8f));
+                canvas.save();
+                canvas.rotate(-45, cx, cy);
+                canvas.drawRoundRect(new android.graphics.RectF(cx - s * 0.32f, cy - s * 0.6f, cx + s * 0.32f, cy + s * 0.6f), s * 0.1f, s * 0.1f, paint);
+                canvas.restore();
+                canvas.drawArc(cx - s * 0.85f, cy - s * 0.85f, cx + s * 0.85f, cy + s * 0.85f, 200, 50, false, paint);
+                canvas.drawArc(cx - s * 0.85f, cy - s * 0.85f, cx + s * 0.85f, cy + s * 0.85f, 20, 50, false, paint);
+                break;
+            }
+            case ASPECT: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(2f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                float a = s * 0.75f, b = s * 0.55f, k = s * 0.3f;
+                canvas.drawLine(cx - a, cy - b, cx - a + k, cy - b, paint);
+                canvas.drawLine(cx - a, cy - b, cx - a, cy - b + k, paint);
+                canvas.drawLine(cx + a, cy - b, cx + a - k, cy - b, paint);
+                canvas.drawLine(cx + a, cy - b, cx + a, cy - b + k, paint);
+                canvas.drawLine(cx - a, cy + b, cx - a + k, cy + b, paint);
+                canvas.drawLine(cx - a, cy + b, cx - a, cy + b - k, paint);
+                canvas.drawLine(cx + a, cy + b, cx + a - k, cy + b, paint);
+                canvas.drawLine(cx + a, cy + b, cx + a, cy + b - k, paint);
+                break;
+            }
+            case MORE: {
+                paint.setStyle(Paint.Style.FILL);
+                float r = AndroidUtilities.dp(2f);
+                canvas.drawCircle(cx, cy - s * 0.5f, r, paint);
+                canvas.drawCircle(cx, cy, r, paint);
+                canvas.drawCircle(cx, cy + s * 0.5f, r, paint);
+                break;
+            }
+            case REWIND:
+            case FORWARD: {
+                // circular arrow with a small "10" inside
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(1.8f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                float r = s * 0.72f;
+                boolean back = kind == REWIND;
+                canvas.drawArc(cx - r, cy - r, cx + r, cy + r, back ? -60 : -120, back ? 300 : -300, false, paint);
+                paint.setStyle(Paint.Style.FILL);
+                float ax = back ? cx + r * 0.5f : cx - r * 0.5f;
+                float ay = cy - r * 0.87f;
+                Path head = new Path();
+                head.moveTo(ax + (back ? -s * 0.28f : s * 0.28f), ay);
+                head.lineTo(ax + (back ? s * 0.1f : -s * 0.1f), ay - s * 0.25f);
+                head.lineTo(ax + (back ? s * 0.1f : -s * 0.1f), ay + s * 0.25f);
+                head.close();
+                canvas.drawPath(head, paint);
+                paint.setTextSize(s * 0.62f);
+                paint.setTextAlign(Paint.Align.CENTER);
+                paint.setFakeBoldText(true);
+                canvas.drawText("10", cx, cy + s * 0.22f, paint);
+                paint.setFakeBoldText(false);
+                break;
+            }
+            case PHONE: {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(AndroidUtilities.dp(1.8f));
+                android.graphics.RectF rr = new android.graphics.RectF(cx - s * 0.42f, cy - s * 0.75f, cx + s * 0.42f, cy + s * 0.75f);
+                canvas.drawRoundRect(rr, s * 0.15f, s * 0.15f, paint);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(cx, cy + s * 0.55f, AndroidUtilities.dp(1.2f), paint);
+                break;
+            }
+            case NEXT_FILLED:
+            case PREV_FILLED: {
+                paint.setStyle(Paint.Style.FILL);
+                boolean next = kind == NEXT_FILLED;
+                Path p = new Path();
+                if (next) {
+                    p.moveTo(cx - s * 0.55f, cy - s * 0.6f);
+                    p.lineTo(cx + s * 0.3f, cy);
+                    p.lineTo(cx - s * 0.55f, cy + s * 0.6f);
+                    p.close();
+                    canvas.drawPath(p, paint);
+                    canvas.drawRoundRect(new android.graphics.RectF(cx + s * 0.38f, cy - s * 0.6f, cx + s * 0.58f, cy + s * 0.6f), s * 0.08f, s * 0.08f, paint);
+                } else {
+                    p.moveTo(cx + s * 0.55f, cy - s * 0.6f);
+                    p.lineTo(cx - s * 0.3f, cy);
+                    p.lineTo(cx + s * 0.55f, cy + s * 0.6f);
+                    p.close();
+                    canvas.drawPath(p, paint);
+                    canvas.drawRoundRect(new android.graphics.RectF(cx - s * 0.58f, cy - s * 0.6f, cx - s * 0.38f, cy + s * 0.6f), s * 0.08f, s * 0.08f, paint);
+                }
+                break;
+            }
             case HEART:
             case HEART_OUTLINE: {
                 paint.setStyle(kind == HEART ? Paint.Style.FILL : Paint.Style.STROKE);

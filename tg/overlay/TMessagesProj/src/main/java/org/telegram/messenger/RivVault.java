@@ -102,13 +102,21 @@ public class RivVault {
     /** Filters hidden chats out of a dialog list. Called from the chat list. */
     public static ArrayList<TLRPC.Dialog> filterDialogs(ArrayList<TLRPC.Dialog> list) {
         try {
-            if (list == null || revealed || ids().isEmpty()) {
+            if (list == null) {
+                return list;
+            }
+            boolean hideVault = !revealed && !ids().isEmpty();
+            // Riv Post: "Hide ads" also hides the sponsored "Proxy sponsor" chat Telegram pins on
+            // top, but only while you're not actually a member of it.
+            boolean hideAds = RivPrefs.b(RivPrefs.HIDE_ADS, true);
+            MessagesController mc = hideAds ? MessagesController.getInstance(UserConfig.selectedAccount) : null;
+            if (!hideVault && !hideAds) {
                 return list;
             }
             boolean any = false;
             for (int i = 0; i < list.size(); i++) {
                 TLRPC.Dialog d = list.get(i);
-                if (d != null && ids().contains(d.id)) {
+                if (d != null && ((hideVault && ids().contains(d.id)) || (mc != null && mc.isPromoDialog(d.id, true)))) {
                     any = true;
                     break;
                 }
@@ -119,7 +127,7 @@ public class RivVault {
             ArrayList<TLRPC.Dialog> out = new ArrayList<>(list.size());
             for (int i = 0; i < list.size(); i++) {
                 TLRPC.Dialog d = list.get(i);
-                if (d == null || !ids().contains(d.id)) {
+                if (d == null || !((hideVault && ids().contains(d.id)) || (mc != null && mc.isPromoDialog(d.id, true)))) {
                     out.add(d);
                 }
             }
