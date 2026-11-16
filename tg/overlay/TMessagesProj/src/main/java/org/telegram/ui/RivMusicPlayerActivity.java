@@ -256,12 +256,40 @@ public class RivMusicPlayerActivity extends RivFragment implements NotificationC
         return wrap;
     }
 
+    private String boundCoverKey;
+
+    /**
+     * Riv Post: the cover used to come from Telegram's tiny preview picture (often only 90-320 px),
+     * which looked blurry at full width. Now, like Telegram's own player, it uses the full picture
+     * stored inside the song file once it's known, then the full-size online artwork, and only
+     * falls back to the small preview while those load.
+     */
     private void bindCover(MessageObject m) {
         if (cover == null || m == null) return;
+        org.telegram.messenger.audioinfo.AudioInfo info = MediaController.getInstance().getAudioInfo();
+        Bitmap full = null;
+        if (info != null && MediaController.getInstance().isPlayingMessage(m)) {
+            try {
+                full = info.getCover();
+            } catch (Throwable ignored) {
+            }
+        }
+        String key = m.getDialogId() + "_" + m.getId() + (full != null ? "_full" : "_net");
+        if (key.equals(boundCoverKey)) return;
+        boundCoverKey = key;
+        colorForKey = null; // pick the accent again from the sharper picture
+        if (full != null) {
+            cover.setImageBitmap(full);
+            return;
+        }
         TLRPC.Document doc = m.getDocument();
         TLRPC.PhotoSize thumb = doc != null ? FileLoader.getClosestPhotoSizeWithSize(doc.thumbs, 800) : null;
-        if (thumb != null) {
-            cover.setImage(org.telegram.messenger.ImageLocation.getForDocument(thumb, doc), null, new ColorDrawable(0xFF2A2236), m);
+        org.telegram.messenger.ImageLocation thumbLoc = thumb != null ? org.telegram.messenger.ImageLocation.getForDocument(thumb, doc) : null;
+        String artworkUrl = m.getArtworkUrl(false);
+        if (!TextUtils.isEmpty(artworkUrl)) {
+            cover.setImage(org.telegram.messenger.ImageLocation.getForPath(artworkUrl), null, thumbLoc, null, new ColorDrawable(0xFF2A2236), null, 0, 1, m);
+        } else if (thumbLoc != null) {
+            cover.setImage(thumbLoc, null, new ColorDrawable(0xFF2A2236), m);
         } else {
             cover.setImageDrawable(new ColorDrawable(0xFF2A2236));
         }
