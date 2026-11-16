@@ -528,7 +528,11 @@ public class RivVideoPlayerActivity extends RivFragment {
                 if (playbackState == 4) { // ended
                     savePosition();
                     if (index + 1 < playlist.size()) {
-                        playIndex(index + 1);
+                        if (RivPrefs.b(RivPrefs.AUTO_NEXT_EPISODE, true)) {
+                            showNextCountdown();
+                        } else {
+                            setControlsVisible(true);
+                        }
                     } else {
                         setControlsVisible(true);
                     }
@@ -591,7 +595,96 @@ public class RivVideoPlayerActivity extends RivFragment {
         loadSubtitles(m);
     }
 
+    // ------------------------------------------------------------------ next-episode countdown
+
+    private LinearLayout nextCard;
+    private TextView nextLabel;
+    private Runnable nextTick;
+    private int nextLeft;
+
+    /** Riv Post: at the end of a video, a 10-second countdown to the next one, with Play now / Cancel. */
+    private void showNextCountdown() {
+        if (root == null || index + 1 >= playlist.size()) return;
+        cancelNextCountdown();
+        Context context = root.getContext();
+        MessageObject nm = playlist.get(index + 1);
+        String nt = nm.getFileName();
+        RivMeta.CleanTitle nct = RivMeta.clean(nt);
+        final String nextTitle = nct != null && nct.title != null && !nct.title.isEmpty() ? nct.label() : nt;
+
+        nextCard = new LinearLayout(context);
+        nextCard.setOrientation(LinearLayout.VERTICAL);
+        nextCard.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(14), AndroidUtilities.dp(16), AndroidUtilities.dp(14));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(0xE6202020);
+        bg.setCornerRadius(AndroidUtilities.dp(16));
+        nextCard.setBackground(bg);
+        nextCard.setClickable(true);
+
+        nextLabel = new TextView(context);
+        nextLabel.setTextColor(0xFFFFFFFF);
+        nextLabel.setTextSize(14);
+        nextLabel.setMaxLines(3);
+        nextCard.addView(nextLabel);
+
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        TextView playNow = new TextView(context);
+        playNow.setText(LocaleController.getString(R.string.RivNextPlayNow));
+        playNow.setTextColor(0xFF000000);
+        playNow.setTypeface(AndroidUtilities.bold());
+        playNow.setGravity(Gravity.CENTER);
+        playNow.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
+        android.graphics.drawable.GradientDrawable pb = new android.graphics.drawable.GradientDrawable();
+        pb.setColor(0xFFFFFFFF);
+        pb.setCornerRadius(AndroidUtilities.dp(18));
+        playNow.setBackground(pb);
+        playNow.setOnClickListener(v -> {
+            cancelNextCountdown();
+            playIndex(index + 1);
+        });
+        row.addView(playNow, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36));
+        TextView cancel = new TextView(context);
+        cancel.setText(LocaleController.getString(R.string.Cancel));
+        cancel.setTextColor(0xFFFFFFFF);
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
+        cancel.setOnClickListener(v -> {
+            cancelNextCountdown();
+            setControlsVisible(true);
+        });
+        row.addView(cancel, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 36, 8, 0, 0, 0));
+        nextCard.addView(row, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+
+        root.addView(nextCard, LayoutHelper.createFrame(300, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 20, 90));
+        nextLeft = 10;
+        nextTick = new Runnable() {
+            @Override
+            public void run() {
+                if (nextLabel == null) return;
+                if (nextLeft <= 0) {
+                    cancelNextCountdown();
+                    playIndex(index + 1);
+                    return;
+                }
+                nextLabel.setText(LocaleController.formatString(R.string.RivNextIn, nextTitle, nextLeft));
+                nextLeft--;
+                AndroidUtilities.runOnUIThread(this, 1000);
+            }
+        };
+        nextTick.run();
+    }
+
+    private void cancelNextCountdown() {
+        if (nextTick != null) AndroidUtilities.cancelRunOnUIThread(nextTick);
+        nextTick = null;
+        if (nextCard != null && nextCard.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) nextCard.getParent()).removeView(nextCard);
+        nextCard = null;
+        nextLabel = null;
+    }
+
     private void playIndex(int i) {
+        cancelNextCountdown();
         if (i < 0 || i >= playlist.size()) return;
         savePosition();
         index = i;
@@ -759,6 +852,7 @@ public class RivVideoPlayerActivity extends RivFragment {
 
     @Override
     public void onFragmentDestroy() {
+        if (nextTick != null) AndroidUtilities.cancelRunOnUIThread(nextTick);
         AndroidUtilities.cancelRunOnUIThread(tick);
         AndroidUtilities.cancelRunOnUIThread(hideControls);
         AndroidUtilities.cancelRunOnUIThread(hideHint);

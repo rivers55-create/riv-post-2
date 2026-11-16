@@ -136,4 +136,155 @@ public final class RivProxyImport {
         }
         return new int[]{added, existing, invalid};
     }
+
+    // ------------------------------------------------------------------ fastest / clean up
+
+    /** Riv Post: switch to the proxy with the best (lowest) measured ping. Returns false if none was checked yet. */
+    public static boolean connectFastest() {
+        SharedConfig.loadProxyList();
+        SharedConfig.ProxyInfo best = null;
+        for (SharedConfig.ProxyInfo p : SharedConfig.proxyList) {
+            if (!p.available || p.availableCheckTime == 0 || p.ping <= 0) continue;
+            if (best == null || p.ping < best.ping) best = p;
+        }
+        if (best == null) return false;
+        android.content.SharedPreferences.Editor editor = org.telegram.messenger.MessagesController.getGlobalMainSettings().edit();
+        best.settings.toSharedPreferences(editor);
+        editor.putBoolean("proxy_enabled", true);
+        editor.commit();
+        SharedConfig.currentProxy = best;
+        org.telegram.tgnet.ConnectionsManager.setProxySettings(true, best.settings);
+        org.telegram.messenger.NotificationCenter.getGlobalInstance().postNotificationName(org.telegram.messenger.NotificationCenter.proxySettingsChanged);
+        return true;
+    }
+
+    /** Proxies whose last check failed (and aren't being checked right now). */
+    public static ArrayList<SharedConfig.ProxyInfo> deadProxies() {
+        ArrayList<SharedConfig.ProxyInfo> out = new ArrayList<>();
+        for (SharedConfig.ProxyInfo p : SharedConfig.proxyList) {
+            if (!p.checking && p.availableCheckTime != 0 && !p.available && p != SharedConfig.currentProxy) out.add(p);
+        }
+        return out;
+    }
+
+    public static void askRemoveDead(BaseFragment fragment, Runnable onDone) {
+        Context context = fragment.getParentActivity();
+        if (context == null) return;
+        ArrayList<SharedConfig.ProxyInfo> dead = deadProxies();
+        if (dead.isEmpty()) {
+            Toast.makeText(context, LocaleController.getString(R.string.RivProxyNoDead), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(context);
+        b.setTitle(LocaleController.getString(R.string.RivProxyRemoveDead));
+        b.setMessage(LocaleController.formatString(R.string.RivProxyRemoveDeadAsk, dead.size()));
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        b.setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> {
+            for (SharedConfig.ProxyInfo p : dead) SharedConfig.deleteProxy(p);
+            org.telegram.messenger.NotificationCenter.getGlobalInstance().postNotificationName(org.telegram.messenger.NotificationCenter.proxySettingsChanged);
+            if (onDone != null) onDone.run();
+        });
+        fragment.showDialog(b.create());
+    }
+
+    // ------------------------------------------------------------------ channel auto-import
+
+    private static final long CHANNEL_EVERY_MS = 6 * 60 * 60 * 1000L;
+
+    /** Riv Post: pick channels/groups that post proxies; their new links are added automatically. */
+    public static void pickChannels(BaseFragment fragment, Runnable onDone) {
+        ArrayList<Long> ids = new ArrayList<>();
+        for (String s : org.telegram.messenger.RivPrefs.list(org.telegram.messenger.RivPrefs.PROXY_CHANNEL)) {
+            try {
+                ids.add(Long.parseLong(s));
+            } catch (Throwable ignored) {
+            }
+        }
+        RivChatSourcePicker picker = new RivChatSourcePicker(LocaleController.getString(R.string.RivProxyChannels),
+                LocaleController.getString(R.string.RivProxyChannelsInfo), ids);
+        picker.setDelegate(new RivChatSourcePicker.Delegate() {
+            @Override
+            public void onSourcesChanged(ArrayList<Long> sources) {
+                ArrayList<String> out = new ArrayList<>();
+                for (Long id : sources) out.add(String.valueOf(id));
+                org.telegram.messenger.RivPrefs.setList(org.telegram.messenger.RivPrefs.PROXY_CHANNEL, out);
+                org.telegram.messenger.RivPrefs.set(org.telegram.messenger.RivPrefs.PROXY_CHANNEL_LAST, "0");
+                importFromChannels(fragment.getCurrentAccount(), true, onDone);
+            }
+
+            @Override
+            public void onPreview(ArrayList<Long> sources) {
+            }
+        });
+        fragment.presentFragment(picker);
+    }
+
+    public static int channelCount() {
+        return org.telegram.messenger.RivPrefs.list(org.telegram.messenger.RivPrefs.PROXY_CHANNEL).size();
+    }
+
+    /** Reads the last 100 posts of each picked channel and adds every proxy link found. At most every 6 hours unless forced. */
+    public static void importFromChannels(int account, boolean force, Runnable onDone) {
+        ArrayList<String> ids = org.telegram.messenger.RivPrefs.list(org.telegram.messenger.RivPrefs.PROXY_CHANNEL);
+        if (ids.isEmpty()) return;
+        long last = 0;
+        try {
+            last = Long.parseLong(org.telegram.messenger.RivPrefs.s(org.telegram.messenger.RivPrefs.PROXY_CHANNEL_LAST, "0"));
+        } catch (Throwable ignored) {
+        }
+        if (!force && System.currentTimeMillis() - last < CHANNEL_EVERY_MS) return;
+        org.telegram.messenger.RivPrefs.set(org.telegram.messenger.RivPrefs.PROXY_CHANNEL_LAST, String.valueOf(System.currentTimeMillis()));
+        final int[] pending = {ids.size()};
+        final int[] added = {0};
+        for (String sid : ids) {
+            long dialogId;
+            try {
+                dialogId = Long.parseLong(sid);
+            } catch (Throwable t) {
+                pending[0]--;
+                continue;
+            }
+            org.telegram.tgnet.TLRPC.TL_messages_getHistory req = new org.telegram.tgnet.TLRPC.TL_messages_getHistory();
+            req.peer = org.telegram.messenger.MessagesController.getInstance(account).getInputPeer(dialogId);
+            req.limit = 100;
+            org.telegram.tgnet.ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> org.telegram.messenger.AndroidUtilities.runOnUIThread(() -> {
+                if (response instanceof org.telegram.tgnet.TLRPC.messages_Messages) {
+                    StringBuilder text = new StringBuilder();
+                    for (org.telegram.tgnet.TLRPC.Message msg : ((org.telegram.tgnet.TLRPC.messages_Messages) response).messages) {
+                        collectLinks(msg, text);
+                    }
+                    added[0] += addAll(text.toString())[0];
+                }
+                pending[0]--;
+                if (pending[0] <= 0) {
+                    if (added[0] > 0) {
+                        org.telegram.messenger.NotificationCenter.getGlobalInstance().postNotificationName(org.telegram.messenger.NotificationCenter.proxySettingsChanged);
+                        Context c = org.telegram.messenger.ApplicationLoader.applicationContext;
+                        if (c != null) Toast.makeText(c, LocaleController.formatString(R.string.RivProxyChannelAdded, added[0]), Toast.LENGTH_SHORT).show();
+                    }
+                    if (onDone != null) onDone.run();
+                }
+            }), org.telegram.tgnet.ConnectionsManager.RequestFlagFailOnServerErrors);
+        }
+    }
+
+    private static void collectLinks(org.telegram.tgnet.TLRPC.Message msg, StringBuilder out) {
+        if (msg == null) return;
+        if (msg.message != null) out.append(msg.message).append('\n');
+        if (msg.entities != null) {
+            for (org.telegram.tgnet.TLRPC.MessageEntity e : msg.entities) {
+                if (e instanceof org.telegram.tgnet.TLRPC.TL_messageEntityTextUrl && e.url != null) out.append(e.url).append('\n');
+            }
+        }
+        if (msg.reply_markup instanceof org.telegram.tgnet.TLRPC.TL_replyInlineMarkup) {
+            for (org.telegram.tgnet.tl.TL_keyboard.KeyboardInlineButtonRow row : ((org.telegram.tgnet.TLRPC.TL_replyInlineMarkup) msg.reply_markup).rows) {
+                for (org.telegram.tgnet.tl.TL_keyboard.KeyboardInlineButton b : row.buttons) {
+                    if (b != null && b.type instanceof org.telegram.tgnet.tl.TL_keyboard.TL_inlineButtonTypeUrl) {
+                        String u = ((org.telegram.tgnet.tl.TL_keyboard.TL_inlineButtonTypeUrl) b.type).url;
+                        if (u != null) out.append(u).append('\n');
+                    }
+                }
+            }
+        }
+    }
 }

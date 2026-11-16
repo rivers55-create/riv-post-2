@@ -458,11 +458,50 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             shelves.add(new Shelf(LocaleController.getString(R.string.RivMyList), myList));
         }
 
+        // Riv Post: one shelf per series (episodes of the same show, in season/episode order)
+        java.util.HashSet<MessageObject> inSeries = new java.util.HashSet<>();
+        if (RivPrefs.b(RivPrefs.SERIES_SHELVES, true)) {
+            LinkedHashMap<String, List<MessageObject>> series = new LinkedHashMap<>();
+            java.util.HashMap<MessageObject, RivMeta.CleanTitle> cts = new java.util.HashMap<>();
+            for (MessageObject m : base) {
+                RivMeta.CleanTitle ct = RivMeta.titleOf(toSource(m));
+                if (ct == null || ct.title == null || ct.title.isEmpty() || ct.episode <= 0) continue;
+                String k = ct.title.trim().toLowerCase(java.util.Locale.ROOT);
+                List<MessageObject> l = series.get(k);
+                if (l == null) {
+                    l = new ArrayList<>();
+                    series.put(k, l);
+                }
+                l.add(m);
+                cts.put(m, ct);
+            }
+            for (List<MessageObject> eps : series.values()) {
+                if (eps.size() < 2) continue;
+                Collections.sort(eps, (a, b) -> {
+                    RivMeta.CleanTitle x = cts.get(a), y = cts.get(b);
+                    int c = Integer.compare(x.season, y.season);
+                    return c != 0 ? c : Integer.compare(x.episode, y.episode);
+                });
+                // drop duplicate uploads of the same episode
+                List<MessageObject> uniq = new ArrayList<>();
+                java.util.HashSet<String> seen = new java.util.HashSet<>();
+                for (MessageObject m : eps) {
+                    RivMeta.CleanTitle x = cts.get(m);
+                    if (seen.add(x.season + "x" + x.episode)) uniq.add(m);
+                }
+                inSeries.addAll(eps);
+                shelves.add(new Shelf(LocaleController.formatString(R.string.RivSeriesShelf, cts.get(eps.get(0)).title, uniq.size()), uniq));
+            }
+        }
+
+        boolean hideWatched = RivPrefs.b(RivPrefs.HIDE_WATCHED, false);
         Map<Long, List<MessageObject>> byChat = new LinkedHashMap<>();
         for (Long id : sources) {
             if (!filtering || selectedChats.contains(id)) byChat.put(id, new ArrayList<>());
         }
         for (MessageObject m : base) {
+            if (inSeries.contains(m)) continue;
+            if (hideWatched && RivMeta.isWatched(ApplicationLoaderContext(), keyOf(m))) continue;
             long d = m.getDialogId();
             List<MessageObject> l = byChat.get(d);
             if (l != null) l.add(m);
@@ -787,6 +826,8 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
         TextView title;
         MessageObject current;
 
+        TextView watchedTick;
+
         PosterCard(Context context) {
             super(context);
             setOrientation(VERTICAL);
@@ -805,6 +846,15 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             badge.setPadding(AndroidUtilities.dp(5), AndroidUtilities.dp(1), AndroidUtilities.dp(5), AndroidUtilities.dp(1));
             badge.setBackground(roundBg(0x99000000, 4));
             artWrap.addView(badge, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 5, 5));
+
+            watchedTick = new TextView(context);
+            watchedTick.setText("\u2713");
+            watchedTick.setTextColor(Color.WHITE);
+            watchedTick.setTextSize(11);
+            watchedTick.setTypeface(AndroidUtilities.bold());
+            watchedTick.setGravity(Gravity.CENTER);
+            watchedTick.setBackground(roundBg(0xFFE53935, 9));
+            artWrap.addView(watchedTick, LayoutHelper.createFrame(18, 18, Gravity.TOP | Gravity.LEFT, 5, 5, 0, 0));
 
             progressBar = new View(context);
             progressBar.setBackgroundColor(0xFFE53935);
@@ -840,6 +890,9 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             lp.width = p > 0.01f ? Math.max(1, (int) (AndroidUtilities.dp(140) * p)) : 0;
             progressBar.setLayoutParams(lp);
             title.setText(RivMeta.title(toSource(m)));
+            boolean watched = RivMeta.isWatched(ApplicationLoaderContext(), keyOf(m));
+            watchedTick.setVisibility(watched ? VISIBLE : GONE);
+            art.setAlpha(watched ? 0.6f : 1f);
         }
     }
 

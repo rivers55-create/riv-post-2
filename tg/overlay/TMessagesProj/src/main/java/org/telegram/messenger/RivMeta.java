@@ -739,10 +739,28 @@ public class RivMeta {
             if (durationMs > 0 && positionMs > durationMs - 15000) {
                 // finished watching: drop the saved spot so it leaves "Continue watching"
                 e.remove("p_" + key).remove("d_" + key);
+                e.putBoolean("w_" + key, true); // Riv Post: remember it was watched (tick on the poster)
             } else {
                 e.putLong("p_" + key, positionMs).putLong("d_" + key, durationMs);
             }
             e.apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Riv Post: true once a video was watched to (nearly) the end. */
+    public static boolean isWatched(Context ctx, String key) {
+        try {
+            return posPrefs(ctx).getBoolean("w_" + key, false);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static void setWatched(Context ctx, String key, boolean watched) {
+        try {
+            if (watched) posPrefs(ctx).edit().putBoolean("w_" + key, true).remove("p_" + key).remove("d_" + key).apply();
+            else posPrefs(ctx).edit().remove("w_" + key).apply();
         } catch (Throwable ignored) {
         }
     }

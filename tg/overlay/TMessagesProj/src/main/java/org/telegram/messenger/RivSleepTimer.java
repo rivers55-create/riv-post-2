@@ -14,6 +14,7 @@ public class RivSleepTimer {
 
     public static void schedule(long atMs) {
         cancel();
+        if (RivPlayback.songsLeft() > 0) RivPlayback.stopAfterSongs(0);
         endAtMs = atMs;
         boolean fade = RivPrefs.b(RivPrefs.SLEEP_FADE, true);
         long delay = Math.max(0, atMs - System.currentTimeMillis() - (fade ? FADE_MS : 0));
@@ -70,6 +71,10 @@ public class RivSleepTimer {
 
     public static long endAtMs() {
         return endAtMs;
+    }
+
+    public static boolean isFading() {
+        return fadeStep != null;
     }
 
     public static boolean isActive() {

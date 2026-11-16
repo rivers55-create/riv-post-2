@@ -159,6 +159,21 @@ public class RivSettingsActivity extends RivFragment {
         swipe.setText(LocaleController.getString(R.string.RivSwipeGesture), false);
         swipe.setOnClickListener(v -> presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_BASIC)));
         layout.addView(swipe);
+        TextSettingsCell scheduled = new TextSettingsCell(context);
+        scheduled.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        scheduled.setText(LocaleController.getString(R.string.RivScheduledTitle), true);
+        scheduled.setOnClickListener(v -> presentFragment(new RivScheduledActivity()));
+        layout.addView(scheduled);
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivTranslateDefault), LocaleController.getString(R.string.RivTranslateDefaultInfo), RivPrefs.TRANSLATE_DEFAULT));
+        TextCheckCell saver = new TextCheckCell(context);
+        saver.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        saver.setTextAndValueAndCheck(LocaleController.getString(R.string.RivDataSaver), LocaleController.getString(R.string.RivDataSaverInfo), RivPrefs.b(RivPrefs.DATA_SAVER, false), true, false);
+        saver.setOnClickListener(v -> {
+            boolean now = !RivPrefs.b(RivPrefs.DATA_SAVER, false);
+            RivPrefs.setDataSaver(now);
+            saver.setChecked(now);
+        });
+        layout.addView(saver);
         layout.addView(info(context, LocaleController.getString(R.string.RivChatsFooter)));
 
         // ---- Music & video players
@@ -169,6 +184,30 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivVideoPlayerRvp), LocaleController.getString(R.string.RivVideoPlayerRvpInfo), RivPrefs.VIDEO_PLAYER_RVP));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivSubtitlesSwitch), LocaleController.getString(R.string.RivSubtitlesSwitchInfo), RivPrefs.SUBTITLES));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivSleepFade), LocaleController.getString(R.string.RivSleepFadeInfo), RivPrefs.SLEEP_FADE));
+        TextSettingsCell fadeCell = new TextSettingsCell(context);
+        fadeCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        Runnable showFade = () -> {
+            int sec = RivPrefs.i(RivPrefs.CROSSFADE_SEC, 0);
+            fadeCell.setTextAndValue(LocaleController.getString(R.string.RivCrossfade), sec == 0 ? LocaleController.getString(R.string.RivOff) : LocaleController.formatString(R.string.RivSecondsShort, sec), true);
+        };
+        showFade.run();
+        fadeCell.setOnClickListener(v -> {
+            if (getParentActivity() == null) return;
+            int[] opts = {0, 2, 4, 6, 8, 10, 12};
+            CharSequence[] labels = new CharSequence[opts.length];
+            for (int i = 0; i < opts.length; i++) labels[i] = opts[i] == 0 ? LocaleController.getString(R.string.RivOff) : LocaleController.formatString(R.string.RivSecondsShort, opts[i]);
+            org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(getParentActivity());
+            b.setTitle(LocaleController.getString(R.string.RivCrossfade));
+            b.setItems(labels, (d, w) -> {
+                RivPrefs.set(RivPrefs.CROSSFADE_SEC, opts[w]);
+                showFade.run();
+            });
+            showDialog(b.create());
+        });
+        layout.addView(fadeCell);
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivAutoNext), LocaleController.getString(R.string.RivAutoNextInfo), RivPrefs.AUTO_NEXT_EPISODE));
+        layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivSeriesShelves), LocaleController.getString(R.string.RivSeriesShelvesInfo), RivPrefs.SERIES_SHELVES));
+        layout.addView(check(context, LocaleController.getString(R.string.RivHideWatched), LocaleController.getString(R.string.RivHideWatchedInfo), RivPrefs.HIDE_WATCHED, false));
         layout.addView(info(context, LocaleController.getString(R.string.RivPlayersFooter)));
 
         // ---- In-chat music player

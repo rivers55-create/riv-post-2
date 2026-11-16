@@ -55,7 +55,7 @@ import java.util.Locale;
 public class RivMusicActivity extends RivFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private static final String SOURCES_KEY = "musicSources";
-    private static final String[] TAB_KEYS = {"all", "playlists", "albums", "artists", "favorites", "selected"};
+    private static final String[] TAB_KEYS = {"all", "mostplayed", "playlists", "albums", "artists", "favorites", "selected"};
 
     private final ArrayList<Long> sources = new ArrayList<>();
     private final ArrayList<Long> selectedChats = new ArrayList<>();
@@ -286,6 +286,8 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
                 return LocaleController.getString(R.string.RivTabArtists);
             case "favorites":
                 return LocaleController.getString(R.string.RivTabFavorites);
+            case "mostplayed":
+                return LocaleController.getString(R.string.RivTabMostPlayed);
             case "selected":
                 return LocaleController.getString(R.string.RivTabSelectedChats);
             default:
@@ -488,6 +490,28 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
             }
             case "selected": {
                 listContainer.addView(selectedChatsView(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                break;
+            }
+            case "mostplayed": {
+                // Riv Post: songs you actually play most, most first (top 100)
+                List<MessageObject> top = new ArrayList<>();
+                for (MessageObject m : visibleSongs(allSongs)) if (RivMusicStats.playCount(keyOf(m)) > 0) top.add(m);
+                Collections.sort(top, (a, b) -> {
+                    int c = Integer.compare(RivMusicStats.playCount(keyOf(b)), RivMusicStats.playCount(keyOf(a)));
+                    return c != 0 ? c : Long.compare(RivMusicStats.lastPlayed(keyOf(b)), RivMusicStats.lastPlayed(keyOf(a)));
+                });
+                if (top.size() > 100) top = new ArrayList<>(top.subList(0, 100));
+                if (top.isEmpty()) {
+                    TextView none = new TextView(context);
+                    none.setText(LocaleController.getString(R.string.RivMostPlayedEmpty));
+                    none.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+                    none.setTextSize(15);
+                    none.setGravity(Gravity.CENTER);
+                    none.setPadding(AndroidUtilities.dp(32), AndroidUtilities.dp(60), AndroidUtilities.dp(32), 0);
+                    listContainer.addView(none, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+                } else {
+                    listContainer.addView(songListView(context, top, null), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+                }
                 break;
             }
             default:
@@ -803,9 +827,23 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
             if (!SharedConfig.shuffleMusic) MediaController.getInstance().setPlaybackOrderType(2);
             playFrom(songs, first);
         }), LayoutHelper.createLinear(0, 40, 1f, 6, 0, 0, 0));
+        // Riv Post: download the whole list (album, playlist, artist...) in one tap
+        buttons.addView(actionPill(context, "\u2B07", v -> askDownloadAll(songs)), LayoutHelper.createLinear(52, 40, 0f, 8, 0, 0, 0));
         col.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         col.addView(list, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
         return col;
+    }
+
+    private void askDownloadAll(List<MessageObject> songs) {
+        if (getParentActivity() == null || songs == null || songs.isEmpty()) return;
+        org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(getParentActivity());
+        b.setTitle(LocaleController.formatString(R.string.RivDownloadSongsTitle, songs.size()));
+        b.setItems(new CharSequence[]{
+                LocaleController.getString(R.string.RivDownloadForOffline),
+                LocaleController.getString(R.string.RivDownloadToPhone)
+        }, (d, w) -> RivChatTools.downloadAll(this, new ArrayList<>(songs), w == 1));
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(b.create());
     }
 
     private TextView actionPill(Context context, String text, View.OnClickListener l) {
@@ -826,8 +864,7 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
 
     private void playFrom(List<MessageObject> list, MessageObject m) {
         MediaController.getInstance().setPlaylist(new ArrayList<>(list), m, 0, false, null);
-        MediaController.getInstance().playMessage(m);
-        RivMusicStats.recordPlay(keyOf(m));
+        MediaController.getInstance().playMessage(m); // play counts are recorded in RivPlayback
         if (miniPlayer != null) miniPlayer.refresh();
     }
 

@@ -187,10 +187,11 @@ public class RivChatTools {
         Activity activity = fragment.getParentActivity();
         if (activity == null) return;
         String quietLine = LocaleController.formatString(R.string.RivQuietHoursFor, org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.from()), org.telegram.messenger.RivQuiet.format(org.telegram.messenger.RivQuiet.to()));
-        CharSequence[] labels = {LocaleController.getString(R.string.RivNoAutoDownloadHere), quietLine};
+        CharSequence[] labels = {LocaleController.getString(R.string.RivNoAutoDownloadHere), quietLine, LocaleController.getString(R.string.RivLockThisChat)};
         boolean[] checked = {
                 org.telegram.messenger.RivPrefs.inList(org.telegram.messenger.RivPrefs.NO_AUTODL_CHATS, dialogId),
                 org.telegram.messenger.RivPrefs.inList(org.telegram.messenger.RivPrefs.QUIET_CHATS, dialogId),
+                org.telegram.messenger.RivPrefs.inList(org.telegram.messenger.RivPrefs.LOCKED_CHATS, dialogId),
         };
         LinearLayout col = new LinearLayout(activity);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -211,6 +212,8 @@ public class RivChatTools {
         b.setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> {
             setInList(org.telegram.messenger.RivPrefs.NO_AUTODL_CHATS, dialogId, checked[0]);
             setInList(org.telegram.messenger.RivPrefs.QUIET_CHATS, dialogId, checked[1]);
+            if (checked[2]) RivChatLock.markUnlocked(dialogId); // don't ask right after locking it
+            setInList(org.telegram.messenger.RivPrefs.LOCKED_CHATS, dialogId, checked[2]);
         });
         b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         fragment.showDialog(b.create());

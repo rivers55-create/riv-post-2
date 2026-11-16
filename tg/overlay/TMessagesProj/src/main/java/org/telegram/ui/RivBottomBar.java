@@ -243,6 +243,13 @@ public class RivBottomBar extends LinearLayout {
         RivMiniPlayerView miniPlayer = new RivMiniPlayerView(context);
         miniPlayer.setVisibility(android.view.View.GONE);
         miniPlayer.suppressed = activeTab == TAB_CHATS;
+        if (activeTab == TAB_CHATS) {
+            // Riv Post: pull new proxy links from the picked proxy channels (at most every 6 hours)
+            try {
+                RivProxyImport.importFromChannels(fragment.getCurrentAccount(), false, null);
+            } catch (Throwable ignored) {
+            }
+        }
         miniPlayer.setOnOpenPlayer(() -> fragment.presentFragment(new RivMusicPlayerActivity()));
         contentView.addView(miniPlayer, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, 64, Gravity.BOTTOM, side, 0, side, navInset[0] + AndroidUtilities.dp(heightDp()) + (gap > 0 ? AndroidUtilities.dp(4) : 0)));
         miniPlayer.refresh();

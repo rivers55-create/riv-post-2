@@ -33,6 +33,15 @@ public class RivPrefs {
     public static final String VIDEO_SELECTED_CHATS = "videoSelectedChats"; // comma list of dialog ids, subset of videoSources
     public static final String HIDE_SOURCE_PREVIEW_BUTTON = "hideSourcePreviewButton"; // hide the floating play button on the chat-picker screen
     public static final String IN_CHAT_PLAYER_RTP_STYLE = "inChatPlayerRtpStyle"; // style the in-chat music bar like RTP instead of stock Telegram
+    public static final String HIDE_WATCHED = "hideWatched";          // hide watched videos from chat shelves (default off)
+    public static final String AUTO_NEXT_EPISODE = "autoNextEpisode"; // 10-second countdown to the next video (default on)
+    public static final String SERIES_SHELVES = "seriesShelves";      // group episodes of a show into one shelf (default on)
+    public static final String CROSSFADE_SEC = "crossfadeSec";        // fade between songs, seconds (0 = off)
+    public static final String TRANSLATE_DEFAULT = "translateDefault"; // Telegram's translate button on by default
+    public static final String DATA_SAVER = "dataSaver";              // one-switch data saver
+    public static final String PROXY_CHANNEL = "proxyChannel";        // channel id to import proxy links from (0 = off)
+    public static final String PROXY_CHANNEL_LAST = "proxyChannelLast"; // last import time
+    public static final String LOCKED_CHATS = "lockedChats";          // comma list of dialog ids locked with fingerprint
     public static final String NOTIF_OPENS_RTP = "notifOpensRtp"; // music notification opens the RTP-style full player (default on)
     public static final String TAP_OPENS_RTP_MINI_PLAYER = "tapOpensRtpMiniPlayer"; // tapping a chat's music bar opens RTP's mini player (default on)
 
@@ -136,6 +145,32 @@ public class RivPrefs {
     }
 
     /** Ghost mode = no read ticks, no "typing...", never online. One switch for all three. */
+    /** Data saver: on mobile data, nothing downloads by itself (tap still downloads). */
+    public static boolean dataSaverActive() {
+        try {
+            return b(DATA_SAVER, false) && !ApplicationLoader.isConnectedToWiFi();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Turns the data saver on or off, also switching Telegram's video/GIF autoplay off (and back). */
+    public static void setDataSaver(boolean on) {
+        set(DATA_SAVER, on);
+        try {
+            if (on) {
+                set("dsVideo", LiteMode.isEnabled(LiteMode.FLAG_AUTOPLAY_VIDEOS));
+                set("dsGifs", LiteMode.isEnabled(LiteMode.FLAG_AUTOPLAY_GIFS));
+                LiteMode.toggleFlag(LiteMode.FLAG_AUTOPLAY_VIDEOS, false);
+                LiteMode.toggleFlag(LiteMode.FLAG_AUTOPLAY_GIFS, false);
+            } else {
+                if (b("dsVideo", true)) LiteMode.toggleFlag(LiteMode.FLAG_AUTOPLAY_VIDEOS, true);
+                if (b("dsGifs", true)) LiteMode.toggleFlag(LiteMode.FLAG_AUTOPLAY_GIFS, true);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     public static boolean ghost() {
         return b(GHOST);
     }

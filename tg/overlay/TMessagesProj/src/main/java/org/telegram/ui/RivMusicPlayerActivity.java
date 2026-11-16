@@ -886,13 +886,24 @@ public class RivMusicPlayerActivity extends RivFragment implements NotificationC
         AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
         b.setTitle(LocaleController.getString(R.string.RivSleepTimer));
         int[] minutes = {10, 15, 30, 45, 60, 90};
-        CharSequence[] items = new CharSequence[minutes.length];
-        for (int i = 0; i < minutes.length; i++) items[i] = minutes[i] + " " + LocaleController.getString(R.string.RivMinutesWord);
+        // Riv Post: also "end of this song" and "after N songs"
+        int[] songs = {1, 2, 3, 5};
+        CharSequence[] items = new CharSequence[songs.length + minutes.length];
+        items[0] = LocaleController.getString(R.string.RivSleepEndOfSong);
+        for (int i = 1; i < songs.length; i++) items[i] = LocaleController.formatString(R.string.RivSleepAfterSongs, songs[i]);
+        for (int i = 0; i < minutes.length; i++) items[songs.length + i] = minutes[i] + " " + LocaleController.getString(R.string.RivMinutesWord);
         b.setItems(items, (d, w) -> {
-            long atMs = System.currentTimeMillis() + minutes[w] * 60_000L;
+            if (w < songs.length) {
+                org.telegram.messenger.RivPlayback.stopAfterSongs(songs[w]);
+                return;
+            }
+            long atMs = System.currentTimeMillis() + minutes[w - songs.length] * 60_000L;
             RivSleepTimer.schedule(atMs);
         });
-        b.setNegativeButton(LocaleController.getString(R.string.RivTurnOff), (d, w) -> RivSleepTimer.cancel());
+        b.setNegativeButton(LocaleController.getString(R.string.RivTurnOff), (d, w) -> {
+            RivSleepTimer.cancel();
+            org.telegram.messenger.RivPlayback.stopAfterSongs(0);
+        });
         showDialog(b.create());
     }
 

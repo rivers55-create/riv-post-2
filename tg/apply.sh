@@ -303,27 +303,73 @@ edit(LA,
 # Proxy screen: a "Paste multiple proxies" row under "Add Proxy". Paste any text with proxy
 # links (t.me / tg:// proxy, socks, webproxy) and all of them are added (RivProxyImport).
 PL = 'TMessagesProj/src/main/java/org/telegram/ui/ProxyListActivity.java'
-edit(PL, "    private int proxyAddRow;\n", "    private int proxyAddRow;\n    private int rivPasteRow = -1;\n")
+edit(PL, "    private int proxyAddRow;\n", "    private int proxyAddRow;\n    private int rivPasteRow = -1;\n    private int rivFastestRow = -1;\n    private int rivDeadRow = -1;\n    private int rivChannelRow = -1;\n")
 edit(PL, "        proxyAddRow = rowCount++;\n        proxyShadowRow = rowCount++;\n",
-         "        proxyAddRow = rowCount++;\n        rivPasteRow = rowCount++;\n        proxyShadowRow = rowCount++;\n")
+         "        proxyAddRow = rowCount++;\n        rivPasteRow = rowCount++;\n        rivChannelRow = rowCount++;\n        rivFastestRow = proxyList.size() > 1 ? rowCount++ : -1;\n        rivDeadRow = proxyList.size() > 1 ? rowCount++ : -1;\n        proxyShadowRow = rowCount++;\n")
 edit(PL, """            } else if (position == proxyAddRow) {
                 presentFragment(new ProxySettingsActivity());""",
 """            } else if (position == rivPasteRow) {
                 org.telegram.ui.RivProxyImport.show(ProxyListActivity.this, () -> updateRows(true));
+            } else if (position == rivChannelRow) {
+                org.telegram.ui.RivProxyImport.pickChannels(ProxyListActivity.this, () -> updateRows(true));
+            } else if (position == rivFastestRow) {
+                if (org.telegram.ui.RivProxyImport.connectFastest()) {
+                    useProxySettings = true;
+                    updateRows(true);
+                } else {
+                    android.widget.Toast.makeText(getParentActivity(), getString(R.string.RivProxyNoneChecked), android.widget.Toast.LENGTH_SHORT).show();
+                }
+            } else if (position == rivDeadRow) {
+                org.telegram.ui.RivProxyImport.askRemoveDead(ProxyListActivity.this, () -> updateRows(true));
             } else if (position == proxyAddRow) {
                 presentFragment(new ProxySettingsActivity());""")
 edit(PL, """                    if (position == proxyAddRow) {
                         textCell.setText(getString(R.string.AddProxy), deleteAllRow != -1);""",
 """                    if (position == rivPasteRow) {
-                        textCell.setText(getString(R.string.RivProxyPasteTitle), deleteAllRow != -1);
+                        textCell.setText(getString(R.string.RivProxyPasteTitle), true);
+                    } else if (position == rivChannelRow) {
+                        int rivN = org.telegram.ui.RivProxyImport.channelCount();
+                        textCell.setTextAndValue(getString(R.string.RivProxyChannels), rivN > 0 ? String.valueOf(rivN) : "", rivFastestRow != -1 || deleteAllRow != -1);
+                    } else if (position == rivFastestRow) {
+                        textCell.setText(getString(R.string.RivProxyFastest), true);
+                    } else if (position == rivDeadRow) {
+                        textCell.setText(getString(R.string.RivProxyRemoveDead), deleteAllRow != -1);
                     } else if (position == proxyAddRow) {
                         textCell.setText(getString(R.string.AddProxy), true);""")
 edit(PL, "            } else if (position == proxyAddRow) {\n                return -3;",
-         "            } else if (position == rivPasteRow) {\n                return -30;\n            } else if (position == proxyAddRow) {\n                return -3;")
+         "            } else if (position == rivPasteRow) {\n                return -30;\n            } else if (position == rivChannelRow) {\n                return -31;\n            } else if (position == rivFastestRow) {\n                return -32;\n            } else if (position == rivDeadRow) {\n                return -33;\n            } else if (position == proxyAddRow) {\n                return -3;")
 edit(PL, "            } else if (position == proxyAddRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;",
-         "            } else if (position == proxyAddRow || position == rivPasteRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;")
+         "            } else if (position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;")
 edit(PL, "position == proxyAddRow || position == deleteAllRow || position >= proxyStartRow",
-         "position == proxyAddRow || position == rivPasteRow || position == deleteAllRow || position >= proxyStartRow")
+         "position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == deleteAllRow || position >= proxyStartRow")
+
+# Chat lock: a locked chat is covered until fingerprint / screen-lock unlock (RivChatLock)
+CHA = 'TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java'
+edit(CHA,
+"""    public void onResume() {
+        super.onResume();
+        checkShowBlur(false);
+        activityResumeTime = System.currentTimeMillis();""",
+"""    public void onResume() {
+        super.onResume();
+        org.telegram.ui.RivChatLock.guard(this);
+        checkShowBlur(false);
+        activityResumeTime = System.currentTimeMillis();""")
+edit(CHA,
+"""    public void onPause() {
+        super.onPause();
+        scrolling = false;""",
+"""    public void onPause() {
+        super.onPause();
+        org.telegram.ui.RivChatLock.onLeave(getDialogId());
+        scrolling = false;""")
+
+# Translate: Telegram's free per-message "Translate" button on by default (can still be turned
+# off in Telegram's Language settings)
+TRC = 'TMessagesProj/src/main/java/org/telegram/messenger/TranslateController.java'
+edit(TRC,
+"""            contextTranslateEnabled = messagesController.getMainSettings().getBoolean("translate_button", MessagesController.getGlobalMainSettings().getBoolean("translate_button", false));""",
+"""            contextTranslateEnabled = messagesController.getMainSettings().getBoolean("translate_button", MessagesController.getGlobalMainSettings().getBoolean("translate_button", RivPrefs.b(RivPrefs.TRANSLATE_DEFAULT, true)));""")
 
 # Telegram only recognises an .mkv file as a playable video if either the sender tagged it as
 # one, or this "Stream MKV videos" setting (real Telegram's own, in Data and Storage) is on --
@@ -601,6 +647,7 @@ edit(MCO,
                 audioPlayer.play();
                 if (messageObject.isMusic()) {
                     RivEq.attach(rivAudioSessionId());
+                    RivPlayback.onSongStart(messageObject);
                 }
                 if (!messageObject.isVoice()) {""")
 
@@ -630,7 +677,7 @@ edit(DLC,
 """,
 """    private int canDownloadMediaInternal(MessageObject message) {
         if (message == null || message.messageOwner == null) return 0;
-        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId())) return 0;
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId()) || RivPrefs.dataSaverActive()) return 0;
 """)
 edit(DLC,
 """    private int canDownloadMediaInternal(MessageObject message, long overrideSize) {
@@ -638,7 +685,7 @@ edit(DLC,
 """,
 """    private int canDownloadMediaInternal(MessageObject message, long overrideSize) {
         if (message == null || message.messageOwner == null) return 0;
-        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId())) return 0;
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, message.getDialogId()) || RivPrefs.dataSaverActive()) return 0;
 """)
 edit(DLC,
 """    public int canDownloadMedia(TLRPC.Message message) {
@@ -650,7 +697,7 @@ edit(DLC,
         if (message == null || message.media instanceof TLRPC.TL_messageMediaStory) {
             return canPreloadStories() ? 2 : 0;
         }
-        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, MessageObject.getDialogId(message))) return 0;
+        if (RivPrefs.inList(RivPrefs.NO_AUTODL_CHATS, MessageObject.getDialogId(message)) || RivPrefs.dataSaverActive()) return 0;
 """)
 NC = 'TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java'
 edit(NC,
