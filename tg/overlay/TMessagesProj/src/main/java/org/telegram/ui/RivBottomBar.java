@@ -247,6 +247,7 @@ public class RivBottomBar extends LinearLayout {
             // Riv Post: pull new proxy links from the picked proxy channels (at most every 6 hours)
             try {
                 RivProxyImport.importFromChannels(fragment.getCurrentAccount(), false, null);
+                RivProxyImport.startWifiWatch(fragment.getParentActivity());
             } catch (Throwable ignored) {
             }
         }

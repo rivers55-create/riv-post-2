@@ -375,4 +375,14 @@
     <string name="RivSeriesShelvesInfo">Group episodes of the same show into one shelf, in order</string>
     <string name="RivHideWatched">Hide watched videos</string>
     <string name="RivHideWatchedInfo">Watched videos get a tick; this also hides them from the chat shelves</string>
+    <string name="RivProxyRecheck">Re-check all speeds</string>
+    <string name="RivProxyShareAll">Share all proxies</string>
+    <string name="RivProxyMobileOnly">Proxy only on mobile data</string>
+    <string name="RivOn">On</string>
+    <string name="RivProxyRename">Name this proxy</string>
+    <string name="RivProxyNameHint">e.g. Work, Fast DE</string>
+    <string name="RivProxyButton">Proxy button</string>
+    <string name="RivProxyButtonInfo">Shield button next to the ghost on Chats: tap to turn the proxy on or off</string>
+    <string name="RivProxyOn">Proxy on</string>
+    <string name="RivProxyOff">Proxy off</string>
 </resources>

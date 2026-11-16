@@ -375,4 +375,14 @@
     <string name="RivSeriesShelvesInfo">تجميع حلقات المسلسل نفسه في رف واحد بالترتيب</string>
     <string name="RivHideWatched">إخفاء الفيديوهات المشاهَدة</string>
     <string name="RivHideWatchedInfo">الفيديوهات المشاهَدة تحصل على علامة ✓؛ وهذا يخفيها أيضاً من رفوف المحادثات</string>
+    <string name="RivProxyRecheck">إعادة فحص كل السرعات</string>
+    <string name="RivProxyShareAll">مشاركة كل البروكسيات</string>
+    <string name="RivProxyMobileOnly">البروكسي على بيانات الهاتف فقط</string>
+    <string name="RivOn">تشغيل</string>
+    <string name="RivProxyRename">تسمية هذا البروكسي</string>
+    <string name="RivProxyNameHint">مثلاً: العمل، ألمانيا السريع</string>
+    <string name="RivProxyButton">زر البروكسي</string>
+    <string name="RivProxyButtonInfo">زر درع بجانب الشبح في المحادثات: اضغط لتشغيل البروكسي أو إيقافه</string>
+    <string name="RivProxyOn">البروكسي يعمل</string>
+    <string name="RivProxyOff">البروكسي متوقف</string>
 </resources>

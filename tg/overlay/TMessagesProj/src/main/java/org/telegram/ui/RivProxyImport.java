@@ -287,4 +287,148 @@ public final class RivProxyImport {
             }
         }
     }
+
+    // ------------------------------------------------------------------ speed test / share / names
+
+    /** Riv Post: forget the last check of every proxy so Telegram measures them all again (fastest first). */
+    public static void recheckAll(java.util.List<SharedConfig.ProxyInfo> list) {
+        for (SharedConfig.ProxyInfo p : list) {
+            if (!p.checking) p.availableCheckTime = 0;
+        }
+    }
+
+    /** Share (or copy) every proxy as links, one per paragraph. */
+    public static void shareAll(Context context) {
+        SharedConfig.loadProxyList();
+        if (SharedConfig.proxyList.isEmpty()) return;
+        StringBuilder sb = new StringBuilder();
+        for (SharedConfig.ProxyInfo p : SharedConfig.proxyList) {
+            String link = p.settings.getLink();
+            if (link == null) continue;
+            String name = nameOf(p);
+            if (sb.length() > 0) sb.append("\n\n");
+            if (name != null) sb.append(name).append('\n');
+            sb.append(link);
+        }
+        android.content.Intent share = new android.content.Intent(android.content.Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(android.content.Intent.EXTRA_TEXT, sb.toString());
+        android.content.Intent chooser = android.content.Intent.createChooser(share, LocaleController.getString(R.string.RivProxyShareAll));
+        chooser.setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(chooser);
+    }
+
+    private static String nameKey(SharedConfig.ProxyInfo p) {
+        return "proxyName_" + p.settings.getAddress() + ":" + p.settings.getPort();
+    }
+
+    /** The name you gave this proxy, or null. */
+    public static String nameOf(SharedConfig.ProxyInfo p) {
+        if (p == null || p.settings == null) return null;
+        String n = org.telegram.messenger.RivPrefs.s(nameKey(p), "");
+        return n == null || n.trim().isEmpty() ? null : n.trim();
+    }
+
+    /** Text for a proxy row: "Name · host:port" when named. */
+    public static String label(SharedConfig.ProxyInfo p, String plain) {
+        String n = nameOf(p);
+        return n == null ? plain : n + "  \u00B7  " + plain;
+    }
+
+    public static void askRename(BaseFragment fragment, SharedConfig.ProxyInfo p, Runnable onDone) {
+        Context context = fragment.getParentActivity();
+        if (context == null || p == null) return;
+        EditText field = new EditText(context);
+        field.setSingleLine(true);
+        field.setHint(LocaleController.getString(R.string.RivProxyNameHint));
+        String old = nameOf(p);
+        if (old != null) field.setText(old);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextGray3));
+        LinearLayout box = new LinearLayout(context);
+        box.setPadding(AndroidUtilities.dp(24), 0, AndroidUtilities.dp(24), 0);
+        box.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        AlertDialog.Builder b = new AlertDialog.Builder(context);
+        b.setTitle(LocaleController.getString(R.string.RivProxyRename));
+        b.setView(box);
+        b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        b.setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> {
+            org.telegram.messenger.RivPrefs.set(nameKey(p), field.getText() == null ? "" : field.getText().toString().trim());
+            if (onDone != null) onDone.run();
+        });
+        fragment.showDialog(b.create());
+    }
+
+    // ------------------------------------------------------------------ on/off from the Chats page
+
+    /** Turns the proxy on/off like the switch on the proxy screen. Returns the new state, or null if the proxy screen was opened instead. */
+    public static Boolean toggleProxy(BaseFragment fragment) {
+        android.content.SharedPreferences prefs = org.telegram.messenger.MessagesController.getGlobalMainSettings();
+        SharedConfig.loadProxyList();
+        if (SharedConfig.currentProxy == null) {
+            if (SharedConfig.proxyList.isEmpty()) {
+                fragment.presentFragment(new ProxyListActivity());
+                return null;
+            }
+            SharedConfig.currentProxy = SharedConfig.proxyList.get(0);
+            android.content.SharedPreferences.Editor e = prefs.edit();
+            SharedConfig.currentProxy.settings.toSharedPreferences(e);
+            e.commit();
+        }
+        boolean on = !prefs.getBoolean("proxy_enabled", false);
+        prefs.edit().putBoolean("proxy_enabled", on).commit();
+        lastApplied = null;
+        applyForNetwork(true);
+        org.telegram.messenger.NotificationCenter.getGlobalInstance().postNotificationName(org.telegram.messenger.NotificationCenter.proxySettingsChanged);
+        return on;
+    }
+
+    public static boolean isProxyOn() {
+        return org.telegram.messenger.MessagesController.getGlobalMainSettings().getBoolean("proxy_enabled", false) && SharedConfig.currentProxy != null;
+    }
+
+    // ------------------------------------------------------------------ auto-off on Wi-Fi
+
+    private static boolean wifiWatching;
+
+    /** Riv Post: with "Proxy only on mobile data" on, go direct on Wi-Fi and use the proxy on mobile data. */
+    public static void startWifiWatch(Context context) {
+        if (wifiWatching || context == null || android.os.Build.VERSION.SDK_INT < 24) return;
+        wifiWatching = true;
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) context.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            cm.registerDefaultNetworkCallback(new android.net.ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(android.net.Network network) {
+                    org.telegram.messenger.AndroidUtilities.runOnUIThread(() -> applyForNetwork(false), 500);
+                }
+
+                @Override
+                public void onCapabilitiesChanged(android.net.Network network, android.net.NetworkCapabilities caps) {
+                    org.telegram.messenger.AndroidUtilities.runOnUIThread(() -> applyForNetwork(false), 500);
+                }
+            });
+        } catch (Throwable ignored) {
+        }
+        applyForNetwork(false);
+    }
+
+    private static Boolean lastApplied;
+
+    /** Tells Telegram's connection whether to use the proxy right now (doesn't change your saved setting). */
+    public static void applyForNetwork(boolean force) {
+        SharedConfig.ProxyInfo cur = SharedConfig.currentProxy;
+        if (cur == null) return;
+        if (!force && !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.PROXY_MOBILE_ONLY, false)) return;
+        boolean wanted = org.telegram.messenger.MessagesController.getGlobalMainSettings().getBoolean("proxy_enabled", false);
+        boolean onWifi = false;
+        try {
+            onWifi = org.telegram.messenger.ApplicationLoader.isConnectedToWiFi();
+        } catch (Throwable ignored) {
+        }
+        boolean use = wanted && !(onWifi && org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.PROXY_MOBILE_ONLY, false));
+        if (lastApplied != null && lastApplied == use) return;
+        lastApplied = use;
+        org.telegram.tgnet.ConnectionsManager.setProxySettings(use, cur.settings);
+    }
 }

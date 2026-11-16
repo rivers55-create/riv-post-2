@@ -303,9 +303,9 @@ edit(LA,
 # Proxy screen: a "Paste multiple proxies" row under "Add Proxy". Paste any text with proxy
 # links (t.me / tg:// proxy, socks, webproxy) and all of them are added (RivProxyImport).
 PL = 'TMessagesProj/src/main/java/org/telegram/ui/ProxyListActivity.java'
-edit(PL, "    private int proxyAddRow;\n", "    private int proxyAddRow;\n    private int rivPasteRow = -1;\n    private int rivFastestRow = -1;\n    private int rivDeadRow = -1;\n    private int rivChannelRow = -1;\n")
+edit(PL, "    private int proxyAddRow;\n", "    private int proxyAddRow;\n    private int rivPasteRow = -1;\n    private int rivFastestRow = -1;\n    private int rivDeadRow = -1;\n    private int rivChannelRow = -1;\n    private int rivRecheckRow = -1;\n    private int rivShareRow = -1;\n    private int rivWifiRow = -1;\n    private org.telegram.ui.ActionBar.ActionBarMenuItem rivRenameItem;\n")
 edit(PL, "        proxyAddRow = rowCount++;\n        proxyShadowRow = rowCount++;\n",
-         "        proxyAddRow = rowCount++;\n        rivPasteRow = rowCount++;\n        rivChannelRow = rowCount++;\n        rivFastestRow = proxyList.size() > 1 ? rowCount++ : -1;\n        rivDeadRow = proxyList.size() > 1 ? rowCount++ : -1;\n        proxyShadowRow = rowCount++;\n")
+         "        proxyAddRow = rowCount++;\n        rivPasteRow = rowCount++;\n        rivChannelRow = rowCount++;\n        rivFastestRow = proxyList.size() > 1 ? rowCount++ : -1;\n        rivRecheckRow = proxyList.size() > 1 ? rowCount++ : -1;\n        rivDeadRow = proxyList.size() > 1 ? rowCount++ : -1;\n        rivShareRow = !proxyList.isEmpty() ? rowCount++ : -1;\n        rivWifiRow = rowCount++;\n        proxyShadowRow = rowCount++;\n")
 edit(PL, """            } else if (position == proxyAddRow) {
                 presentFragment(new ProxySettingsActivity());""",
 """            } else if (position == rivPasteRow) {
@@ -321,6 +321,18 @@ edit(PL, """            } else if (position == proxyAddRow) {
                 }
             } else if (position == rivDeadRow) {
                 org.telegram.ui.RivProxyImport.askRemoveDead(ProxyListActivity.this, () -> updateRows(true));
+            } else if (position == rivRecheckRow) {
+                org.telegram.ui.RivProxyImport.recheckAll(proxyList);
+                wasCheckedAllList = false;
+                updateRows(true);
+            } else if (position == rivShareRow) {
+                org.telegram.ui.RivProxyImport.shareAll(getParentActivity());
+            } else if (position == rivWifiRow) {
+                boolean rivOn = !org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.PROXY_MOBILE_ONLY, false);
+                org.telegram.messenger.RivPrefs.set(org.telegram.messenger.RivPrefs.PROXY_MOBILE_ONLY, rivOn);
+                org.telegram.ui.RivProxyImport.startWifiWatch(getParentActivity());
+                org.telegram.ui.RivProxyImport.applyForNetwork(true);
+                listAdapter.notifyItemChanged(rivWifiRow);
             } else if (position == proxyAddRow) {
                 presentFragment(new ProxySettingsActivity());""")
 edit(PL, """                    if (position == proxyAddRow) {
@@ -333,15 +345,60 @@ edit(PL, """                    if (position == proxyAddRow) {
                     } else if (position == rivFastestRow) {
                         textCell.setText(getString(R.string.RivProxyFastest), true);
                     } else if (position == rivDeadRow) {
-                        textCell.setText(getString(R.string.RivProxyRemoveDead), deleteAllRow != -1);
+                        textCell.setText(getString(R.string.RivProxyRemoveDead), true);
+                    } else if (position == rivRecheckRow) {
+                        textCell.setText(getString(R.string.RivProxyRecheck), true);
+                    } else if (position == rivShareRow) {
+                        textCell.setText(getString(R.string.RivProxyShareAll), true);
+                    } else if (position == rivWifiRow) {
+                        textCell.setTextAndValue(getString(R.string.RivProxyMobileOnly), getString(org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.PROXY_MOBILE_ONLY, false) ? R.string.RivOn : R.string.RivOff), deleteAllRow != -1);
                     } else if (position == proxyAddRow) {
                         textCell.setText(getString(R.string.AddProxy), true);""")
 edit(PL, "            } else if (position == proxyAddRow) {\n                return -3;",
-         "            } else if (position == rivPasteRow) {\n                return -30;\n            } else if (position == rivChannelRow) {\n                return -31;\n            } else if (position == rivFastestRow) {\n                return -32;\n            } else if (position == rivDeadRow) {\n                return -33;\n            } else if (position == proxyAddRow) {\n                return -3;")
+         "            } else if (position == rivRecheckRow) {\n                return -34;\n            } else if (position == rivShareRow) {\n                return -35;\n            } else if (position == rivWifiRow) {\n                return -36;\n            } else if (position == rivPasteRow) {\n                return -30;\n            } else if (position == rivChannelRow) {\n                return -31;\n            } else if (position == rivFastestRow) {\n                return -32;\n            } else if (position == rivDeadRow) {\n                return -33;\n            } else if (position == proxyAddRow) {\n                return -3;")
 edit(PL, "            } else if (position == proxyAddRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;",
-         "            } else if (position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;")
+         "            } else if (position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == rivRecheckRow || position == rivShareRow || position == rivWifiRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;")
 edit(PL, "position == proxyAddRow || position == deleteAllRow || position >= proxyStartRow",
-         "position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == deleteAllRow || position >= proxyStartRow")
+         "position == proxyAddRow || position == rivPasteRow || position == rivChannelRow || position == rivFastestRow || position == rivDeadRow || position == rivRecheckRow || position == rivShareRow || position == rivWifiRow || position == deleteAllRow || position >= proxyStartRow")
+
+# Proxy names (#20): show "Name · host:port", and a rename (pencil) button when one proxy is selected
+edit(PL,
+"""            textView.setText(proxyInfo.settings.getType() == ProxySettings.Type.WEB
+                    ? proxyInfo.settings.getAddress() + " (WEB)"
+                    : proxyInfo.settings.getAddress() + ":" + proxyInfo.settings.getPort());""",
+"""            textView.setText(org.telegram.ui.RivProxyImport.label(proxyInfo, proxyInfo.settings.getType() == ProxySettings.Type.WEB
+                    ? proxyInfo.settings.getAddress() + " (WEB)"
+                    : proxyInfo.settings.getAddress() + ":" + proxyInfo.settings.getPort()));""")
+edit(PL,
+"""        deleteMenuItem = actionMode.addItemWithWidth(MENU_DELETE, R.drawable.msg_delete, AndroidUtilities.dp(54));""",
+"""        rivRenameItem = actionMode.addItemWithWidth(9300, R.drawable.msg_edit, AndroidUtilities.dp(54));
+        rivRenameItem.setContentDescription(getString(R.string.RivProxyRename));
+        deleteMenuItem = actionMode.addItemWithWidth(MENU_DELETE, R.drawable.msg_delete, AndroidUtilities.dp(54));""")
+edit(PL,
+"""                switch (id) {
+                    case -1:
+                        if (selectedItems.isEmpty()) {""",
+"""                if (id == 9300) {
+                    if (selectedItems.size() == 1) {
+                        SharedConfig.ProxyInfo rivP = selectedItems.iterator().next();
+                        org.telegram.ui.RivProxyImport.askRename(ProxyListActivity.this, rivP, () -> {
+                            if (listAdapter != null) {
+                                listAdapter.clearSelected();
+                                listAdapter.notifyDataSetChanged();
+                            }
+                        });
+                    }
+                    return;
+                }
+                switch (id) {
+                    case -1:
+                        if (selectedItems.isEmpty()) {""")
+edit(PL,
+"""            int selectedCount = selectedItems.size();
+            boolean actionModeShowed = simpleActionBar.isActionModeShowed();""",
+"""            int selectedCount = selectedItems.size();
+            if (rivRenameItem != null) rivRenameItem.setVisibility(selectedCount == 1 ? View.VISIBLE : View.GONE);
+            boolean actionModeShowed = simpleActionBar.isActionModeShowed();""")
 
 # Chat lock: a locked chat is covered until fingerprint / screen-lock unlock (RivChatLock)
 CHA = 'TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java'
@@ -466,6 +523,7 @@ edit(DA,
 """            downloadsItem.setVisibility(View.GONE);
             if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {
                 org.telegram.ui.RivGhostButton.add(menu);
+                org.telegram.ui.RivProxyButton.add(this, menu); // proxy on/off shield (#19)
             }
 
             updateProxyButton(false, false);""")

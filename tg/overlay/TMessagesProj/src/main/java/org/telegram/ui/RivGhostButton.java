@@ -28,6 +28,12 @@ public class RivGhostButton {
     static class GhostDrawable extends Drawable {
         private final TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         private boolean on;
+        String emoji = "\uD83D\uDC7B";
+
+        GhostDrawable(String emoji) {
+            this();
+            this.emoji = emoji;
+        }
 
         GhostDrawable() {
             paint.setTextSize(AndroidUtilities.dp(21));
@@ -45,7 +51,7 @@ public class RivGhostButton {
             paint.setAlpha(on ? 255 : 90);
             Paint.FontMetrics fm = paint.getFontMetrics();
             float y = b.exactCenterY() - (fm.ascent + fm.descent) / 2f;
-            canvas.drawText("👻", b.exactCenterX(), y, paint);
+            canvas.drawText(emoji, b.exactCenterX(), y, paint);
         }
 
         @Override
