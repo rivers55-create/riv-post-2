@@ -33,6 +33,7 @@ public class RivPrefs {
     public static final String VIDEO_SELECTED_CHATS = "videoSelectedChats"; // comma list of dialog ids, subset of videoSources
     public static final String HIDE_SOURCE_PREVIEW_BUTTON = "hideSourcePreviewButton"; // hide the floating play button on the chat-picker screen
     public static final String IN_CHAT_PLAYER_RTP_STYLE = "inChatPlayerRtpStyle"; // style the in-chat music bar like RTP instead of stock Telegram
+    public static final String NOTIF_OPENS_RTP = "notifOpensRtp"; // music notification opens the RTP-style full player (default on)
     public static final String TAP_OPENS_RTP_MINI_PLAYER = "tapOpensRtpMiniPlayer"; // tapping a chat's music bar opens RTP's mini player (default on)
 
     // Added in this round

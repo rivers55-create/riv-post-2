@@ -1,5 +1,9 @@
 package org.telegram.ui;
 
+import android.graphics.drawable.GradientDrawable;
+
+import android.graphics.Color;
+
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.text.TextUtils;
@@ -37,18 +41,36 @@ public class RivMiniPlayerView extends FrameLayout {
     private final View progressLine;
     private Runnable onOpenPlayer;
 
+    private final FrameLayout card;
+
+    // Riv Post: redesigned as a rounded floating pill (it was a flat strip whose speaker icon was
+    // cut off and whose edges ran into the list above). Speaker button replaced by "next",
+    // play/pause sits in a filled circle, and the progress line is clipped to the pill's shape.
     public RivMiniPlayerView(Context context) {
         super(context);
+        setBackgroundColor(Color.TRANSPARENT);
         int rivMini = org.telegram.messenger.RivPrefs.i(org.telegram.messenger.RivTheme.MINI_COLOR, 0);
-        setBackgroundColor(rivMini != 0 ? rivMini : Theme.getColor(Theme.key_windowBackgroundWhite));
+        int cardColor = rivMini != 0 ? rivMini : Theme.getColor(Theme.key_windowBackgroundWhite);
+
+        card = new FrameLayout(context);
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(cardColor);
+        cardBg.setCornerRadius(AndroidUtilities.dp(16));
+        cardBg.setStroke(Math.max(1, AndroidUtilities.dp(0.7f)), 0x22FFFFFF);
+        card.setBackground(cardBg);
+        if (android.os.Build.VERSION.SDK_INT >= 21) {
+            card.setClipToOutline(true);
+            card.setElevation(AndroidUtilities.dp(3));
+        }
+        addView(card, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL, 8, 4, 8, 4));
 
         art = new BackupImageView(context);
-        art.getImageReceiver().setRoundRadius(AndroidUtilities.dp(8));
-        addView(art, LayoutHelper.createFrame(50, 50, Gravity.CENTER_VERTICAL | Gravity.LEFT, 8, 0, 0, 0));
+        art.getImageReceiver().setRoundRadius(AndroidUtilities.dp(10));
+        card.addView(art, LayoutHelper.createFrame(42, 42, Gravity.CENTER_VERTICAL | Gravity.LEFT, 7, 0, 0, 0));
 
         LinearLayout col = new LinearLayout(context);
         col.setOrientation(LinearLayout.VERTICAL);
-        addView(col, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.LEFT, 66, 0, 140, 0));
+        card.addView(col, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.LEFT, 59, 0, 132, 0));
 
         title = new TextView(context);
         title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
@@ -59,29 +81,21 @@ public class RivMiniPlayerView extends FrameLayout {
         col.addView(title);
 
         artist = new TextView(context);
-        artist.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        artist.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         artist.setTextSize(12);
         artist.setMaxLines(1);
         artist.setEllipsize(TextUtils.TruncateAt.END);
-        col.addView(artist);
+        col.addView(artist, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
 
         LinearLayout right = new LinearLayout(context);
         right.setOrientation(LinearLayout.HORIZONTAL);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        addView(right, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER_VERTICAL | Gravity.RIGHT, 0, 0, 6, 0));
-
-        // Riv Post: each icon now sits at a normal 22dp size inside its own 44dp tap area; before,
-        // the icons were drawn at the full 40dp box size, so the speaker looked huge and the
-        // play button was cut off at the edge.
-        RivIcon outputIcon = new RivIcon(context);
-        outputIcon.setKind(RivIcon.SPEAKER);
-        outputIcon.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
-        right.addView(wrap(context, outputIcon), LayoutHelper.createLinear(44, 44));
+        card.addView(right, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER_VERTICAL | Gravity.RIGHT, 0, 0, 6, 0));
 
         favIcon = new RivIcon(context);
         favIcon.setKind(RivIcon.HEART_OUTLINE);
         FrameLayout favWrap = wrap(context, favIcon);
-        right.addView(favWrap, LayoutHelper.createLinear(44, 44));
+        right.addView(favWrap, LayoutHelper.createLinear(40, 40));
         favWrap.setOnClickListener(v -> {
             MessageObject m = MediaController.getInstance().getPlayingMessageObject();
             if (m != null) {
@@ -91,9 +105,14 @@ public class RivMiniPlayerView extends FrameLayout {
         });
 
         playPauseIcon = new RivIcon(context);
-        playPauseIcon.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        FrameLayout playWrap = wrap(context, playPauseIcon);
-        right.addView(playWrap, LayoutHelper.createLinear(44, 44));
+        playPauseIcon.setColor(Color.WHITE);
+        FrameLayout playWrap = new FrameLayout(context);
+        GradientDrawable playBg = new GradientDrawable();
+        playBg.setShape(GradientDrawable.OVAL);
+        playBg.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+        playWrap.setBackground(playBg);
+        playWrap.addView(playPauseIcon, LayoutHelper.createFrame(18, 18, Gravity.CENTER));
+        right.addView(playWrap, LayoutHelper.createLinear(38, 38, 2, 0, 2, 0));
         playWrap.setOnClickListener(v -> {
             MessageObject m = MediaController.getInstance().getPlayingMessageObject();
             if (m == null) return;
@@ -105,18 +124,28 @@ public class RivMiniPlayerView extends FrameLayout {
             updatePlayPause();
         });
 
+        RivIcon nextIcon = new RivIcon(context);
+        nextIcon.setKind(RivIcon.NEXT_FILLED);
+        nextIcon.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        FrameLayout nextWrap = wrap(context, nextIcon);
+        right.addView(nextWrap, LayoutHelper.createLinear(40, 40));
+        nextWrap.setOnClickListener(v -> {
+            MediaController.getInstance().playNextMessage();
+            refresh();
+        });
+
         progressLine = new View(context);
         progressLine.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
-        addView(progressLine, LayoutHelper.createFrame(0, 2, Gravity.BOTTOM | Gravity.LEFT));
+        card.addView(progressLine, LayoutHelper.createFrame(0, 2, Gravity.BOTTOM | Gravity.LEFT));
 
-        setOnClickListener(v -> {
+        card.setOnClickListener(v -> {
             if (onOpenPlayer != null) onOpenPlayer.run();
         });
     }
 
     private static FrameLayout wrap(Context context, RivIcon icon) {
         FrameLayout f = new FrameLayout(context);
-        f.addView(icon, LayoutHelper.createFrame(22, 22, Gravity.CENTER));
+        f.addView(icon, LayoutHelper.createFrame(20, 20, Gravity.CENTER));
         return f;
     }
 
@@ -172,9 +201,9 @@ public class RivMiniPlayerView extends FrameLayout {
         long pos = MediaController.getInstance().getProgressMs(m);
         float frac = dur > 0 ? Math.max(0f, Math.min(1f, (float) pos / dur)) : 0f;
         post(() -> {
-            if (getWidth() > 0) {
+            if (card.getWidth() > 0) {
                 android.view.ViewGroup.LayoutParams lp = progressLine.getLayoutParams();
-                lp.width = (int) (getWidth() * frac);
+                lp.width = (int) (card.getWidth() * frac);
                 progressLine.setLayoutParams(lp);
             }
         });

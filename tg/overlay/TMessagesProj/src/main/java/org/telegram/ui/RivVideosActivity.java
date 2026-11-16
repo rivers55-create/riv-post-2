@@ -100,6 +100,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
     public void onInsets(int left, int top, int right, int bottom) {
         super.onInsets(left, top, right, bottom);
         applyHeaderInset();
+        if (column != null) column.post(this::applyHeaderInset);
     }
 
     private void applyHeaderInset() {
@@ -117,6 +118,17 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
         }
         if (listView != null && listView.getPaddingTop() != 0) {
             listView.setPadding(listView.getPaddingLeft(), 0, listView.getPaddingRight(), listView.getPaddingBottom());
+        }
+        // Riv Post: Telegram's glass header also gives the list a negative top margin so it can
+        // slide under the header. Here the list sits below the "All chats / Selected chats" row,
+        // so that margin made the banner overlap the row -- take it back out.
+        if (listView != null && listView.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams llp = (ViewGroup.MarginLayoutParams) listView.getLayoutParams();
+            if (llp.topMargin != 0 || llp.bottomMargin != 0) {
+                llp.topMargin = 0;
+                llp.bottomMargin = 0;
+                listView.setLayoutParams(llp);
+            }
         }
     }
 
@@ -279,6 +291,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
                 previewFirstVideo(previewSources);
             }
         });
+        picker.setLibraryIds(sources);
         presentFragment(picker);
     }
 
@@ -392,7 +405,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             rebuildShelves();
             return;
         }
-        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+        RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             loading--;
             if (error != null) {
                 android.util.Log.d("RivVideos", "search failed for " + dialogId + ": " + error.text);

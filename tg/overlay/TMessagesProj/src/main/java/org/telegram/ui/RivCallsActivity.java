@@ -69,6 +69,7 @@ public class RivCallsActivity extends RivFragment {
     private TextView topLine;
     private LinearLayout statsBlock;
     private View emptyLabel;
+    private LinearLayout callsColumn;
 
     @Override
     protected boolean useSimpleActionBar() {
@@ -89,13 +90,32 @@ public class RivCallsActivity extends RivFragment {
     public void onInsets(int left, int top, int right, int bottom) {
         super.onInsets(left, top, right, bottom);
         applyBottomBarPadding();
+        if (listView != null) listView.post(this::applyBottomBarPadding);
     }
 
     private void applyBottomBarPadding() {
         if (listView == null) return;
         int bottomBarSpace = AndroidUtilities.dp(RivBottomBar.heightDp()) + rivNavBarHeight();
-        if (listView.getPaddingBottom() != bottomBarSpace) {
-            listView.setPadding(listView.getPaddingLeft(), listView.getPaddingTop(), listView.getPaddingRight(), bottomBarSpace);
+        // Riv Post: the summary line sits above the list, so the whole column goes below the
+        // header (not just the list), and Telegram's glass offsets on the list are taken back out.
+        if (callsColumn != null && callsColumn.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams clp = (ViewGroup.MarginLayoutParams) callsColumn.getLayoutParams();
+            int top = rivHeaderHeight();
+            if (clp.topMargin != top) {
+                clp.topMargin = top;
+                callsColumn.setLayoutParams(clp);
+            }
+        }
+        if (listView.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams llp = (ViewGroup.MarginLayoutParams) listView.getLayoutParams();
+            if (llp.topMargin != 0 || llp.bottomMargin != 0) {
+                llp.topMargin = 0;
+                llp.bottomMargin = 0;
+                listView.setLayoutParams(llp);
+            }
+        }
+        if (listView.getPaddingBottom() != bottomBarSpace || listView.getPaddingTop() != 0) {
+            listView.setPadding(listView.getPaddingLeft(), 0, listView.getPaddingRight(), bottomBarSpace);
         }
     }
 
@@ -125,6 +145,7 @@ public class RivCallsActivity extends RivFragment {
         fragmentView = root;
 
         LinearLayout column = new LinearLayout(context);
+        callsColumn = column;
         column.setOrientation(LinearLayout.VERTICAL);
         root.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
@@ -181,7 +202,8 @@ public class RivCallsActivity extends RivFragment {
         empty.setPadding(AndroidUtilities.dp(32), AndroidUtilities.dp(40), AndroidUtilities.dp(32), AndroidUtilities.dp(40));
         empty.setVisibility(View.GONE);
         emptyLabel = empty;
-        column.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        // Riv Post: centred over the page (it used to sit under a full-height list and never showed).
+        root.addView(empty, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
 
         RivBottomBar.attach(this, root, RivBottomBar.TAB_CALLS, AndroidUtilities.navigationBarHeight);
 
@@ -202,7 +224,7 @@ public class RivCallsActivity extends RivFragment {
         req.filter = new TLRPC.TL_inputMessagesFilterPhoneCalls();
         req.q = "";
         req.offset_id = maxId;
-        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+        RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             loading = false;
             if (error != null || !(response instanceof TLRPC.messages_Messages)) {
                 endReached = true;

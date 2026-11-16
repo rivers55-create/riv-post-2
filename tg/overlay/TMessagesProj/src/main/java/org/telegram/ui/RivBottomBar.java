@@ -277,7 +277,9 @@ public class RivBottomBar extends LinearLayout {
                 args.putBoolean("rivTab", true);
                 target = new ProfileActivity(args);
             }
-            fragment.presentFragment(target, replace);
+            // Riv Post: switch instantly like a real tab bar (the slide animation, plus building
+            // the new page mid-slide, was the stutter).
+            fragment.presentFragment(target, replace, true);
         });
         // long-press Chats: mark every chat as read (with a confirm)
         bar.items[TAB_CHATS].setOnLongClickListener(v -> {
@@ -376,7 +378,7 @@ public class RivBottomBar extends LinearLayout {
         }
         // Now the stack is [..., root, fragment] with nothing in between, so closing the last
         // fragment (the current one) correctly reveals root.
-        layout.closeLastFragment();
+        layout.closeLastFragment(false);
     }
 
     // ---------------------------------------------------------------- shared helpers

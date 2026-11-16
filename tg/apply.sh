@@ -274,6 +274,30 @@ edit(FCV,
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
                             new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();""")
 
+# Tapping the music notification (or the lock-screen player) used to open Telegram's own
+# AudioPlayerAlert sheet. Open Riv Post's RTP-style full player instead (RivPrefs.NOTIF_OPENS_RTP,
+# default on); off restores the stock sheet.
+LA = 'TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java'
+edit(LA,
+"""            } else if (showPlayer) {
+                if (!actionBarLayout.getFragmentStack().isEmpty()) {
+                    BaseFragment fragment = actionBarLayout.getFragmentStack().get(0);
+                    fragment.showDialog(new AudioPlayerAlert(this, null));
+                }""",
+"""            } else if (showPlayer) {
+                if (!actionBarLayout.getFragmentStack().isEmpty()) {
+                    if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.NOTIF_OPENS_RTP, true)) {
+                        java.util.List<BaseFragment> rivStack = actionBarLayout.getFragmentStack();
+                        BaseFragment top = rivStack.get(rivStack.size() - 1);
+                        if (!(top instanceof org.telegram.ui.RivMusicPlayerActivity)) {
+                            top.presentFragment(new org.telegram.ui.RivMusicPlayerActivity());
+                        }
+                    } else {
+                        BaseFragment fragment = actionBarLayout.getFragmentStack().get(0);
+                        fragment.showDialog(new AudioPlayerAlert(this, null));
+                    }
+                }""")
+
 # Telegram only recognises an .mkv file as a playable video if either the sender tagged it as
 # one, or this "Stream MKV videos" setting (real Telegram's own, in Data and Storage) is on --
 # it defaults off, so an .mkv sent without that tag silently doesn't count as a video anywhere,

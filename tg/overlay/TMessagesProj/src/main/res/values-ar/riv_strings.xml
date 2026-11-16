@@ -315,4 +315,21 @@
     <string name="RivAbSetA">تكرار: ضع البداية (A) هنا</string>
     <string name="RivAbSetB">تكرار: ضع النهاية (B) هنا</string>
     <string name="RivAbClear">تكرار: إيقاف التكرار</string>
+    <string name="RivPickSelectAll">تحديد كل المعروض</string>
+    <string name="RivPickClear">مسح</string>
+    <string name="RivPickPreview">معاينة</string>
+    <string name="RivPickDone">تم</string>
+    <string name="RivPickNone">لم يتم اختيار شيء: تُستخدم كل المحادثات</string>
+    <string name="RivPickCount">تم اختيار %1$d</string>
+    <string name="RivPickInLibrary">في المكتبة</string>
+    <string name="RivPickAll">الكل</string>
+    <string name="RivPickChannels">القنوات</string>
+    <string name="RivPickGroups">المجموعات</string>
+    <string name="RivPickPeople">الأشخاص</string>
+    <string name="RivPickBots">البوتات</string>
+    <string name="RivPickPicked">المختارة</string>
+    <string name="RivPickChannel">قناة</string>
+    <string name="RivPickGroup">مجموعة</string>
+    <string name="RivPickPerson">شخص</string>
+    <string name="RivPickBot">بوت</string>
 </resources>

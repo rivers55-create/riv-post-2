@@ -315,4 +315,21 @@
     <string name="RivAbSetA">Loop: set start (A) here</string>
     <string name="RivAbSetB">Loop: set end (B) here</string>
     <string name="RivAbClear">Loop: stop looping</string>
+    <string name="RivPickSelectAll">Select all shown</string>
+    <string name="RivPickClear">Clear</string>
+    <string name="RivPickPreview">Preview</string>
+    <string name="RivPickDone">Done</string>
+    <string name="RivPickNone">Nothing picked: every chat is used</string>
+    <string name="RivPickCount">%1$d picked</string>
+    <string name="RivPickInLibrary">In library</string>
+    <string name="RivPickAll">All</string>
+    <string name="RivPickChannels">Channels</string>
+    <string name="RivPickGroups">Groups</string>
+    <string name="RivPickPeople">People</string>
+    <string name="RivPickBots">Bots</string>
+    <string name="RivPickPicked">Picked</string>
+    <string name="RivPickChannel">Channel</string>
+    <string name="RivPickGroup">Group</string>
+    <string name="RivPickPerson">Person</string>
+    <string name="RivPickBot">Bot</string>
 </resources>

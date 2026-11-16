@@ -382,6 +382,7 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
                 previewFirstSong(previewSources);
             }
         });
+        picker.setLibraryIds(sources);
         presentFragment(picker);
     }
 
@@ -417,7 +418,7 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
             req.q = "";
             req.filter = new TLRPC.TL_inputMessagesFilterMusic();
             req.limit = 100;
-            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 loading--;
                 if (response instanceof TLRPC.messages_Messages) {
                     TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
