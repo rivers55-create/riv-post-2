@@ -42,6 +42,8 @@ public class RivMiniPlayerView extends FrameLayout {
     private Runnable onOpenPlayer;
 
     private final FrameLayout card;
+    /** Riv Post: kept hidden on Chats, where Telegram's own music bar is already shown at the top. */
+    public boolean suppressed;
 
     // Riv Post: redesigned as a rounded floating pill (it was a flat strip whose speaker icon was
     // cut off and whose edges ran into the list above). Speaker button replaced by "next",
@@ -179,11 +181,11 @@ public class RivMiniPlayerView extends FrameLayout {
     /** Refreshes art/title/artist/icons/progress from MediaController's current state. Call on a short tick while visible. */
     public void refresh() {
         MessageObject m = MediaController.getInstance().getPlayingMessageObject();
-        if (m == null) {
-            setVisibility(GONE);
+        if (m == null || suppressed) {
+            if (getVisibility() != GONE) setVisibility(GONE);
             return;
         }
-        setVisibility(VISIBLE);
+        if (getVisibility() != VISIBLE) setVisibility(VISIBLE);
         TLRPC.Document doc = m.getDocument();
         TLRPC.PhotoSize thumb = doc != null ? FileLoader.getClosestPhotoSizeWithSize(doc.thumbs, 150) : null;
         if (thumb != null) {

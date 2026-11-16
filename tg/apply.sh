@@ -255,7 +255,8 @@ edit(DA,
         return fragmentView;""")
 
 # Tapping Telegram's own in-chat music bar: when RivPrefs.TAP_OPENS_RTP_MINI_PLAYER is on
-# (default on), show RivMiniPlayerView's floating overlay instead of Telegram's own
+# (default on), open Riv Post's full RTP-style player (it used to drop a second floating music
+# bar over the tab bar) instead of Telegram's own
 # AudioPlayerAlert popup. Off switches back to the original stock behaviour untouched.
 FCV = 'TMessagesProj/src/main/java/org/telegram/ui/Components/FragmentContextView.java'
 edit(FCV,
@@ -268,7 +269,8 @@ edit(FCV,
 """                    if (messageObject.isMusic()) {
                         final Activity activity = AndroidUtilities.findActivity(getContext());
                         if (org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.TAP_OPENS_RTP_MINI_PLAYER, true) && activity != null) {
-                            org.telegram.ui.RivMiniPlayerView.showFloating(activity, fragment);
+                            org.telegram.ui.ActionBar.BaseFragment rivF = fragment != null ? fragment : LaunchActivity.getLastFragment();
+                            if (rivF != null) rivF.presentFragment(new org.telegram.ui.RivMusicPlayerActivity());
                         } else if (activity instanceof LaunchActivity) {
                             new AudioPlayerAlert(activity, resourcesProvider).show();
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
