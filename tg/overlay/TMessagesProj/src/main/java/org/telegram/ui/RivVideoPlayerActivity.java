@@ -81,6 +81,10 @@ public class RivVideoPlayerActivity extends RivFragment {
     private final ArrayList<String> subTexts = new ArrayList<>();
     private boolean subtitlesOn = true;
     private int subsForIndex = -1;
+    private long subDelayMs = 0;
+    private boolean embeddedOn = false;
+    private String embeddedText = "";
+    private long abA = -1, abB = -1;
 
     // gesture state
     private int gestureMode; // 0 none, 1 seek, 2 brightness, 3 volume
@@ -548,6 +552,25 @@ public class RivVideoPlayerActivity extends RivFragment {
             }
         });
         player.preparePlayer(uri, "other");
+        subDelayMs = 0;
+        embeddedOn = false;
+        embeddedText = "";
+        abA = abB = -1;
+        try {
+            player.player.addListener(new androidx.media3.common.Player.Listener() {
+                @Override
+                public void onCues(androidx.media3.common.text.CueGroup cueGroup) {
+                    StringBuilder sb = new StringBuilder();
+                    for (androidx.media3.common.text.Cue c : cueGroup.cues) {
+                        if (c.text == null) continue;
+                        if (sb.length() > 0) sb.append('\n');
+                        sb.append(c.text.toString());
+                    }
+                    embeddedText = sb.toString();
+                }
+            });
+        } catch (Throwable ignored) {
+        }
         player.setPlaybackSpeed(speed);
         long saved = resume ? RivMeta.position(getParentActivity(), RivVideosActivity.keyOf(m)) : 0;
         if (saved > 5000) {
@@ -621,6 +644,7 @@ public class RivVideoPlayerActivity extends RivFragment {
             posLabel.setText(format(pos));
             updatePlayIcon();
             updateSubtitle(pos);
+            if (abA >= 0 && abB > abA && pos >= abB) player.seekTo(abA);
             Activity pa = getParentActivity();
             if (android.os.Build.VERSION.SDK_INT >= 24 && pa != null && pa.isInPictureInPictureMode() && controls.getAlpha() > 0f) {
                 controls.setAlpha(0f);
@@ -809,6 +833,77 @@ public class RivVideoPlayerActivity extends RivFragment {
             }
         } catch (Throwable ignored) {
         }
+        try {
+            androidx.media3.common.Tracks tr = player.player.getCurrentTracks();
+            int k = 1;
+            for (androidx.media3.common.Tracks.Group g : tr.getGroups()) {
+                if (g.getType() != androidx.media3.common.C.TRACK_TYPE_TEXT) continue;
+                for (int i = 0; i < g.length; i++) {
+                    androidx.media3.common.Format f = g.getTrackFormat(i);
+                    String name = f.label;
+                    if (TextUtils.isEmpty(name) && !TextUtils.isEmpty(f.language) && !"und".equals(f.language)) {
+                        name = new Locale(f.language).getDisplayLanguage();
+                    }
+                    if (TextUtils.isEmpty(name)) name = LocaleController.getString(R.string.RivSubtitleTrack) + " " + k;
+                    k++;
+                    final androidx.media3.common.Tracks.Group group = g;
+                    final int ti = i;
+                    names.add("CC  " + name + (embeddedOn && g.isTrackSelected(i) ? "  \u2713" : ""));
+                    actions.add(() -> {
+                        player.player.setTrackSelectionParameters(player.player.getTrackSelectionParameters().buildUpon()
+                                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                                .setOverrideForType(new androidx.media3.common.TrackSelectionOverride(group.getMediaTrackGroup(), ti)).build());
+                        embeddedOn = true;
+                        subtitlesOn = true;
+                    });
+                }
+            }
+            if (embeddedOn) {
+                names.add("CC  " + LocaleController.getString(R.string.RivEmbeddedSubsOff));
+                actions.add(() -> {
+                    player.player.setTrackSelectionParameters(player.player.getTrackSelectionParameters().buildUpon()
+                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true).build());
+                    embeddedOn = false;
+                    embeddedText = "";
+                });
+            }
+        } catch (Throwable ignored) {
+        }
+        if (!subTimes.isEmpty() || embeddedOn) {
+            final String dl = (subDelayMs >= 0 ? "+" : "") + new java.text.DecimalFormat("0.0").format(subDelayMs / 1000f) + "s";
+            names.add("CC  " + LocaleController.formatString(R.string.RivSubDelayEarlier, dl));
+            actions.add(() -> {
+                subDelayMs -= 500;
+                showHint(LocaleController.formatString(R.string.RivSubDelayNow, (subDelayMs >= 0 ? "+" : "") + new java.text.DecimalFormat("0.0").format(subDelayMs / 1000f) + "s"));
+            });
+            names.add("CC  " + LocaleController.formatString(R.string.RivSubDelayLater, dl));
+            actions.add(() -> {
+                subDelayMs += 500;
+                showHint(LocaleController.formatString(R.string.RivSubDelayNow, (subDelayMs >= 0 ? "+" : "") + new java.text.DecimalFormat("0.0").format(subDelayMs / 1000f) + "s"));
+            });
+        }
+        if (abA < 0) {
+            names.add("A-B  " + LocaleController.getString(R.string.RivAbSetA));
+            actions.add(() -> {
+                abA = player.getCurrentPosition();
+                abB = -1;
+                showHint("A  " + format(abA));
+            });
+        } else if (abB < 0) {
+            names.add("A-B  " + LocaleController.getString(R.string.RivAbSetB));
+            actions.add(() -> {
+                long p = player.getCurrentPosition();
+                if (p > abA + 500) {
+                    abB = p;
+                    showHint("A " + format(abA) + "  B " + format(abB));
+                }
+            });
+        } else {
+            names.add("A-B  " + LocaleController.getString(R.string.RivAbClear));
+            actions.add(() -> {
+                abA = abB = -1;
+            });
+        }
         if (!subTimes.isEmpty()) {
             names.add("CC  " + LocaleController.getString(subtitlesOn ? R.string.RivSubtitlesOff : R.string.RivSubtitlesOn));
             actions.add(() -> {
@@ -937,6 +1032,17 @@ public class RivVideoPlayerActivity extends RivFragment {
 
     private void updateSubtitle(long posMs) {
         if (subtitleView == null) return;
+        if (subtitlesOn && embeddedOn) {
+            if (TextUtils.isEmpty(embeddedText)) {
+                subtitleView.setVisibility(View.GONE);
+            } else {
+                if (!embeddedText.contentEquals(subtitleView.getText())) subtitleView.setText(embeddedText);
+                subtitleView.setVisibility(View.VISIBLE);
+                subtitleView.setTranslationY(controlsVisible ? -AndroidUtilities.dp(70) : 0);
+            }
+            return;
+        }
+        posMs -= subDelayMs;
         if (!subtitlesOn || subTimes.isEmpty()) {
             if (subtitleView.getVisibility() != View.GONE) subtitleView.setVisibility(View.GONE);
             return;

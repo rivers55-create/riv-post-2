@@ -307,4 +307,12 @@
     <string name="RivUsePin">استخدام الرمز</string>
     <string name="RivVaultFingerprint">فتح الخزنة بالبصمة</string>
     <string name="RivVaultFingerprintInfo">يبقى الرمز السري متاحاً كبديل</string>
+    <string name="RivSubtitleTrack">ترجمة</string>
+    <string name="RivEmbeddedSubsOff">إيقاف الترجمة المدمجة</string>
+    <string name="RivSubDelayEarlier">الترجمة أبكر بنصف ثانية (الآن %s)</string>
+    <string name="RivSubDelayLater">الترجمة أبطأ بنصف ثانية (الآن %s)</string>
+    <string name="RivSubDelayNow">تأخير الترجمة %s</string>
+    <string name="RivAbSetA">تكرار: ضع البداية (A) هنا</string>
+    <string name="RivAbSetB">تكرار: ضع النهاية (B) هنا</string>
+    <string name="RivAbClear">تكرار: إيقاف التكرار</string>
 </resources>

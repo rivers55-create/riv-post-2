@@ -307,4 +307,12 @@
     <string name="RivUsePin">Use PIN</string>
     <string name="RivVaultFingerprint">Open Vault with fingerprint</string>
     <string name="RivVaultFingerprintInfo">Your PIN still works as a backup</string>
+    <string name="RivSubtitleTrack">Subtitles</string>
+    <string name="RivEmbeddedSubsOff">Turn off built-in subtitles</string>
+    <string name="RivSubDelayEarlier">Subtitles 0.5s earlier (now %s)</string>
+    <string name="RivSubDelayLater">Subtitles 0.5s later (now %s)</string>
+    <string name="RivSubDelayNow">Subtitle delay %s</string>
+    <string name="RivAbSetA">Loop: set start (A) here</string>
+    <string name="RivAbSetB">Loop: set end (B) here</string>
+    <string name="RivAbClear">Loop: stop looping</string>
 </resources>
