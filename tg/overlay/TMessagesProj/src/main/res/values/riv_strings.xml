@@ -332,4 +332,8 @@
     <string name="RivPickGroup">Group</string>
     <string name="RivPickPerson">Person</string>
     <string name="RivPickBot">Bot</string>
+    <string name="RivProxyPasteTitle">Paste multiple proxies</string>
+    <string name="RivProxyPasteInfo">Paste text with proxy links in it, one or many (t.me/proxy, t.me/socks or tg:// links). Every valid link is added to your list.</string>
+    <string name="RivProxyPasteAdd">Add all</string>
+    <string name="RivProxyPasteResult">Added %1$d · already in list %2$d · not valid %3$d</string>
 </resources>

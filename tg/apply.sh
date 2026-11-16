@@ -300,6 +300,31 @@ edit(LA,
                     }
                 }""")
 
+# Proxy screen: a "Paste multiple proxies" row under "Add Proxy". Paste any text with proxy
+# links (t.me / tg:// proxy, socks, webproxy) and all of them are added (RivProxyImport).
+PL = 'TMessagesProj/src/main/java/org/telegram/ui/ProxyListActivity.java'
+edit(PL, "    private int proxyAddRow;\n", "    private int proxyAddRow;\n    private int rivPasteRow = -1;\n")
+edit(PL, "        proxyAddRow = rowCount++;\n        proxyShadowRow = rowCount++;\n",
+         "        proxyAddRow = rowCount++;\n        rivPasteRow = rowCount++;\n        proxyShadowRow = rowCount++;\n")
+edit(PL, """            } else if (position == proxyAddRow) {
+                presentFragment(new ProxySettingsActivity());""",
+"""            } else if (position == rivPasteRow) {
+                org.telegram.ui.RivProxyImport.show(ProxyListActivity.this, () -> updateRows(true));
+            } else if (position == proxyAddRow) {
+                presentFragment(new ProxySettingsActivity());""")
+edit(PL, """                    if (position == proxyAddRow) {
+                        textCell.setText(getString(R.string.AddProxy), deleteAllRow != -1);""",
+"""                    if (position == rivPasteRow) {
+                        textCell.setText(getString(R.string.RivProxyPasteTitle), deleteAllRow != -1);
+                    } else if (position == proxyAddRow) {
+                        textCell.setText(getString(R.string.AddProxy), true);""")
+edit(PL, "            } else if (position == proxyAddRow) {\n                return -3;",
+         "            } else if (position == rivPasteRow) {\n                return -30;\n            } else if (position == proxyAddRow) {\n                return -3;")
+edit(PL, "            } else if (position == proxyAddRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;",
+         "            } else if (position == proxyAddRow || position == rivPasteRow || position == deleteAllRow) {\n                return VIEW_TYPE_TEXT_SETTING;")
+edit(PL, "position == proxyAddRow || position == deleteAllRow || position >= proxyStartRow",
+         "position == proxyAddRow || position == rivPasteRow || position == deleteAllRow || position >= proxyStartRow")
+
 # Telegram only recognises an .mkv file as a playable video if either the sender tagged it as
 # one, or this "Stream MKV videos" setting (real Telegram's own, in Data and Storage) is on --
 # it defaults off, so an .mkv sent without that tag silently doesn't count as a video anywhere,

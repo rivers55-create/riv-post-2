@@ -332,4 +332,8 @@
     <string name="RivPickGroup">مجموعة</string>
     <string name="RivPickPerson">شخص</string>
     <string name="RivPickBot">بوت</string>
+    <string name="RivProxyPasteTitle">لصق عدة بروكسيات</string>
+    <string name="RivProxyPasteInfo">الصق نصاً فيه روابط بروكسي، واحد أو أكثر (t.me/proxy أو t.me/socks أو روابط tg://). كل رابط صالح يُضاف إلى قائمتك.</string>
+    <string name="RivProxyPasteAdd">إضافة الكل</string>
+    <string name="RivProxyPasteResult">تمت إضافة %1$d · موجود مسبقاً %2$d · غير صالح %3$d</string>
 </resources>
