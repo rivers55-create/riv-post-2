@@ -56,8 +56,8 @@
     <string name="RivChatPlayerHeader">In-chat music player</string>
     <string name="RivChatPlayerRtpStyle">RTP style for in-chat player</string>
     <string name="RivChatPlayerRtpStyleInfo">Colour and shape the small music bar in chats like Riv Tunes Player</string>
-    <string name="RivChatPlayerOpensRtp">Open RTP mini player from chats</string>
-    <string name="RivChatPlayerOpensRtpInfo">Tapping the music bar in a chat opens Riv Tunes Player\'s mini player instead of the default one</string>
+    <string name="RivChatPlayerOpensRtp">Music bar opens the RTP player</string>
+    <string name="RivChatPlayerOpensRtpInfo">Tapping Telegram\'s music bar at the top of a page opens the full RTP-style player instead of Telegram\'s own</string>
     <string name="RivHideSourcePreviewButton">Hide the preview play button</string>
     <string name="RivHideSourcePreviewButtonInfo">Removes the floating play button from the chat-picker screen for Music and Videos</string>
     <string name="RivChatPlayerFooter">These only change music played from inside a chat. Riv Tunes Player\'s own screens are unaffected.</string>

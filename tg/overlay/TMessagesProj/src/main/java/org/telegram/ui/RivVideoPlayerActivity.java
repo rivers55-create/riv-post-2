@@ -106,6 +106,12 @@ public class RivVideoPlayerActivity extends RivFragment {
     public static void open(org.telegram.ui.ActionBar.BaseFragment from, MessageObject m, List<MessageObject> list) {
         List<MessageObject> l = list == null || list.isEmpty() ? java.util.Collections.singletonList(m) : list;
         int i = l.indexOf(m);
+        if (i < 0) {
+            // Riv Post: the tapped video wasn't in the list it came with (e.g. a shelf that was
+            // rebuilt meanwhile); play just that video instead of the first one in the list.
+            l = java.util.Collections.singletonList(m);
+            i = 0;
+        }
         if (RivPrefs.b(RivPrefs.VIDEO_PLAYER_RVP, true)) {
             from.presentFragment(new RivVideoPlayerActivity(l, Math.max(0, i)));
         } else {
@@ -567,6 +573,8 @@ public class RivVideoPlayerActivity extends RivFragment {
                         sb.append(c.text.toString());
                     }
                     embeddedText = sb.toString();
+                    // a subtitle track the file marks as default/forced starts on by itself; show it
+                    if (!embeddedText.isEmpty() && !embeddedOn && subTimes.isEmpty()) embeddedOn = true;
                 }
             });
         } catch (Throwable ignored) {
