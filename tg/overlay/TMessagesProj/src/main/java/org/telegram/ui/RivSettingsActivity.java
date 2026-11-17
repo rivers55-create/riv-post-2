@@ -80,9 +80,14 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(exportChat);
         TextSettingsCell downloads = new TextSettingsCell(context);
         downloads.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
-        downloads.setText(LocaleController.getString(R.string.RivDownloads), false);
+        downloads.setText(LocaleController.getString(R.string.RivDownloads), true);
         downloads.setOnClickListener(v -> presentFragment(new RivDownloadsActivity()));
         layout.addView(downloads);
+        TextSettingsCell rivTools = new TextSettingsCell(context);
+        rivTools.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        rivTools.setText(org.telegram.messenger.RivT.t("Riv Tools", "أدوات Riv"), false);
+        rivTools.setOnClickListener(v -> presentFragment(new RivToolsActivity()));
+        layout.addView(rivTools);
         layout.addView(info(context, LocaleController.getString(R.string.RivLibrariesInfo)));
 
         // ---- Video & music metadata (optional, user's own keys)

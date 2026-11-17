@@ -47,8 +47,7 @@ public final class RivSearchCache {
     private static final HashSet<String> refreshing = new HashSet<>();
     private static boolean cleaned;
 
-    private static Object listenerOwner;
-    private static Runnable listener;
+    private static final java.util.LinkedHashMap<Object, Runnable> listeners = new java.util.LinkedHashMap<>();
     private static boolean notifyPending;
 
     private RivSearchCache() {
@@ -71,17 +70,13 @@ public final class RivSearchCache {
     /** Called (on the UI thread) when a background refresh found something different from what was shown. */
     public static void setRefreshListener(Object owner, Runnable r) {
         synchronized (cache) {
-            listenerOwner = owner;
-            listener = r;
+            listeners.put(owner, r);
         }
     }
 
     public static void clearRefreshListener(Object owner) {
         synchronized (cache) {
-            if (listenerOwner == owner) {
-                listenerOwner = null;
-                listener = null;
-            }
+            listeners.remove(owner);
         }
     }
 
@@ -146,16 +141,16 @@ public final class RivSearchCache {
 
     private static void notifyChanged() {
         synchronized (cache) {
-            if (listener == null || notifyPending) return;
+            if (listeners.isEmpty() || notifyPending) return;
             notifyPending = true;
         }
         AndroidUtilities.runOnUIThread(() -> {
-            Runnable r;
+            java.util.ArrayList<Runnable> run;
             synchronized (cache) {
                 notifyPending = false;
-                r = listener;
+                run = new java.util.ArrayList<>(listeners.values());
             }
-            if (r != null) r.run();
+            for (Runnable r : run) r.run();
         }, 600);
     }
 

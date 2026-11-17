@@ -216,6 +216,15 @@ public class RivChatTools {
             setInList(org.telegram.messenger.RivPrefs.LOCKED_CHATS, dialogId, checked[2]);
         });
         b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        b.setNeutralButton(org.telegram.messenger.RivT.t("Tags & notes", "وسوم وملاحظات"), (d, w) -> {
+            AlertDialog.Builder c = new AlertDialog.Builder(activity);
+            c.setTitle(org.telegram.messenger.RivT.t("Tags & notes", "وسوم وملاحظات"));
+            c.setItems(new CharSequence[]{org.telegram.messenger.RivT.t("Tags…", "الوسوم…"), org.telegram.messenger.RivT.t("Notes for this chat", "ملاحظات هذه المحادثة")}, (dd, which) -> {
+                if (which == 0) RivTagsActivity.showTagDialog(fragment, dialogId, null);
+                else fragment.presentFragment(new RivNotesActivity(dialogId));
+            });
+            fragment.showDialog(c.create());
+        });
         fragment.showDialog(b.create());
     }
 

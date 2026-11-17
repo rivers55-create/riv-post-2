@@ -193,6 +193,29 @@ public class RivCallsActivity extends RivFragment {
             args.putLong("user_id", rows.get(position).userId);
             presentFragment(new org.telegram.ui.ChatActivity(args));
         });
+        // Riv Post: long-press a call to write a note on it (what the call was about)
+        listView.setOnItemLongClickListener((view, position) -> {
+            if (position < 0 || position >= rows.size() || getParentActivity() == null) return false;
+            final CallRow cr = rows.get(position);
+            final String key = org.telegram.messenger.RivCallNotes.keyOf(cr.userId, cr.date);
+            android.widget.EditText edit = new android.widget.EditText(context);
+            edit.setHint(org.telegram.messenger.RivT.t("Note about this call", "ملاحظة عن هذه المكالمة"));
+            edit.setText(org.telegram.messenger.RivCallNotes.get(key));
+            edit.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            FrameLayout wrap = new FrameLayout(context);
+            wrap.setPadding(AndroidUtilities.dp(22), 0, AndroidUtilities.dp(22), 0);
+            wrap.addView(edit, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            org.telegram.ui.ActionBar.AlertDialog.Builder b = new org.telegram.ui.ActionBar.AlertDialog.Builder(getParentActivity());
+            b.setTitle(cr.user != null ? org.telegram.messenger.UserObject.getUserName(cr.user) : "");
+            b.setView(wrap);
+            b.setPositiveButton(LocaleController.getString(R.string.OK), (d, w) -> {
+                org.telegram.messenger.RivCallNotes.set(key, edit.getText().toString());
+                if (adapter != null) adapter.notifyDataSetChanged();
+            });
+            b.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+            showDialog(b.create());
+            return true;
+        });
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
@@ -416,6 +439,8 @@ public class RivCallsActivity extends RivFragment {
             StringBuilder sub = new StringBuilder(dir).append(" · ").append(LocaleController.formatDateCallLog(row.date));
             if (row.duration > 0) sub.append(" · ").append(fmtDuration(row.duration));
             if (row.video) sub.append(" · ").append(LocaleController.getString(R.string.RivVideoCallTag));
+            String callNote = org.telegram.messenger.RivCallNotes.get(org.telegram.messenger.RivCallNotes.keyOf(row.userId, row.date));
+            if (!callNote.isEmpty()) sub.append("\n\uD83D\uDCDD ").append(callNote);
             subtitle.setText(sub.toString());
         }
     }

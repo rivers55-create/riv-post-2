@@ -51,6 +51,34 @@ public class RivBottomBar extends LinearLayout {
         return org.telegram.messenger.RivPrefs.b(org.telegram.messenger.RivPrefs.BAR_ROUNDED, true);
     }
 
+    /** Tabs in the order the user chose (all six, always); a tab the user never placed keeps its normal spot at the end. */
+    public static int[] tabOrder() {
+        java.util.ArrayList<Integer> out = new java.util.ArrayList<>();
+        String s = org.telegram.messenger.RivPrefs.s(org.telegram.messenger.RivPrefs.BAR_ORDER, "");
+        if (s != null && !s.isEmpty()) {
+            for (String p : s.split(",")) {
+                try {
+                    int t = Integer.parseInt(p.trim());
+                    if (t >= 0 && t < 6 && !out.contains(t)) out.add(t);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        for (int t = 0; t < 6; t++) if (!out.contains(t)) out.add(t);
+        int[] arr = new int[6];
+        for (int i = 0; i < 6; i++) arr[i] = out.get(i);
+        return arr;
+    }
+
+    /** Chats and Profile can never be hidden, so there is always a way around the app. */
+    public static boolean isHidden(int tab) {
+        if (tab == TAB_CHATS || tab == TAB_PROFILE) return false;
+        String s = org.telegram.messenger.RivPrefs.s(org.telegram.messenger.RivPrefs.BAR_HIDDEN, "");
+        if (s == null || s.isEmpty()) return false;
+        for (String p : s.split(",")) if (p.trim().equals(String.valueOf(tab))) return true;
+        return false;
+    }
+
     /** The bar's own height in dp for the chosen look. */
     private static int barHeightDp() {
         return style() == STYLE_ICONS ? 48 : HEIGHT_DP;
@@ -146,7 +174,9 @@ public class RivBottomBar extends LinearLayout {
                 LocaleController.getString(R.string.RivTabProfile),
         };
 
-        for (int i = 0; i < items.length; i++) {
+        int[] order = tabOrder();
+        for (int oi = 0; oi < order.length; oi++) {
+            int i = order[oi];
             Item item = new Item(context);
             item.icon.setKind(ICON_KINDS[i]);
             item.label.setText(labels[i]);
@@ -157,6 +187,7 @@ public class RivBottomBar extends LinearLayout {
                 if (listener != null) listener.onTabSelected(tab);
             });
             addView(item, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
+            if (isHidden(i)) item.setVisibility(GONE);
         }
 
         updateHighlight();
@@ -248,6 +279,7 @@ public class RivBottomBar extends LinearLayout {
             try {
                 RivProxyImport.importFromChannels(fragment.getCurrentAccount(), false, null);
                 RivProxyImport.startWifiWatch(fragment.getParentActivity());
+                org.telegram.messenger.RivWatchers.start(fragment.getParentActivity());
             } catch (Throwable ignored) {
             }
         }

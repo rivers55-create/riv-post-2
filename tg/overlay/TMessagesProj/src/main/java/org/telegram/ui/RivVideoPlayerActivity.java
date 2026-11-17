@@ -1,6 +1,7 @@
 package org.telegram.ui;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.res.ColorStateList;
@@ -984,6 +985,11 @@ public class RivVideoPlayerActivity extends RivFragment {
                 showHint(LocaleController.formatString(R.string.RivSubDelayNow, (subDelayMs >= 0 ? "+" : "") + new java.text.DecimalFormat("0.0").format(subDelayMs / 1000f) + "s"));
             });
         }
+        names.add("CC  " + org.telegram.messenger.RivT.t("Load a subtitle file…", "تحميل ملف ترجمة…"));
+        actions.add(this::pickSubtitleFile);
+        names.add(audioOnly ? "\u266B  " + org.telegram.messenger.RivT.t("Audio only: on (tap to turn off)", "صوت فقط: مفعل (اضغط للإيقاف)")
+                : "\u266B  " + org.telegram.messenger.RivT.t("Audio only (hide the picture)", "صوت فقط (إخفاء الصورة)"));
+        actions.add(this::toggleAudioOnly);
         if (abA < 0) {
             names.add("A-B  " + LocaleController.getString(R.string.RivAbSetA));
             actions.add(() -> {
@@ -1021,6 +1027,67 @@ public class RivVideoPlayerActivity extends RivFragment {
         b.setTitle(LocaleController.getString(R.string.RivAudioAndSubtitles));
         b.setItems(names.toArray(new CharSequence[0]), (d, w) -> actions.get(w).run());
         showDialog(b.create());
+    }
+
+    // Riv Post: a subtitle file from the phone, and "audio only" (turns the picture off, keeps the sound)
+
+    private static final int REQ_SUBTITLE_FILE = 7742;
+    private boolean audioOnly;
+
+    private void pickSubtitleFile() {
+        try {
+            Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+            i.setType("*/*");
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(Intent.createChooser(i, org.telegram.messenger.RivT.t("Subtitle file (.srt / .vtt)", "ملف الترجمة (.srt / .vtt)")), REQ_SUBTITLE_FILE);
+        } catch (Throwable t) {
+            showHint(String.valueOf(t.getMessage()));
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode != REQ_SUBTITLE_FILE || resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
+        final android.net.Uri uri = data.getData();
+        final int forIndex = index;
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            try (java.io.InputStream in = org.telegram.messenger.ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri)) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int r;
+                while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+                byte[] bytes = out.toByteArray();
+                String text = new String(bytes, "UTF-8");
+                if (text.indexOf('\uFFFD') >= 0) text = new String(bytes, "windows-1256"); // Arabic files saved the old way
+                ArrayList<long[]> times = new ArrayList<>();
+                ArrayList<String> texts = new ArrayList<>();
+                parseSrt(text, times, texts);
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (forIndex != index) return;
+                    if (times.isEmpty()) {
+                        showHint(org.telegram.messenger.RivT.t("No subtitles found in that file.", "لم يتم العثور على ترجمة في هذا الملف."));
+                        return;
+                    }
+                    subTimes.clear();
+                    subTimes.addAll(times);
+                    subTexts.clear();
+                    subTexts.addAll(texts);
+                    subtitlesOn = true;
+                    showHint(LocaleController.getString(R.string.RivSubtitlesLoaded));
+                });
+            } catch (Throwable t) {
+                AndroidUtilities.runOnUIThread(() -> showHint(String.valueOf(t.getMessage())));
+            }
+        });
+    }
+
+    private void toggleAudioOnly() {
+        if (player == null || player.player == null) return;
+        audioOnly = !audioOnly;
+        player.player.setTrackSelectionParameters(player.player.getTrackSelectionParameters().buildUpon()
+                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, audioOnly).build());
+        showHint(audioOnly ? org.telegram.messenger.RivT.t("Audio only", "صوت فقط") : org.telegram.messenger.RivT.t("Picture back on", "عادت الصورة"));
     }
 
     private static String baseName(String fileName) {

@@ -559,6 +559,7 @@ edit(CHA,
     private final static int riv_download_all = 9102;
     private final static int riv_save_all = 9103;
     private final static int RIV_OPTION_EDIT_HISTORY = 9201;
+    private final static int RIV_OPTION_STAR = 9202;
 """)
 edit(CHA,
 """                } else if (id == save_to) {
@@ -639,6 +640,11 @@ edit(CHA,
                     options.add(RIV_OPTION_EDIT_HISTORY);
                     icons.add(R.drawable.msg_recent);
                 }
+                items.add(org.telegram.messenger.RivStarred.has(selectedObject.getDialogId(), selectedObject.getId())
+                        ? org.telegram.messenger.RivT.t("Remove star", "إزالة التمييز")
+                        : org.telegram.messenger.RivT.t("Star message", "تمييز بنجمة"));
+                options.add(RIV_OPTION_STAR);
+                icons.add(R.drawable.msg_fave);
             }
             if (options.isEmpty() && optionsView == null) {
 """)
@@ -649,6 +655,10 @@ edit(CHA,
 """        switch (option) {
             case RIV_OPTION_EDIT_HISTORY: {
                 org.telegram.ui.RivChatTools.showEditHistory(this, selectedObject);
+                break;
+            }
+            case RIV_OPTION_STAR: {
+                org.telegram.messenger.RivStarred.toggle(selectedObject);
                 break;
             }
             case OPTION_RETRY: {
