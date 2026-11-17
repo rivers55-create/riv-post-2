@@ -3,6 +3,7 @@ package org.telegram.ui;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.os.SystemClock;
 import android.net.Uri;
 import android.text.InputType;
 import android.view.Gravity;
@@ -148,14 +149,68 @@ public final class RivProxyImport {
             if (best == null || p.ping < best.ping) best = p;
         }
         if (best == null) return false;
+        connectTo(best);
+        return true;
+    }
+
+    /** Makes this saved proxy the current one and turns the proxy on. */
+    public static void connectTo(SharedConfig.ProxyInfo p) {
         android.content.SharedPreferences.Editor editor = org.telegram.messenger.MessagesController.getGlobalMainSettings().edit();
-        best.settings.toSharedPreferences(editor);
+        p.settings.toSharedPreferences(editor);
         editor.putBoolean("proxy_enabled", true);
         editor.commit();
-        SharedConfig.currentProxy = best;
-        org.telegram.tgnet.ConnectionsManager.setProxySettings(true, best.settings);
+        SharedConfig.currentProxy = p;
+        lastApplied = null;
+        org.telegram.tgnet.ConnectionsManager.setProxySettings(true, p.settings);
         org.telegram.messenger.NotificationCenter.getGlobalInstance().postNotificationName(org.telegram.messenger.NotificationCenter.proxySettingsChanged);
-        return true;
+    }
+
+    /**
+     * Pings every saved proxy right now, then connects to the quickest one that answered.
+     * done gets the proxy it connected to, or null if none answered.
+     */
+    public static void connectFastestNow(int account, java.util.function.Consumer<SharedConfig.ProxyInfo> done) {
+        SharedConfig.loadProxyList();
+        final ArrayList<SharedConfig.ProxyInfo> list = new ArrayList<>(SharedConfig.proxyList);
+        if (list.isEmpty()) {
+            done.accept(null);
+            return;
+        }
+        final int[] left = {list.size()};
+        final boolean[] finished = {false};
+        final Runnable finish = () -> {
+            synchronized (left) {
+                if (finished[0]) return;
+                finished[0] = true;
+            }
+            SharedConfig.ProxyInfo best = null;
+            for (SharedConfig.ProxyInfo p : list) {
+                if (!p.available || p.ping <= 0) continue;
+                if (best == null || p.ping < best.ping) best = p;
+            }
+            if (best != null) connectTo(best);
+            done.accept(best);
+        };
+        for (SharedConfig.ProxyInfo p : list) {
+            try {
+                org.telegram.tgnet.ConnectionsManager.getInstance(account).checkProxy(p.settings, time -> org.telegram.messenger.AndroidUtilities.runOnUIThread(() -> {
+                    p.availableCheckTime = SystemClock.elapsedRealtime();
+                    p.ping = time;
+                    p.available = time > 0;
+                    p.checking = false;
+                    synchronized (left) {
+                        left[0]--;
+                        if (left[0] > 0) return;
+                    }
+                    finish.run();
+                }));
+            } catch (Throwable t) {
+                synchronized (left) {
+                    left[0]--;
+                }
+            }
+        }
+        org.telegram.messenger.AndroidUtilities.runOnUIThread(finish, 10000);
     }
 
     /** Proxies whose last check failed (and aren't being checked right now). */

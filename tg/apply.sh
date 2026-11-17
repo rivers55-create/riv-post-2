@@ -524,6 +524,7 @@ edit(DA,
             if (initialDialogsType == DIALOGS_TYPE_DEFAULT) {
                 org.telegram.ui.RivGhostButton.add(menu);
                 org.telegram.ui.RivProxyButton.add(this, menu); // proxy on/off shield (#19)
+                org.telegram.ui.RivToolsButton.add(this, menu); // Riv Tools toolbox button
             }
 
             updateProxyButton(false, false);""")

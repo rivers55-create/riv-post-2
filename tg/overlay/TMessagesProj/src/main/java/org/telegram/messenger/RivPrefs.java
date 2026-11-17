@@ -45,6 +45,7 @@ public class RivPrefs {
     public static final String PROXY_CHANNEL = "proxyChannel";        // channel id to import proxy links from (0 = off)
     public static final String PROXY_CHANNEL_LAST = "proxyChannelLast"; // last import time
     public static final String LOCKED_CHATS = "lockedChats";          // comma list of dialog ids locked with fingerprint
+    public static final String TOOLS_BUTTON = "toolsButton";        // Riv Tools button on Chats (default on)
     public static final String PROXY_BUTTON = "proxyButton";        // shield button on Chats (default on)
     public static final String PROXY_MOBILE_ONLY = "proxyMobileOnly"; // proxy only on mobile data, direct on Wi-Fi (default off)
     public static final String NOTIF_OPENS_RTP = "notifOpensRtp"; // music notification opens the RTP-style full player (default on)

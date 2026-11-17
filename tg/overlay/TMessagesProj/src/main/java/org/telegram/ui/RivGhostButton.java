@@ -6,7 +6,6 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.text.TextPaint;
 import android.widget.Toast;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -26,7 +25,6 @@ public class RivGhostButton {
 
     /** Draws the ghost emoji, full strength when ghost mode is on, faded when off. */
     static class GhostDrawable extends Drawable {
-        private final TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         private boolean on;
         String emoji = "\uD83D\uDC7B";
 
@@ -36,8 +34,6 @@ public class RivGhostButton {
         }
 
         GhostDrawable() {
-            paint.setTextSize(AndroidUtilities.dp(21));
-            paint.setTextAlign(Paint.Align.CENTER);
         }
 
         void setOn(boolean value) {
@@ -48,10 +44,9 @@ public class RivGhostButton {
         @Override
         public void draw(Canvas canvas) {
             Rect b = getBounds();
-            paint.setAlpha(on ? 255 : 90);
-            Paint.FontMetrics fm = paint.getFontMetrics();
-            float y = b.exactCenterY() - (fm.ascent + fm.descent) / 2f;
-            canvas.drawText(emoji, b.exactCenterX(), y, paint);
+            int kind = RivLineIcon.kindOf(emoji);
+            int color = org.telegram.ui.ActionBar.Theme.getColor(org.telegram.ui.ActionBar.Theme.key_actionBarDefaultIcon);
+            RivLineIcon.draw(canvas, kind, b.exactCenterX(), b.exactCenterY(), AndroidUtilities.dp(24), color, on ? 255 : 120, on);
         }
 
         @Override

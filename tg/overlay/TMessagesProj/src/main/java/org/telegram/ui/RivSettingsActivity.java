@@ -147,6 +147,7 @@ public class RivSettingsActivity extends RivFragment {
         layout.addView(header(context, LocaleController.getString(R.string.RivChatsHeader)));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivGhostButton), LocaleController.getString(R.string.RivGhostButtonInfo), RivPrefs.GHOST_BUTTON));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivProxyButton), LocaleController.getString(R.string.RivProxyButtonInfo), RivPrefs.PROXY_BUTTON));
+        layout.addView(defaultOnCheck(context, org.telegram.messenger.RivT.t("Tools button", "زر الأدوات"), org.telegram.messenger.RivT.t("A toolbox button on Chats that opens every Riv tool", "زر صندوق أدوات في المحادثات يفتح كل أدوات Riv"), RivPrefs.TOOLS_BUTTON));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivRangeSelect), LocaleController.getString(R.string.RivRangeSelectInfo), RivPrefs.RANGE_SELECT));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivEditHistory), LocaleController.getString(R.string.RivEditHistoryInfo), RivPrefs.EDIT_HISTORY));
         layout.addView(defaultOnCheck(context, LocaleController.getString(R.string.RivMarkDeleted), LocaleController.getString(R.string.RivMarkDeletedInfo), RivPrefs.MARK_DELETED));
