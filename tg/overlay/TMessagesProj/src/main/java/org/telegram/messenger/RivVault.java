@@ -50,7 +50,67 @@ public class RivVault {
     }
 
     public static boolean isHidden(long dialogId) {
+        if (decoyActive()) return !RivPrefs.inList(DECOY_IDS, dialogId);
         return !revealed && !ids().isEmpty() && ids().contains(dialogId);
+    }
+
+    // ---- decoy view: a second PIN that shows only the chats you picked, nothing else
+    private static final String DECOY_PIN = "decoyPinHash";
+    public static final String DECOY_IDS = "decoyChats";
+    private static final String DECOY_ON = "decoyOn";
+
+    public static boolean decoyActive() {
+        return RivPrefs.b(DECOY_ON, false);
+    }
+
+    public static boolean hasDecoyPin() {
+        return !RivPrefs.s(DECOY_PIN, "").isEmpty();
+    }
+
+    /** False when the new PIN equals the real Vault PIN. */
+    public static boolean setDecoyPin(String pin) {
+        if (hasPin()) {
+            // typing the decoy PIN must never pass through the real PIN on the way
+            for (int n = 1; n <= pin.length(); n++) {
+                if (checkPin(pin.substring(0, n))) return false;
+            }
+        }
+        RivPrefs.set(DECOY_PIN, hash(pin));
+        return true;
+    }
+
+    public static void clearDecoy() {
+        RivPrefs.set(DECOY_PIN, "");
+        RivPrefs.set(DECOY_ON, false);
+    }
+
+    /**
+     * Typing "#" and a PIN into the chat-list search box: your Vault PIN shows or hides the Vault
+     * chats (and leaves the decoy view); your decoy PIN switches to the decoy view.
+     * Returns true when the text was one of the PINs.
+     */
+    public static boolean handleSearchCode(String text) {
+        try {
+            if (text == null || text.length() < 3 || text.charAt(0) != '#') return false;
+            String pin = text.substring(1).trim();
+            if (hasPin() && checkPin(pin)) {
+                if (decoyActive()) {
+                    RivPrefs.set(DECOY_ON, false);
+                    revealed = true;
+                } else {
+                    revealed = !revealed;
+                }
+                return true;
+            }
+            if (hasDecoyPin() && hash(pin).equals(RivPrefs.s(DECOY_PIN, ""))) {
+                RivPrefs.set(DECOY_ON, true);
+                revealed = false;
+                return true;
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        return false;
     }
 
     public static void hide(int account, long dialogId) {
@@ -104,6 +164,14 @@ public class RivVault {
         try {
             if (list == null) {
                 return list;
+            }
+            if (decoyActive()) {
+                ArrayList<TLRPC.Dialog> only = new ArrayList<>();
+                for (int i = 0; i < list.size(); i++) {
+                    TLRPC.Dialog d = list.get(i);
+                    if (d != null && !(d instanceof TLRPC.TL_dialogFolder) && RivPrefs.inList(DECOY_IDS, d.id)) only.add(d);
+                }
+                return only;
             }
             boolean hideVault = !revealed && !ids().isEmpty();
             // Riv Post: "Hide ads" also hides the sponsored "Proxy sponsor" chat Telegram pins on

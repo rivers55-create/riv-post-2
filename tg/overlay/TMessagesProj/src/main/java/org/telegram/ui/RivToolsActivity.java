@@ -42,6 +42,14 @@ public class RivToolsActivity extends RivToolScreen {
         row("Proxy history", "سجل الوكلاء", true, () -> presentFragment(new RivProxyHistoryActivity()));
         row("Connection log", "سجل الاتصال", false, () -> presentFragment(new RivConnLogActivity()));
 
+        addHeader(RivT.t("Privacy and scanning", "الخصوصية والمسح"));
+        row("Privacy & chat extras", "الخصوصية وإضافات المحادثة", true, () -> presentFragment(new RivPrivacyActivity()));
+        row("Mute by keyword", "كتم بالكلمات", true, () -> presentFragment(new RivKeywordMuteActivity()));
+        row("Auto-reply when busy", "رد تلقائي عند الانشغال", true, () -> presentFragment(new RivAutoReplyActivity()));
+        row("Text scanner", "ماسح النصوص", true, () -> presentFragment(new RivScanActivity(RivScanActivity.TEXT)));
+        row("Document scanner (to PDF)", "ماسح المستندات (إلى PDF)", true, () -> presentFragment(new RivScanActivity(RivScanActivity.DOCUMENT)));
+        row("PDF tools", "أدوات PDF", false, () -> presentFragment(new RivPdfToolsActivity()));
+
         addHeader(RivT.t("Look", "المظهر"));
         row("Bottom bar tabs", "تبويبات الشريط السفلي", false, () -> presentFragment(new RivBarEditorActivity()));
         addInfo(RivT.t("Star a message: long-press it in a chat. Tags and chat notes: ⋮ → Riv options → Tags & notes. Call notes: long-press a call in Calls.",

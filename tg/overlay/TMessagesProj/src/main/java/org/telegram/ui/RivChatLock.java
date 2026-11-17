@@ -45,12 +45,45 @@ public final class RivChatLock {
     /** Called from ChatActivity.onPause: the minute of grace starts when you leave the chat. */
     public static void onLeave(long dialogId) {
         if (unlockedAt.containsKey(dialogId)) unlockedAt.put(dialogId, System.currentTimeMillis());
+        org.telegram.messenger.RivLocalExpire.sweep();
+    }
+
+    /** Block screenshots and screen recording in chats that asked for it. */
+    private static void applySecure(ChatActivity chat) {
+        try {
+            Activity a = chat.getParentActivity();
+            if (a == null) return;
+            if (org.telegram.messenger.RivChatFlags.secure(chat.getDialogId())) {
+                a.getWindow().setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE);
+                secureOn = true;
+            } else if (secureOn) {
+                a.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+                secureOn = false;
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static boolean secureOn;
+
+    /** Called when the chat closes for good. */
+    public static void onClose(ChatActivity chat) {
+        try {
+            if (secureOn && chat != null && chat.getParentActivity() != null) {
+                chat.getParentActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+            }
+            secureOn = false;
+        } catch (Throwable ignored) {
+        }
+        org.telegram.messenger.RivFontSize.restore();
     }
 
     /** Called from ChatActivity.onResume. */
     public static void guard(ChatActivity chat) {
         if (chat == null) return;
         long dialogId = chat.getDialogId();
+        applySecure(chat);
+        org.telegram.messenger.RivFontSize.applyFor(dialogId);
         if (!isLocked(dialogId)) return;
         Long at = unlockedAt.get(dialogId);
         if (at != null && System.currentTimeMillis() - at < GRACE_MS) return;

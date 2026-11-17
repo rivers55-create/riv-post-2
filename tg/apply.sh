@@ -824,6 +824,58 @@ edit(CHA,
 """)
 
 print("Riv hooks applied")
+
+# ---------------------------------------------------------------- Build B
+# Local pins (no limit): chats you pin on this phone sort above Telegram's own pins, and show the pin
+edit(MC,
+"""        } else if (!dialog1.pinned && dialog2.pinned) {
+            return 1;
+        } else if (dialog1.pinned && !dialog2.pinned) {""",
+"""        } else if (org.telegram.messenger.RivChatFlags.localPinRank(dialog1.id) != org.telegram.messenger.RivChatFlags.localPinRank(dialog2.id)) {
+            return org.telegram.messenger.RivChatFlags.localPinRank(dialog1.id) > org.telegram.messenger.RivChatFlags.localPinRank(dialog2.id) ? -1 : 1;
+        } else if (!dialog1.pinned && dialog2.pinned) {
+            return 1;
+        } else if (dialog1.pinned && !dialog2.pinned) {""")
+edit(DC,
+"drawPin = currentDialogFolderId == 0 && dialog.pinned;",
+"drawPin = currentDialogFolderId == 0 && (dialog.pinned || org.telegram.messenger.RivChatFlags.localPinRank(dialog.id) >= 0);")
+
+# Link previews off per chat
+edit(CC,
+"hasLinkPreview = !messageObject.isRestrictedMessage && !messageObject.linksHidden &&",
+"hasLinkPreview = !messageObject.isRestrictedMessage && !messageObject.linksHidden && !org.telegram.messenger.RivChatFlags.noPreview(messageObject.getDialogId()) &&")
+
+# Undo send (5 s) and no link preview when sending
+SMH = 'TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java'
+edit(SMH,
+"    public void sendMessage(SendMessageParams sendMessageParams) {\n",
+"    public void sendMessage(SendMessageParams sendMessageParams) {\n        if (org.telegram.messenger.RivSendHook.intercept(this, sendMessageParams)) {\n            return;\n        }\n")
+
+# Mute by keyword: filter before notifications are built
+NC = 'TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java'
+edit(NC,
+"    public void processNewMessages(ArrayList<MessageObject> messageObjects, boolean isLast, boolean isFcm, CountDownLatch countDownLatch) {\n",
+"    public void processNewMessages(ArrayList<MessageObject> messageObjectsIn, boolean isLast, boolean isFcm, CountDownLatch countDownLatch) {\n        final ArrayList<MessageObject> messageObjects = org.telegram.messenger.RivKeywordMute.filter(messageObjectsIn);\n")
+
+# Link safety check before a web link opens
+BR = 'TMessagesProj/src/main/java/org/telegram/messenger/browser/Browser.java'
+edit(BR,
+"boolean keepWebAuthTokens) {\n        if (context == null || uri == null) {\n            return;\n        }\n",
+"boolean keepWebAuthTokens) {\n        if (context == null || uri == null) {\n            return;\n        }\n        if (org.telegram.messenger.RivLinkSafety.guard(context, uri)) {\n            return;\n        }\n")
+
+# Secret codes typed into the chat-list search box: #PIN shows/hides the Vault, #decoy-PIN opens the decoy view
+edit(DA,
+"            public void onTextChanged(EditText editText) {\n                String text = editText.getText().toString();\n",
+"            public void onTextChanged(EditText editText) {\n                String text = editText.getText().toString();\n                if (org.telegram.messenger.RivVault.handleSearchCode(text)) {\n                    editText.setText(\"\");\n                    getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);\n                    return;\n                }\n")
+
+# Text size per chat, and clean-up when a chat closes
+edit(CHA,
+"    public boolean onFragmentCreate() {\n        final long chatId = arguments.getLong(\"chat_id\", 0);\n",
+"    public boolean onFragmentCreate() {\n        org.telegram.messenger.RivFontSize.applyFor(org.telegram.messenger.RivFontSize.idOf(arguments));\n        final long chatId = arguments.getLong(\"chat_id\", 0);\n")
+edit(CHA,
+"    public void onFragmentDestroy() {\n        super.onFragmentDestroy();\n        if (messageMetricsView != null) {",
+"    public void onFragmentDestroy() {\n        super.onFragmentDestroy();\n        org.telegram.ui.RivChatLock.onClose(this);\n        if (messageMetricsView != null) {")
+
 PY
 
 # ---------------------------------------------------------------------------

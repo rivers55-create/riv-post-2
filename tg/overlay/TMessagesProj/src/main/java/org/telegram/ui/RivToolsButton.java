@@ -56,6 +56,19 @@ public class RivToolsButton {
         row(fragment, item, id++, R.drawable.msg_zoomout_stats, "Proxy history", "سجل الوكلاء", RivProxyHistoryActivity::new);
         row(fragment, item, id++, R.drawable.msg_log, "Connection log", "سجل الاتصال", RivConnLogActivity::new);
         item.addGap(GAP_BASE - 3);
+        // privacy, scanners and one hand
+        row(fragment, item, id++, R.drawable.msg_secret, "Privacy & chat extras", "الخصوصية وإضافات المحادثة", RivPrivacyActivity::new);
+        row(fragment, item, id++, R.drawable.msg_mute, "Mute by keyword", "كتم بالكلمات", RivKeywordMuteActivity::new);
+        row(fragment, item, id++, R.drawable.msg_reply_small, "Auto-reply when busy", "رد تلقائي عند الانشغال", RivAutoReplyActivity::new);
+        row(fragment, item, id++, R.drawable.msg_photos, "Text scanner", "ماسح النصوص", () -> new RivScanActivity(RivScanActivity.TEXT));
+        row(fragment, item, id++, R.drawable.msg_openin, "Document scanner", "ماسح المستندات", () -> new RivScanActivity(RivScanActivity.DOCUMENT));
+        row(fragment, item, id++, R.drawable.msg_view_file, "PDF tools", "أدوات PDF", RivPdfToolsActivity::new);
+        ActionBarMenuSubItem oneHand = item.addSubItem(id++, R.drawable.msg_screencast, RivT.t("One-hand mode", "وضع اليد الواحدة"));
+        oneHand.setOnClickListener(v -> {
+            item.toggleSubMenu();
+            RivOneHand.toggle(fragment.getParentActivity());
+        });
+        item.addGap(GAP_BASE - 4);
         row(fragment, item, id++, R.drawable.msg_reorder, "Bottom bar tabs", "تبويبات الشريط السفلي", RivBarEditorActivity::new);
         row(fragment, item, id++, R.drawable.msg_settings, "All Riv settings", "كل إعدادات Riv", RivSettingsActivity::new);
     }
