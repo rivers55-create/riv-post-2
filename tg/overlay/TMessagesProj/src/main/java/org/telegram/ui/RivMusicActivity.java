@@ -98,6 +98,7 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
         getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidReset);
         getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        RivSearchCache.clearRefreshListener(this);
         super.onFragmentDestroy();
     }
 
@@ -178,6 +179,7 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
         miniPlayer = docked.miniPlayer;
 
         refreshList();
+        RivSearchCache.setRefreshListener(this, this::reloadSongs);
         reloadSongs();
         miniPlayer.refresh();
         return fragmentView;
@@ -420,7 +422,12 @@ public class RivMusicActivity extends RivFragment implements NotificationCenter.
             req.q = "";
             req.filter = new TLRPC.TL_inputMessagesFilterMusic();
             req.limit = 100;
-            RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (req.peer == null) {
+                loading--;
+                refreshList();
+                continue;
+            }
+            RivSearchCache.sendInstant(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 loading--;
                 if (response instanceof TLRPC.messages_Messages) {
                     TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;

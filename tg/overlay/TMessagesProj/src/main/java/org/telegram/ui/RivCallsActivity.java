@@ -17,6 +17,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
+import org.telegram.tgnet.RequestDelegate;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -121,8 +122,22 @@ public class RivCallsActivity extends RivFragment {
 
     @Override
     public boolean onFragmentCreate() {
+        // Riv Post: the saved call list shows at once; if a quiet refresh finds changes, start over from the top
+        RivSearchCache.setRefreshListener(this, () -> {
+            rows.clear();
+            oldestMessageId = 0;
+            endReached = false;
+            loading = false;
+            loadCalls(0);
+        });
         loadCalls(0);
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        RivSearchCache.clearRefreshListener(this);
+        super.onFragmentDestroy();
     }
 
     @Override
@@ -224,7 +239,7 @@ public class RivCallsActivity extends RivFragment {
         req.filter = new TLRPC.TL_inputMessagesFilterPhoneCalls();
         req.q = "";
         req.offset_id = maxId;
-        RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+        RequestDelegate callsDelegate = (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             loading = false;
             if (error != null || !(response instanceof TLRPC.messages_Messages)) {
                 endReached = true;
@@ -270,7 +285,9 @@ public class RivCallsActivity extends RivFragment {
             refreshStats();
             if (adapter != null) adapter.notifyDataSetChanged();
             if (emptyLabel != null) emptyLabel.setVisibility(rows.isEmpty() && endReached ? View.VISIBLE : View.GONE);
-        }));
+        });
+        if (maxId == 0) RivSearchCache.sendInstant(currentAccount, req, callsDelegate);
+        else RivSearchCache.send(currentAccount, req, callsDelegate);
     }
 
     // Riv Post: same math as the old Riv Post app's Talk Time header -- sum call durations

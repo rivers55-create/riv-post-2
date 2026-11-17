@@ -68,10 +68,12 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
     private final List<Shelf> shelves = new ArrayList<>();
 
     private static class Shelf {
+        String id;
         String title;
         List<MessageObject> items;
 
-        Shelf(String title, List<MessageObject> items) {
+        Shelf(String id, String title, List<MessageObject> items) {
+            this.id = id;
             this.title = title;
             this.items = items;
         }
@@ -149,6 +151,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
         getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingPlayStateChanged);
         getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingDidReset);
         getNotificationCenter().removeObserver(this, org.telegram.messenger.NotificationCenter.messagePlayingProgressDidChanged);
+        RivSearchCache.clearRefreshListener(this);
         super.onFragmentDestroy();
     }
 
@@ -200,6 +203,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
         miniPlayer = docked.miniPlayer;
 
         rebuildShelves();
+        RivSearchCache.setRefreshListener(this, this::reloadVideos);
         reloadVideos();
         return fragmentView;
     }
@@ -405,7 +409,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             rebuildShelves();
             return;
         }
-        RivSearchCache.send(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+        RivSearchCache.sendInstant(currentAccount, req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             loading--;
             if (error != null) {
                 android.util.Log.d("RivVideos", "search failed for " + dialogId + ": " + error.text);
@@ -447,7 +451,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             if (RivMeta.position(ApplicationLoaderContext(), keyOf(m)) > 5000) continueWatching.add(m);
         }
         if (!continueWatching.isEmpty()) {
-            shelves.add(new Shelf(LocaleController.getString(R.string.RivContinueWatching), continueWatching));
+            shelves.add(new Shelf("continue", LocaleController.getString(R.string.RivContinueWatching), continueWatching));
         }
 
         List<MessageObject> myList = new ArrayList<>();
@@ -455,7 +459,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             if (RivMeta.inMyList(keyOf(m))) myList.add(m);
         }
         if (!myList.isEmpty()) {
-            shelves.add(new Shelf(LocaleController.getString(R.string.RivMyList), myList));
+            shelves.add(new Shelf("mylist", LocaleController.getString(R.string.RivMyList), myList));
         }
 
         // Riv Post: one shelf per series (episodes of the same show, in season/episode order)
@@ -490,7 +494,7 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
                     if (seen.add(x.season + "x" + x.episode)) uniq.add(m);
                 }
                 inSeries.addAll(eps);
-                shelves.add(new Shelf(LocaleController.formatString(R.string.RivSeriesShelf, cts.get(eps.get(0)).title, uniq.size()), uniq));
+                shelves.add(new Shelf("s:" + cts.get(eps.get(0)).title.trim().toLowerCase(java.util.Locale.ROOT), LocaleController.formatString(R.string.RivSeriesShelf, cts.get(eps.get(0)).title, uniq.size()), uniq));
             }
         }
 
@@ -508,11 +512,151 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
         }
         for (Map.Entry<Long, List<MessageObject>> e : byChat.entrySet()) {
             if (!e.getValue().isEmpty()) {
-                shelves.add(new Shelf(titleOf(e.getKey()), e.getValue()));
+                shelves.add(new Shelf("c:" + e.getKey(), titleOf(e.getKey()), e.getValue()));
             }
         }
 
+        applySavedOrder();
         if (adapter != null) adapter.notifyDataSetChanged();
+    }
+
+    // ---------------------------------------------------------------- row order (user chosen)
+
+    private static List<String> savedOrder() {
+        List<String> out = new ArrayList<>();
+        String s = RivPrefs.s(RivPrefs.VIDEO_ROW_ORDER, "");
+        if (s != null && !s.isEmpty()) {
+            for (String p : s.split("\\|")) {
+                if (!p.isEmpty()) out.add(p);
+            }
+        }
+        return out;
+    }
+
+    /** Rows the user placed come first, in their order; any other row keeps its usual place after them. */
+    private void applySavedOrder() {
+        final List<String> order = savedOrder();
+        if (order.isEmpty() || shelves.size() < 2) return;
+        Collections.sort(shelves, (a, b) -> {
+            int x = order.indexOf(a.id), y = order.indexOf(b.id);
+            if (x < 0) x = Integer.MAX_VALUE;
+            if (y < 0) y = Integer.MAX_VALUE;
+            return Integer.compare(x, y); // stable sort: unplaced rows keep their relative order
+        });
+    }
+
+    private void showReorderDialog() {
+        if (getParentActivity() == null) return;
+        final Context context = getParentActivity();
+        final ArrayList<Shelf> working = new ArrayList<>(shelves);
+
+        LinearLayout box = new LinearLayout(context);
+        box.setOrientation(LinearLayout.VERTICAL);
+
+        TextView hint = new TextView(context);
+        hint.setText(LocaleController.getString(R.string.RivReorderHint));
+        hint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        hint.setTextSize(13);
+        hint.setPadding(AndroidUtilities.dp(22), AndroidUtilities.dp(4), AndroidUtilities.dp(22), AndroidUtilities.dp(8));
+        box.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        final RecyclerListView list = new RecyclerListView(context);
+        list.setLayoutManager(new LinearLayoutManager(context));
+        box.addView(list, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 340));
+
+        final androidx.recyclerview.widget.ItemTouchHelper[] helperRef = new androidx.recyclerview.widget.ItemTouchHelper[1];
+        final RecyclerListView.SelectionAdapter reorderAdapter = new RecyclerListView.SelectionAdapter() {
+            @Override
+            public int getItemCount() {
+                return working.size();
+            }
+
+            @Override
+            public boolean isEnabled(RecyclerView.ViewHolder holder) {
+                return false;
+            }
+
+            @NonNull
+            @Override
+            public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                LinearLayout row = new LinearLayout(context);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(AndroidUtilities.dp(18), 0, AndroidUtilities.dp(8), 0);
+                row.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, AndroidUtilities.dp(52)));
+                TextView name = new TextView(context);
+                name.setTag("name");
+                name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+                name.setTextSize(16);
+                name.setSingleLine(true);
+                name.setEllipsize(TextUtils.TruncateAt.END);
+                row.addView(name, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
+                TextView handle = new TextView(context);
+                handle.setTag("handle");
+                handle.setText("≡");
+                handle.setTextSize(26);
+                handle.setGravity(Gravity.CENTER);
+                handle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+                row.addView(handle, LayoutHelper.createLinear(52, 52));
+                return new RecyclerListView.Holder(row);
+            }
+
+            @SuppressWarnings("ClickableViewAccessibility")
+            @Override
+            public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                TextView name = holder.itemView.findViewWithTag("name");
+                View handle = holder.itemView.findViewWithTag("handle");
+                name.setText(working.get(position).title);
+                handle.setOnTouchListener((v, ev) -> {
+                    if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN && helperRef[0] != null) {
+                        helperRef[0].startDrag(holder);
+                    }
+                    return false;
+                });
+            }
+        };
+        list.setAdapter(reorderAdapter);
+
+        helperRef[0] = new androidx.recyclerview.widget.ItemTouchHelper(new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+                androidx.recyclerview.widget.ItemTouchHelper.UP | androidx.recyclerview.widget.ItemTouchHelper.DOWN, 0) {
+            @Override
+            public boolean isLongPressDragEnabled() {
+                return false;
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView rv, @NonNull RecyclerView.ViewHolder from, @NonNull RecyclerView.ViewHolder to) {
+                int a = from.getAdapterPosition(), b = to.getAdapterPosition();
+                if (a < 0 || b < 0) return false;
+                Collections.swap(working, a, b);
+                reorderAdapter.notifyItemMoved(a, b);
+                return true;
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+            }
+        });
+        helperRef[0].attachToRecyclerView(list);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(LocaleController.getString(R.string.RivReorderRows));
+        builder.setView(box);
+        builder.setPositiveButton(LocaleController.getString(R.string.Done), (d, w) -> {
+            StringBuilder sb = new StringBuilder();
+            for (Shelf s : working) {
+                if (sb.length() > 0) sb.append('|');
+                sb.append(s.id);
+            }
+            RivPrefs.set(RivPrefs.VIDEO_ROW_ORDER, sb.toString());
+            rebuildShelves();
+        });
+        builder.setNeutralButton(LocaleController.getString(R.string.RivReorderReset), (d, w) -> {
+            RivPrefs.set(RivPrefs.VIDEO_ROW_ORDER, "");
+            rebuildShelves();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     private Context ApplicationLoaderContext() {
@@ -703,6 +847,15 @@ public class RivVideosActivity extends RivFragment implements org.telegram.messe
             sourcesBtn.setBackground(roundBg(0x66000000, 16));
             addView(sourcesBtn, LayoutHelper.createFrame(34, 34, Gravity.TOP | Gravity.RIGHT, 0, 12, 12, 0));
             sourcesBtn.setOnClickListener(v -> pickSource());
+
+            TextView reorderBtn = new TextView(context);
+            reorderBtn.setText("⇅");
+            reorderBtn.setTextColor(Color.WHITE);
+            reorderBtn.setTextSize(16);
+            reorderBtn.setGravity(Gravity.CENTER);
+            reorderBtn.setBackground(roundBg(0x66000000, 16));
+            addView(reorderBtn, LayoutHelper.createFrame(34, 34, Gravity.TOP | Gravity.RIGHT, 0, 12, 54, 0));
+            reorderBtn.setOnClickListener(v -> showReorderDialog());
         }
 
         void bind(MessageObject m) {

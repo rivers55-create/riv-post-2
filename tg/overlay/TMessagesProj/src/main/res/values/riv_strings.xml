@@ -25,6 +25,9 @@
     <string name="RivVideosAddSource">Add a chat or channel</string>
     <string name="RivVideosRemoveSource">Remove this chat from your video sources? The videos stay in the chat.</string>
     <string name="RivVideosSourcesInfo">Videos from these chats make up your library. Tap a chat to remove it.</string>
+    <string name="RivReorderRows">Reorder rows</string>
+    <string name="RivReorderHint">Hold ≡ and drag a row up or down. Rows you have not moved stay at the bottom.</string>
+    <string name="RivReorderReset">Reset</string>
     <string name="RivVideosLoading">Loading videos…</string>
     <string name="RivVideosEmpty">No videos found in the chosen chats yet.</string>
     <string name="RivLibrariesInfo">Pick chats and channels inside each library; their songs and videos appear there.</string>

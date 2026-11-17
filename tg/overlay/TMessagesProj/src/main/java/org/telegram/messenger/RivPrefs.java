@@ -30,6 +30,7 @@ public class RivPrefs {
     public static final String FAV_SONGS = "favSongs";           // comma list of "acc_dialogId_msgId" keys
     public static final String HIDDEN_SONGS = "hiddenSongs";     // comma list of "acc_dialogId_msgId" keys
     public static final String MUSIC_SELECTED_CHATS = "musicSelectedChats"; // comma list of dialog ids, subset of musicSources
+    public static final String VIDEO_ROW_ORDER = "videoRowOrder";           // "|" separated shelf ids, the order the user chose
     public static final String VIDEO_SELECTED_CHATS = "videoSelectedChats"; // comma list of dialog ids, subset of videoSources
     public static final String HIDE_SOURCE_PREVIEW_BUTTON = "hideSourcePreviewButton"; // hide the floating play button on the chat-picker screen
     public static final String IN_CHAT_PLAYER_RTP_STYLE = "inChatPlayerRtpStyle"; // style the in-chat music bar like RTP instead of stock Telegram
